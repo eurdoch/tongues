@@ -26,42 +26,6 @@ function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
   const [selectedText, setSelectedText] = useState<string>('');
   const [showSelectionModal, setShowSelectionModal] = useState(false);
 
-  // JavaScript to inject for handling text selection
-  const injectedJavaScript = `
-    let selectionInProgress = false;
-    let touchTimeout;
-
-    document.addEventListener('touchstart', () => {
-      selectionInProgress = true;
-      // Clear any existing timeout
-      if (touchTimeout) clearTimeout(touchTimeout);
-    });
-
-    document.addEventListener('touchend', () => {
-      // Set a small timeout to let the selection finish
-      touchTimeout = setTimeout(() => {
-        if (selectionInProgress) {
-          const selection = window.getSelection();
-          const selectedText = selection ? selection.toString() : '';
-          if (selectedText) {
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'selection',
-              text: selectedText
-            }));
-          }
-          selectionInProgress = false;
-        }
-      }, 200);
-    });
-
-    // Enable text selection
-    document.documentElement.style.webkitUserSelect = 'text';
-    document.documentElement.style.userSelect = 'text';
-
-    true;
-  `;
-
-  // Create a complete HTML document with CSS and selection handling
   const htmlContent = `
     <!DOCTYPE html>
     <html>
@@ -77,23 +41,96 @@ function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
             color: #000;
             -webkit-user-select: text;
             user-select: text;
+            -webkit-touch-callout: none !important;
+            touch-callout: none !important;
+            -webkit-tap-highlight-color: transparent;
           }
+          
+          * {
+            -webkit-touch-callout: none !important;
+            touch-callout: none !important;
+            -webkit-tap-highlight-color: transparent;
+          }
+
+          #content-container {
+            -webkit-user-select: text;
+            user-select: text;
+          }
+          
           ::selection {
             background: rgba(0, 125, 255, 0.2);
-          }
-          * {
-            -webkit-touch-callout: default;
           }
           ${cssContent || ''}
         </style>
       </head>
       <body>
-        ${content}
+        <div id="content-container">${content}</div>
       </body>
     </html>
   `;
 
+  const injectedJavaScript = `
+    let lastSelection = '';
+    let selectionTimer = null;
+
+    // Watch for selection changes
+    document.addEventListener('selectionchange', () => {
+      // Clear any existing timer
+      if (selectionTimer) {
+        clearTimeout(selectionTimer);
+      }
+
+      // Start a new timer
+      selectionTimer = setTimeout(() => {
+        const selection = window.getSelection();
+        const currentSelection = selection ? selection.toString().trim() : '';
+
+        // Only fire events if selection has changed
+        if (currentSelection !== lastSelection) {
+          lastSelection = currentSelection;
+          
+          // First send touchend
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'touchend',
+            text: ''
+          }));
+
+          // Then, if there's selected text, send it
+          if (currentSelection) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'selection',
+              text: currentSelection
+            }));
+          }
+        }
+      }, 300);  // Wait for selection to stabilize
+    });
+
+    // Handle regular taps
+    document.addEventListener('touchend', (e) => {
+      const selection = window.getSelection();
+      const currentSelection = selection ? selection.toString().trim() : '';
+      
+      // Only send touchend for non-selection touches
+      if (!currentSelection) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'touchend',
+          text: ''
+        }));
+      }
+    }, false);
+
+    // Enable text selection
+    document.documentElement.style.webkitUserSelect = 'text';
+    document.documentElement.style.userSelect = 'text';
+    document.body.style.webkitUserSelect = 'text';
+    document.body.style.userSelect = 'text';
+
+    true;
+`;
+   
   const handleMessage = (event: any) => {
+    console.log(event);
     try {
       const data = JSON.parse(event.nativeEvent.data);
       if (data.type === 'selection' && data.text.trim()) {
@@ -128,6 +165,7 @@ function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
         domStorageEnabled={true}
         javaScriptEnabled={true}
         mixedContentMode="always"
+        scalesPageToFit={false}
       />
 
       <Modal
