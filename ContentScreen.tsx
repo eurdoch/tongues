@@ -2,38 +2,57 @@ import React from 'react';
 import {
   ScrollView,
   StyleSheet,
-  Text,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import WebView from 'react-native-webview';
 
 type ContentScreenProps = {
   route: {
     params: {
       content: string;
       title: string;
+      cssContent?: string;
     };
   };
 };
 
 function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
-  const { content, title } = route.params;
+  const { content, title, cssContent } = route.params;
 
-  // Basic HTML to text conversion
-  const cleanContent = content
-    .replace(/<[^>]*>/g, '') // Remove HTML tags
-    .replace(/&nbsp;/g, ' ') // Replace &nbsp; with space
-    .replace(/&amp;/g, '&') // Replace &amp; with &
-    .replace(/&lt;/g, '<') // Replace &lt; with <
-    .replace(/&gt;/g, '>') // Replace &gt; with >
-    .replace(/\n\s*\n/g, '\n\n') // Remove excessive newlines
-    .trim();
+  // Create a complete HTML document with CSS
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+        <style>
+          body {
+            font-family: system-ui;
+            line-height: 1.5;
+            padding: 16px;
+            margin: 0;
+            font-size: 16px;
+            color: #000;
+          }
+          ${cssContent || ''}
+        </style>
+      </head>
+      <body>
+        ${content}
+      </body>
+    </html>
+  `;
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView}>
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.content}>{cleanContent}</Text>
-      </ScrollView>
+      <WebView
+        style={styles.webview}
+        source={{ html: htmlContent }}
+        originWhitelist={['*']}
+        showsVerticalScrollIndicator={true}
+        scrollEnabled={true}
+      />
     </SafeAreaView>
   );
 }
@@ -43,17 +62,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  scrollView: {
-    padding: 16,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 16,
-  },
-  content: {
-    fontSize: 16,
-    lineHeight: 24,
+  webview: {
+    flex: 1,
+    width: Dimensions.get('window').width,
   },
 });
 

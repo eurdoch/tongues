@@ -22,9 +22,14 @@ interface TOCItem {
   path: string;
 }
 
+interface StyleSheet {
+  path: string;
+  content: string;
+}
+
 type RootStackParamList = {
   Home: undefined;
-  Content: { content: string; title: string };
+  Content: { content: string; title: string; cssContent?: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -32,18 +37,59 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 function HomeScreen({ navigation }: any): React.JSX.Element {
   const [tableOfContents, setTableOfContents] = useState<TOCItem[]>([]);
   const [epubBasePath, setEpubBasePath] = useState<string>('');
+  const [styleSheets, setStyleSheets] = useState<StyleSheet[]>([]);
+
+  const findStyleSheets = async (opfPath: string, manifestItems: { [key: string]: string }) => {
+    const stylesheets: StyleSheet[] = [];
+    const basePath = opfPath.substring(0, opfPath.lastIndexOf('/'));
+
+    // Find CSS files from manifest
+    for (const [id, href] of Object.entries(manifestItems)) {
+      if (href.endsWith('.css') || 
+          (href.includes('.') && manifestItems[id].includes('text/css'))) {
+        const cssPath = `${basePath}/${href}`;
+        try {
+          const content = await RNFS.readFile(cssPath, 'utf8');
+          stylesheets.push({ path: cssPath, content });
+          console.log('Found stylesheet:', href);
+        } catch (error) {
+          console.error('Error reading CSS file:', error);
+        }
+      }
+    }
+
+    // Also look for inline styles in content files
+    for (const href of Object.values(manifestItems)) {
+      if (href.endsWith('.xhtml') || href.endsWith('.html') || href.endsWith('.htm')) {
+        const htmlPath = `${basePath}/${href}`;
+        try {
+          const content = await RNFS.readFile(htmlPath, 'utf8');
+          const styleMatches = content.match(/<style[^>]*>([\s\S]*?)<\/style>/g);
+          if (styleMatches) {
+            styleMatches.forEach(match => {
+              const styleContent = match.replace(/<style[^>]*>|<\/style>/g, '');
+              stylesheets.push({ path: htmlPath, content: styleContent });
+              console.log('Found inline style in:', href);
+            });
+          }
+        } catch (error) {
+          console.error('Error checking for inline styles:', error);
+        }
+      }
+    }
+
+    return stylesheets;
+  };
 
   const extractTitle = async (filePath: string): Promise<string> => {
     try {
       const content = await RNFS.readFile(filePath, 'utf8');
       
-      // Try to get the title from the HTML title tag first
       let titleMatch = content.match(/<title[^>]*>([^<]+)<\/title>/i);
       if (titleMatch && titleMatch[1].trim()) {
         return titleMatch[1].trim();
       }
       
-      // If no title tag, try to find first heading or significant content
       titleMatch = content.match(/<h1[^>]*>([^<]+)<\/h1>/i) ||
                   content.match(/<h2[^>]*>([^<]+)<\/h2>/i) ||
                   content.match(/<div[^>]*class="[^"]*title[^"]*"[^>]*>([^<]+)<\/div>/i);
@@ -52,7 +98,6 @@ function HomeScreen({ navigation }: any): React.JSX.Element {
         return titleMatch[1].trim();
       }
       
-      // Remove HTML tags and try to get first meaningful text
       const textContent = content.replace(/<[^>]+>/g, ' ')
                                 .replace(/\s+/g, ' ')
                                 .trim();
@@ -61,7 +106,6 @@ function HomeScreen({ navigation }: any): React.JSX.Element {
         return firstLine;
       }
       
-      // If all else fails, return the filename
       return filePath.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'Untitled';
     } catch (error) {
       console.error('Error reading file for title:', error);
@@ -74,18 +118,14 @@ function HomeScreen({ navigation }: any): React.JSX.Element {
       console.log('Reading OPF file from path:', opfPath);
       const content = await RNFS.readFile(opfPath, 'utf8');
       
-      // First, extract just the manifest section to work with
       const manifestSection = content.match(/<manifest[^>]*>([\s\S]*?)<\/manifest>/);
       if (!manifestSection) {
         console.error('No manifest section found');
         return [];
       }
 
-      // Parse manifest items
       const manifestItems: { [key: string]: string } = {};
       const manifestContent = manifestSection[1];
-      
-      // Use a simpler regex to match item elements
       const itemMatches = manifestContent.match(/<item[^>]+>/g) || [];
       
       console.log('\nParsing manifest items...');
@@ -101,23 +141,23 @@ function HomeScreen({ navigation }: any): React.JSX.Element {
         }
       });
 
-      console.log('\nTotal manifest items:', Object.keys(manifestItems).length);
+      // Find and store stylesheets
+      const sheets = await findStyleSheets(opfPath, manifestItems);
+      setStyleSheets(sheets);
+      console.log('Found', sheets.length, 'stylesheets');
 
-      // Extract spine section
       const spineSection = content.match(/<spine[^>]*>([\s\S]*?)<\/spine>/);
       if (!spineSection) {
         console.error('No spine section found');
         return [];
       }
 
-      // Parse spine items
       const tocItems: TOCItem[] = [];
       const spineContent = spineSection[1];
       const spineMatches = spineContent.match(/<itemref[^>]+>/g) || [];
 
       console.log('\nParsing spine items...');
       
-      // Use Promise.all to process all items in parallel
       const tocPromises = spineMatches.map(async (item) => {
         const idrefMatch = item.match(/idref="([^"]+)"/);
         if (idrefMatch && manifestItems[idrefMatch[1]]) {
@@ -125,7 +165,6 @@ function HomeScreen({ navigation }: any): React.JSX.Element {
           const href = manifestItems[id];
           const fullPath = `${opfPath.substring(0, opfPath.lastIndexOf('/'))}/${href}`;
           
-          // Extract title from the content file
           const title = await extractTitle(fullPath);
           
           return {
@@ -151,7 +190,6 @@ function HomeScreen({ navigation }: any): React.JSX.Element {
   const selectAndReadEpub = async () => {
     let tempDir = '';
     try {
-      // Select the EPUB file
       const result = await DocumentPicker.pick({
         type: ['application/epub+zip'],
         copyTo: 'cachesDirectory',
@@ -168,23 +206,19 @@ function HomeScreen({ navigation }: any): React.JSX.Element {
         throw new Error('Failed to get local file path');
       }
 
-      // Create a temporary directory for unzipping
       tempDir = `${RNFS.CachesDirectoryPath}/epubtemp_${Date.now()}`;
       await RNFS.mkdir(tempDir);
       console.log('Created temp directory:', tempDir);
       
-      // Get the correct file path and unzip
       const sourceFilePath = decodeURIComponent(file.fileCopyUri.replace('file://', ''));
       console.log('Unzipping from:', sourceFilePath);
       const unzipPath = await ZipArchive.unzip(sourceFilePath, tempDir);
       console.log('Successfully unzipped to:', unzipPath);
 
-      // Read container.xml
       const containerXmlPath = `${unzipPath}/META-INF/container.xml`;
       console.log('Reading container.xml from:', containerXmlPath);
       const containerXml = await RNFS.readFile(containerXmlPath, 'utf8');
       
-      // Get root file path
       const rootFileMatch = containerXml.match(/full-path="([^"]*)"/)
       if (!rootFileMatch) {
         throw new Error('Could not find root file path in container.xml');
@@ -195,7 +229,6 @@ function HomeScreen({ navigation }: any): React.JSX.Element {
       const fullRootPath = `${unzipPath}/${rootFilePath}`;
       console.log('Full root path:', fullRootPath);
 
-      // Parse content.opf and create table of contents
       const toc = await readContentOpf(fullRootPath);
       console.log('Setting table of contents:', toc);
       setTableOfContents(toc);
@@ -216,9 +249,12 @@ function HomeScreen({ navigation }: any): React.JSX.Element {
   const handleTocItemPress = async (item: TOCItem) => {
     try {
       const content = await RNFS.readFile(item.path, 'utf8');
+      const combinedCss = styleSheets.map(sheet => sheet.content).join('\n');
+      
       navigation.navigate('Content', {
         content,
         title: item.label,
+        cssContent: combinedCss,
       });
     } catch (error) {
       console.error('Error reading content:', error);
