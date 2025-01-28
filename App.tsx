@@ -1,16 +1,104 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   SafeAreaView,
   StyleSheet,
   Button,
   View,
   Alert,
+  ScrollView,
+  Text,
+  TouchableOpacity,
 } from 'react-native';
 import DocumentPicker from 'react-native-document-picker';
 import RNFS from 'react-native-fs';
 import * as ZipArchive from 'react-native-zip-archive';
 
+interface TOCItem {
+  label: string;
+  href: string;
+  path: string;
+}
+
 function App(): React.JSX.Element {
+  const [tableOfContents, setTableOfContents] = useState<TOCItem[]>([]);
+  const [epubBasePath, setEpubBasePath] = useState<string>('');
+
+  const readContentOpf = async (opfPath: string) => {
+    try {
+      console.log('Reading OPF file from path:', opfPath);
+      const content = await RNFS.readFile(opfPath, 'utf8');
+      
+      // First, extract just the manifest section to work with
+      const manifestSection = content.match(/<manifest[^>]*>([\s\S]*?)<\/manifest>/);
+      if (!manifestSection) {
+        console.error('No manifest section found');
+        return [];
+      }
+
+      // Parse manifest items
+      const manifestItems: { [key: string]: string } = {};
+      const manifestContent = manifestSection[1];
+      
+      // Use a simpler regex to match item elements
+      const itemMatches = manifestContent.match(/<item[^>]+>/g) || [];
+      
+      console.log('\nParsing manifest items...');
+      itemMatches.forEach(item => {
+        const idMatch = item.match(/id="([^"]+)"/);
+        const hrefMatch = item.match(/href="([^"]+)"/);
+        
+        if (idMatch && hrefMatch) {
+          const id = idMatch[1];
+          const href = hrefMatch[1];
+          manifestItems[id] = href;
+          console.log('Found manifest item:', { id, href });
+        }
+      });
+
+      console.log('\nTotal manifest items:', Object.keys(manifestItems).length);
+
+      // Extract spine section
+      const spineSection = content.match(/<spine[^>]*>([\s\S]*?)<\/spine>/);
+      if (!spineSection) {
+        console.error('No spine section found');
+        return [];
+      }
+
+      // Parse spine items
+      const tocItems: TOCItem[] = [];
+      const spineContent = spineSection[1];
+      const spineMatches = spineContent.match(/<itemref[^>]+>/g) || [];
+
+      console.log('\nParsing spine items...');
+      spineMatches.forEach(item => {
+        const idrefMatch = item.match(/idref="([^"]+)"/);
+        if (idrefMatch) {
+          const id = idrefMatch[1];
+          if (manifestItems[id]) {
+            const href = manifestItems[id];
+            const label = href.split('/').pop()?.replace(/\.[^/.]+$/, '') || id;
+            const fullPath = `${opfPath.substring(0, opfPath.lastIndexOf('/'))}/${href}`;
+            
+            tocItems.push({
+              label,
+              href,
+              path: fullPath,
+            });
+            console.log('Added TOC item:', { label, href, path: fullPath });
+          } else {
+            console.log('No manifest item found for spine id:', id);
+          }
+        }
+      });
+
+      console.log(`\nFinal TOC items: ${tocItems.length}`);
+      return tocItems;
+    } catch (error) {
+      console.error('Error reading content.opf:', error);
+      return [];
+    }
+  };
+
   const selectAndReadEpub = async () => {
     let tempDir = '';
     try {
@@ -22,19 +110,10 @@ function App(): React.JSX.Element {
 
       const file = result[0];
       
-      // Verify file extension
       if (!file.name?.toLowerCase().endsWith('.epub')) {
         Alert.alert('Invalid File', 'Please select an EPUB file');
         return;
       }
-
-      console.log('Selected EPUB file:', {
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        uri: file.uri,
-        fileCopyUri: file.fileCopyUri,
-      });
 
       if (!file.fileCopyUri) {
         throw new Error('Failed to get local file path');
@@ -43,63 +122,56 @@ function App(): React.JSX.Element {
       // Create a temporary directory for unzipping
       tempDir = `${RNFS.CachesDirectoryPath}/epubtemp_${Date.now()}`;
       await RNFS.mkdir(tempDir);
+      console.log('Created temp directory:', tempDir);
       
-      try {
-        // Get the correct file path
-        const sourceFilePath = decodeURIComponent(file.fileCopyUri.replace('file://', ''));
-        console.log('Attempting to unzip from:', sourceFilePath);
-        console.log('Unzipping to:', tempDir);
+      // Get the correct file path and unzip
+      const sourceFilePath = decodeURIComponent(file.fileCopyUri.replace('file://', ''));
+      console.log('Unzipping from:', sourceFilePath);
+      const unzipPath = await ZipArchive.unzip(sourceFilePath, tempDir);
+      console.log('Successfully unzipped to:', unzipPath);
 
-        // Unzip the EPUB
-        const unzipPath = await ZipArchive.unzip(sourceFilePath, tempDir);
-        console.log('Successfully unzipped to:', unzipPath);
-        
-        // Recursively read and log all files
-        const readAllFiles = async (dirPath: string) => {
-          const items = await RNFS.readDir(dirPath);
-          for (const item of items) {
-            if (item.isFile()) {
-              // Read and log file content
-              console.log(`\nFile: ${item.name}`);
-              try {
-                const content = await RNFS.readFile(item.path, 'utf8');
-                console.log(`Content: ${content.substring(0, 1000)}...`); // Only show first 1000 chars
-              } catch (readError) {
-                console.log('Could not read file as text:', item.name);
-              }
-            } else if (item.isDirectory()) {
-              // Recursively read subdirectories
-              console.log(`\nEntering directory: ${item.name}`);
-              await readAllFiles(item.path);
-            }
-          }
-        };
-
-        await readAllFiles(unzipPath);
-        console.log('Finished reading all files');
-        
-      } catch (error) {
-        console.error('Error processing EPUB:', error);
-        Alert.alert('Error', 'Failed to process EPUB file');
+      // Read container.xml
+      const containerXmlPath = `${unzipPath}/META-INF/container.xml`;
+      console.log('Reading container.xml from:', containerXmlPath);
+      const containerXml = await RNFS.readFile(containerXmlPath, 'utf8');
+      
+      // Get root file path
+      const rootFileMatch = containerXml.match(/full-path="([^"]*)"/)
+      if (!rootFileMatch) {
+        throw new Error('Could not find root file path in container.xml');
       }
+      const rootFilePath = rootFileMatch[1];
+      console.log('Found root file path:', rootFilePath);
+
+      const fullRootPath = `${unzipPath}/${rootFilePath}`;
+      console.log('Full root path:', fullRootPath);
+
+      // Parse content.opf and create table of contents
+      const toc = await readContentOpf(fullRootPath);
+      console.log('Setting table of contents:', toc);
+      setTableOfContents(toc);
+      setEpubBasePath(unzipPath);
+      
+      console.log('Process completed. TOC items:', toc.length);
       
     } catch (err) {
       if (DocumentPicker.isCancel(err)) {
         console.log('User cancelled the picker');
       } else {
-        console.error('Error picking file:', err);
-        Alert.alert('Error', 'Failed to select file');
+        console.error('Error processing EPUB:', err);
+        Alert.alert('Error', 'Failed to process EPUB file');
       }
-    } finally {
-      // Clean up in finally block to ensure it runs
-      if (tempDir) {
-        try {
-          await RNFS.unlink(tempDir);
-          console.log('Cleanup completed');
-        } catch (cleanupError) {
-          console.error('Cleanup failed:', cleanupError);
-        }
-      }
+    }
+  };
+
+  const handleTocItemPress = async (item: TOCItem) => {
+    try {
+      console.log(`\n--- ${item.label} ---`);
+      const content = await RNFS.readFile(item.path, 'utf8');
+      console.log(content);
+    } catch (error) {
+      console.error('Error reading content:', error);
+      Alert.alert('Error', 'Failed to read content');
     }
   };
 
@@ -111,6 +183,25 @@ function App(): React.JSX.Element {
           onPress={selectAndReadEpub}
         />
       </View>
+      
+      {tableOfContents.length > 0 ? (
+        <ScrollView style={styles.tocContainer}>
+          <Text style={styles.tocHeader}>Table of Contents ({tableOfContents.length} items)</Text>
+          {tableOfContents.map((item, index) => (
+            <TouchableOpacity
+              key={index}
+              style={styles.tocItem}
+              onPress={() => handleTocItemPress(item)}
+            >
+              <Text style={styles.tocText}>{item.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      ) : (
+        <View style={styles.noContentContainer}>
+          <Text style={styles.noContentText}>No content loaded</Text>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -118,11 +209,38 @@ function App(): React.JSX.Element {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#fff',
   },
   buttonContainer: {
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ccc',
+  },
+  tocContainer: {
+    flex: 1,
+    padding: 10,
+  },
+  tocHeader: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  tocItem: {
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ccc',
+  },
+  tocText: {
+    fontSize: 16,
+  },
+  noContentContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  noContentText: {
+    fontSize: 16,
+    color: '#666',
   },
 });
 
