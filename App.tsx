@@ -23,6 +23,42 @@ function App(): React.JSX.Element {
   const [tableOfContents, setTableOfContents] = useState<TOCItem[]>([]);
   const [epubBasePath, setEpubBasePath] = useState<string>('');
 
+  const extractTitle = async (filePath: string): Promise<string> => {
+    try {
+      const content = await RNFS.readFile(filePath, 'utf8');
+      
+      // Try to get the title from the HTML title tag first
+      let titleMatch = content.match(/<title[^>]*>([^<]+)<\/title>/i);
+      if (titleMatch && titleMatch[1].trim()) {
+        return titleMatch[1].trim();
+      }
+      
+      // If no title tag, try to find first heading or significant content
+      titleMatch = content.match(/<h1[^>]*>([^<]+)<\/h1>/i) ||
+                  content.match(/<h2[^>]*>([^<]+)<\/h2>/i) ||
+                  content.match(/<div[^>]*class="[^"]*title[^"]*"[^>]*>([^<]+)<\/div>/i);
+      
+      if (titleMatch && titleMatch[1].trim()) {
+        return titleMatch[1].trim();
+      }
+      
+      // Remove HTML tags and try to get first meaningful text
+      const textContent = content.replace(/<[^>]+>/g, ' ')
+                                .replace(/\s+/g, ' ')
+                                .trim();
+      const firstLine = textContent.split('.')[0].trim();
+      if (firstLine.length > 0 && firstLine.length < 100) {
+        return firstLine;
+      }
+      
+      // If all else fails, return the filename
+      return filePath.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'Untitled';
+    } catch (error) {
+      console.error('Error reading file for title:', error);
+      return filePath.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'Untitled';
+    }
+  };
+
   const readContentOpf = async (opfPath: string) => {
     try {
       console.log('Reading OPF file from path:', opfPath);
@@ -70,26 +106,29 @@ function App(): React.JSX.Element {
       const spineMatches = spineContent.match(/<itemref[^>]+>/g) || [];
 
       console.log('\nParsing spine items...');
-      spineMatches.forEach(item => {
+      
+      // Use Promise.all to process all items in parallel
+      const tocPromises = spineMatches.map(async (item) => {
         const idrefMatch = item.match(/idref="([^"]+)"/);
-        if (idrefMatch) {
+        if (idrefMatch && manifestItems[idrefMatch[1]]) {
           const id = idrefMatch[1];
-          if (manifestItems[id]) {
-            const href = manifestItems[id];
-            const label = href.split('/').pop()?.replace(/\.[^/.]+$/, '') || id;
-            const fullPath = `${opfPath.substring(0, opfPath.lastIndexOf('/'))}/${href}`;
-            
-            tocItems.push({
-              label,
-              href,
-              path: fullPath,
-            });
-            console.log('Added TOC item:', { label, href, path: fullPath });
-          } else {
-            console.log('No manifest item found for spine id:', id);
-          }
+          const href = manifestItems[id];
+          const fullPath = `${opfPath.substring(0, opfPath.lastIndexOf('/'))}/${href}`;
+          
+          // Extract title from the content file
+          const title = await extractTitle(fullPath);
+          
+          return {
+            label: title,
+            href: href,
+            path: fullPath,
+          };
         }
+        return null;
       });
+      
+      const resolvedItems = await Promise.all(tocPromises);
+      tocItems.push(...resolvedItems.filter((item): item is TOCItem => item !== null));
 
       console.log(`\nFinal TOC items: ${tocItems.length}`);
       return tocItems;
