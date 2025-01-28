@@ -10,6 +10,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import WebView from 'react-native-webview';
+import Sound from 'react-native-sound';
+import RNFS from 'react-native-fs';
 
 type ContentScreenProps = {
   route: {
@@ -26,6 +28,19 @@ function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
   const [selectedText, setSelectedText] = useState<string>('');
   const [translation, setTranslation] = useState<string>('');
   const [showSelectionModal, setShowSelectionModal] = useState(false);
+  const [audioData, setAudioData] = useState<Uint8Array | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  // Function to convert Uint8Array to base64
+  const arrayBufferToBase64 = (buffer: Uint8Array): string => {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  };
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -132,15 +147,31 @@ function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
 
   const translateSelection = async (text: string, language: string) => {
     try {
-      const response = await fetch('https://tongues.directto.link/translate', {
+      // Translation request
+      const translateResponse = await fetch('https://tongues.directto.link/translate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ text, language })
       });
-      const data = await response.json();
-      setTranslation(data.translated_text);
+      const translateData = await translateResponse.json();
+      setTranslation(translateData.translated_text);
+
+      // Speech request
+      const speechResponse = await fetch('https://tongues.directto.link/speech', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ text: translateData.translated_text, language })
+      });
+
+      // Get array buffer from response and convert to Uint8Array
+      const buffer = await speechResponse.arrayBuffer();
+      const uint8Array = new Uint8Array(buffer);
+      setAudioData(uint8Array);
+      
       setShowSelectionModal(true);
     } catch (error) {
       console.error(error);
@@ -148,7 +179,6 @@ function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
   }
    
   const handleMessage = (event: any) => {
-    console.log(event);
     try {
       const data = JSON.parse(event.nativeEvent.data);
       if (data.type === 'selection' && data.text.trim()) {
@@ -160,12 +190,51 @@ function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
     }
   };
 
-  const handleCopyText = () => {
-    if (selectedText) {
-      // Copy to clipboard functionality would go here
-      console.log('Copied text:', selectedText);
+  const playAudio = async () => {
+    if (!audioData || isPlaying) return;
+
+    try {
+      setIsPlaying(true);
+
+      // Create a temporary file to play the audio
+      const tempFile = `${RNFS.CachesDirectoryPath}/temp_audio_${Date.now()}.mp3`;
+      
+      // Write the binary data to file using our base64 conversion
+      await RNFS.writeFile(
+        tempFile,
+        arrayBufferToBase64(audioData),
+        'base64'
+      );
+
+      // Initialize sound with the correct file path
+      const sound = new Sound(tempFile, '', (error) => {
+        if (error) {
+          console.error('Error loading sound:', error);
+          setIsPlaying(false);
+          // Clean up temp file
+          RNFS.unlink(tempFile).catch(err => 
+            console.error('Error removing temporary audio file:', err)
+          );
+          return;
+        }
+
+        // Play the sound
+        sound.play((success) => {
+          if (!success) {
+            console.error('Sound playback failed');
+          }
+          sound.release();
+          setIsPlaying(false);
+          // Clean up temp file
+          RNFS.unlink(tempFile).catch(err => 
+            console.error('Error removing temporary audio file:', err)
+          );
+        });
+      });
+    } catch (error) {
+      console.error('Error playing audio:', error);
+      setIsPlaying(false);
     }
-    setShowSelectionModal(false);
   };
 
   return (
@@ -202,6 +271,17 @@ function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
               <Text style={styles.selectedText}>{selectedText}</Text>
               <Text style={styles.selectedText}>{translation}</Text>
             </ScrollView>
+            {audioData && (
+              <TouchableOpacity
+                style={[styles.button, styles.playButton]}
+                onPress={playAudio}
+                disabled={isPlaying}
+              >
+                <Text style={styles.buttonText}>
+                  {isPlaying ? 'Playing...' : 'Play Audio'}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         </TouchableOpacity>
       </Modal>
@@ -249,6 +329,10 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     minWidth: 100,
     alignItems: 'center',
+  },
+  playButton: {
+    backgroundColor: '#34C759',
+    marginTop: 10,
   },
   cancelButton: {
     backgroundColor: '#FF3B30',
