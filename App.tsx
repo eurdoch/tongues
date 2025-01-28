@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  SafeAreaView,
   StyleSheet,
   Button,
   View,
@@ -9,9 +8,13 @@ import {
   Text,
   TouchableOpacity,
 } from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import DocumentPicker from 'react-native-document-picker';
 import RNFS from 'react-native-fs';
 import * as ZipArchive from 'react-native-zip-archive';
+import ContentScreen from './ContentScreen';
 
 interface TOCItem {
   label: string;
@@ -19,7 +22,14 @@ interface TOCItem {
   path: string;
 }
 
-function App(): React.JSX.Element {
+type RootStackParamList = {
+  Home: undefined;
+  Content: { content: string; title: string };
+};
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
+
+function HomeScreen({ navigation }: any): React.JSX.Element {
   const [tableOfContents, setTableOfContents] = useState<TOCItem[]>([]);
   const [epubBasePath, setEpubBasePath] = useState<string>('');
 
@@ -205,9 +215,11 @@ function App(): React.JSX.Element {
 
   const handleTocItemPress = async (item: TOCItem) => {
     try {
-      console.log(`\n--- ${item.label} ---`);
       const content = await RNFS.readFile(item.path, 'utf8');
-      console.log(content);
+      navigation.navigate('Content', {
+        content,
+        title: item.label,
+      });
     } catch (error) {
       console.error('Error reading content:', error);
       Alert.alert('Error', 'Failed to read content');
@@ -242,6 +254,27 @@ function App(): React.JSX.Element {
         </View>
       )}
     </SafeAreaView>
+  );
+}
+
+function App(): React.JSX.Element {
+  return (
+    <SafeAreaProvider>
+      <NavigationContainer>
+        <Stack.Navigator>
+          <Stack.Screen 
+            name="Home" 
+            component={HomeScreen} 
+            options={{ title: 'EPUB Reader' }}
+          />
+          <Stack.Screen 
+            name="Content" 
+            component={ContentScreen}
+            options={({ route }: any) => ({ title: route.params.title })}
+          />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </SafeAreaProvider>
   );
 }
 
