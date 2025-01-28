@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -9,9 +9,9 @@ import {
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import WebView from 'react-native-webview';
 import Sound from 'react-native-sound';
 import RNFS from 'react-native-fs';
+import HTMLParser from 'node-html-parser';
 
 type ContentScreenProps = {
   route: {
@@ -24,12 +24,81 @@ type ContentScreenProps = {
 };
 
 function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
-  const { content, title, cssContent } = route.params;
+  const { content, title } = route.params;
   const [selectedText, setSelectedText] = useState<string>('');
   const [translation, setTranslation] = useState<string>('');
   const [showSelectionModal, setShowSelectionModal] = useState(false);
   const [audioData, setAudioData] = useState<Uint8Array | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [parsedContent, setParsedContent] = useState<any[]>([]);
+
+  useEffect(() => {
+    parseContent();
+  }, [content]);
+
+  const parseContent = () => {
+    // Parse the HTML content
+    const root = HTMLParser.parse(content);
+    const elements = parseElement(root);
+    setParsedContent(elements);
+  };
+
+  const parseElement = (node: any): any[] => {
+    if (!node) return [];
+
+    // If the node is a text node, return it directly
+    if (node.nodeType === 3) {
+      return [{ type: 'text', content: node.text.trim() }];
+    }
+
+    let elements: any[] = [];
+    
+    // Parse child nodes
+    node.childNodes.forEach((child: any) => {
+      if (child.nodeType === 3 && child.text.trim()) {
+        // Text node
+        elements.push({ type: 'text', content: child.text.trim() });
+      } else if (child.nodeType === 1) {
+        // Element node
+        switch (child.tagName.toLowerCase()) {
+          case 'h1':
+          case 'h2':
+          case 'h3':
+          case 'h4':
+          case 'h5':
+          case 'h6':
+            elements.push({
+              type: 'heading',
+              level: parseInt(child.tagName[1]),
+              content: child.text.trim(),
+            });
+            break;
+          case 'p':
+            elements.push({
+              type: 'paragraph',
+              content: child.text.trim(),
+            });
+            break;
+          case 'ul':
+          case 'ol':
+            elements.push({
+              type: child.tagName.toLowerCase(),
+              items: child.querySelectorAll('li').map((li: any) => li.text.trim()),
+            });
+            break;
+          case 'div':
+            elements = [...elements, ...parseElement(child)];
+            break;
+          default:
+            if (child.text.trim()) {
+              elements.push({ type: 'text', content: child.text.trim() });
+            }
+        }
+      }
+    });
+
+    return elements;
+  };
 
   // Function to convert Uint8Array to base64
   const arrayBufferToBase64 = (buffer: Uint8Array): string => {
@@ -41,109 +110,6 @@ function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
     }
     return btoa(binary);
   };
-
-  const htmlContent = `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-        <style>
-          body {
-            font-family: system-ui;
-            line-height: 1.5;
-            padding: 16px;
-            margin: 0;
-            font-size: 16px;
-            color: #000;
-            -webkit-user-select: text;
-            user-select: text;
-            -webkit-touch-callout: none !important;
-            touch-callout: none !important;
-            -webkit-tap-highlight-color: transparent;
-          }
-          
-          * {
-            -webkit-touch-callout: none !important;
-            touch-callout: none !important;
-            -webkit-tap-highlight-color: transparent;
-          }
-
-          #content-container {
-            -webkit-user-select: text;
-            user-select: text;
-          }
-          
-          ::selection {
-            background: rgba(0, 125, 255, 0.2);
-          }
-          ${cssContent || ''}
-        </style>
-      </head>
-      <body>
-        <div id="content-container">${content}</div>
-      </body>
-    </html>
-  `;
-
-  const injectedJavaScript = `
-    let lastSelection = '';
-    let selectionTimer = null;
-
-    // Watch for selection changes
-    document.addEventListener('selectionchange', () => {
-      // Clear any existing timer
-      if (selectionTimer) {
-        clearTimeout(selectionTimer);
-      }
-
-      // Start a new timer
-      selectionTimer = setTimeout(() => {
-        const selection = window.getSelection();
-        const currentSelection = selection ? selection.toString().trim() : '';
-
-        // Only fire events if selection has changed
-        if (currentSelection !== lastSelection) {
-          lastSelection = currentSelection;
-          
-          // First send touchend
-          window.ReactNativeWebView.postMessage(JSON.stringify({
-            type: 'touchend',
-            text: ''
-          }));
-
-          // Then, if there's selected text, send it
-          if (currentSelection) {
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'selection',
-              text: currentSelection
-            }));
-          }
-        }
-      }, 300);  // Wait for selection to stabilize
-    });
-
-    // Handle regular taps
-    document.addEventListener('touchend', (e) => {
-      const selection = window.getSelection();
-      const currentSelection = selection ? selection.toString().trim() : '';
-      
-      // Only send touchend for non-selection touches
-      if (!currentSelection) {
-        window.ReactNativeWebView.postMessage(JSON.stringify({
-          type: 'touchend',
-          text: ''
-        }));
-      }
-    }, false);
-
-    // Enable text selection
-    document.documentElement.style.webkitUserSelect = 'text';
-    document.documentElement.style.userSelect = 'text';
-    document.body.style.webkitUserSelect = 'text';
-    document.body.style.userSelect = 'text';
-
-    true;
-`;
 
   const translateSelection = async (text: string, language: string) => {
     try {
@@ -176,18 +142,11 @@ function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
     } catch (error) {
       console.error(error);
     }
-  }
-   
-  const handleMessage = (event: any) => {
-    try {
-      const data = JSON.parse(event.nativeEvent.data);
-      if (data.type === 'selection' && data.text.trim()) {
-        setSelectedText(data.text);
-        translateSelection(data.text, "French");
-      }
-    } catch (error) {
-      console.error('Error handling message:', error);
-    }
+  };
+
+  const handleTextSelection = (text: string) => {
+    setSelectedText(text);
+    translateSelection(text, "French");
   };
 
   const playAudio = async () => {
@@ -237,23 +196,87 @@ function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
     }
   };
 
+  const renderContent = (element: any, index: number) => {
+    switch (element.type) {
+      case 'heading':
+        return (
+          <Text
+            key={index}
+            style={[styles.heading, { fontSize: 28 - (element.level * 2) }]}
+            selectable
+            onSelectionChange={(event: any) => {
+              const selection = event.nativeEvent.selection;
+              const text = element.content.slice(selection.start, selection.end);
+              if (text) handleTextSelection(text);
+            }}
+          >
+            {element.content}
+          </Text>
+        );
+      case 'paragraph':
+        return (
+          <Text
+            key={index}
+            style={styles.paragraph}
+            selectable
+            onSelectionChange={(event) => {
+              const selection = event.nativeEvent.selection;
+              const text = element.content.slice(selection.start, selection.end);
+              if (text) handleTextSelection(text);
+            }}
+          >
+            {element.content}
+          </Text>
+        );
+      case 'ul':
+      case 'ol':
+        return (
+          <View key={index} style={styles.list}>
+            {element.items.map((item: string, idx: number) => (
+              <View key={idx} style={styles.listItem}>
+                <Text style={styles.bullet}>
+                  {element.type === 'ul' ? '•' : `${idx + 1}.`}
+                </Text>
+                <Text
+                  style={styles.listItemText}
+                  selectable
+                  onSelectionChange={(event) => {
+                    const selection = event.nativeEvent.selection;
+                    const text = item.slice(selection.start, selection.end);
+                    if (text) handleTextSelection(text);
+                  }}
+                >
+                  {item}
+                </Text>
+              </View>
+            ))}
+          </View>
+        );
+      case 'text':
+        return (
+          <Text
+            key={index}
+            style={styles.text}
+            selectable
+            onSelectionChange={(event) => {
+              const selection = event.nativeEvent.selection;
+              const text = element.content.slice(selection.start, selection.end);
+              if (text) handleTextSelection(text);
+            }}
+          >
+            {element.content}
+          </Text>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      <WebView
-        style={styles.webview}
-        source={{ html: htmlContent }}
-        originWhitelist={['*']}
-        showsVerticalScrollIndicator={true}
-        scrollEnabled={true}
-        injectedJavaScript={injectedJavaScript}
-        onMessage={handleMessage}
-        textInteractionEnabled={true}
-        allowFileAccess={true}
-        domStorageEnabled={true}
-        javaScriptEnabled={true}
-        mixedContentMode="always"
-        scalesPageToFit={false}
-      />
+      <ScrollView style={styles.scrollView}>
+        {parsedContent.map((element, index) => renderContent(element, index))}
+      </ScrollView>
 
       <Modal
         visible={showSelectionModal}
@@ -294,9 +317,45 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  webview: {
+  scrollView: {
     flex: 1,
-    width: Dimensions.get('window').width,
+    padding: 16,
+  },
+  heading: {
+    fontWeight: 'bold',
+    marginVertical: 8,
+    color: '#000',
+  },
+  paragraph: {
+    fontSize: 16,
+    lineHeight: 24,
+    marginVertical: 8,
+    color: '#000',
+  },
+  text: {
+    fontSize: 16,
+    lineHeight: 24,
+    marginVertical: 4,
+    color: '#000',
+  },
+  list: {
+    marginVertical: 8,
+  },
+  listItem: {
+    flexDirection: 'row',
+    marginVertical: 4,
+    paddingLeft: 16,
+  },
+  bullet: {
+    width: 20,
+    fontSize: 16,
+    color: '#000',
+  },
+  listItemText: {
+    flex: 1,
+    fontSize: 16,
+    lineHeight: 24,
+    color: '#000',
   },
   modalOverlay: {
     flex: 1,
@@ -319,10 +378,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
   },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
   button: {
     backgroundColor: '#007AFF',
     padding: 10,
@@ -333,9 +388,6 @@ const styles = StyleSheet.create({
   playButton: {
     backgroundColor: '#34C759',
     marginTop: 10,
-  },
-  cancelButton: {
-    backgroundColor: '#FF3B30',
   },
   buttonText: {
     color: 'white',
