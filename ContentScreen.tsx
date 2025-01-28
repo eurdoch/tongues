@@ -24,6 +24,7 @@ type ContentScreenProps = {
 function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
   const { content, title, cssContent } = route.params;
   const [selectedText, setSelectedText] = useState<string>('');
+  const [translation, setTranslation] = useState<string>('');
   const [showSelectionModal, setShowSelectionModal] = useState(false);
 
   const htmlContent = `
@@ -128,6 +129,23 @@ function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
 
     true;
 `;
+
+  const translateSelection = async (text: string, language: string) => {
+    try {
+      const response = await fetch('https://tongues.directto.link/translate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ text, language })
+      });
+      const data = await response.json();
+      setTranslation(data.translated_text);
+      setShowSelectionModal(true);
+    } catch (error) {
+      console.error(error);
+    }
+  }
    
   const handleMessage = (event: any) => {
     console.log(event);
@@ -135,7 +153,7 @@ function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
       const data = JSON.parse(event.nativeEvent.data);
       if (data.type === 'selection' && data.text.trim()) {
         setSelectedText(data.text);
-        setShowSelectionModal(true);
+        translateSelection(data.text, "French");
       }
     } catch (error) {
       console.error('Error handling message:', error);
@@ -182,21 +200,8 @@ function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
           <View style={styles.modalContent}>
             <ScrollView style={styles.selectedTextContainer}>
               <Text style={styles.selectedText}>{selectedText}</Text>
+              <Text style={styles.selectedText}>{translation}</Text>
             </ScrollView>
-            <View style={styles.modalButtons}>
-              <TouchableOpacity 
-                style={styles.button}
-                onPress={handleCopyText}
-              >
-                <Text style={styles.buttonText}>Copy</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.button, styles.cancelButton]}
-                onPress={() => setShowSelectionModal(false)}
-              >
-                <Text style={styles.buttonText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
           </View>
         </TouchableOpacity>
       </Modal>
