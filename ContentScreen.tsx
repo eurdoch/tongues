@@ -294,11 +294,10 @@ function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
               {isLoading ? (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="large" color="#007AFF" />
-                  <Text style={styles.loadingText}>Loading translation...</Text>
                 </View>
               ) : (
                 <>
-                  <Text style={styles.selectedText}>{translation}</Text>
+                  <Text style={styles.translatedText}>{translation}</Text>
                   {audioData && (
                     <TouchableOpacity
                       style={[styles.button, styles.playButton]}
@@ -386,6 +385,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
   },
+  translatedText: {
+    fontSize: 24,
+  },
   button: {
     backgroundColor: '#007AFF',
     padding: 10,
@@ -406,11 +408,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#666',
   },
 });
 
