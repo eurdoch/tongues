@@ -13,6 +13,7 @@ import Sound from 'react-native-sound';
 import RNFS from 'react-native-fs';
 import HTMLParser from 'node-html-parser';
 import GestureText from './GestureText';
+import { getSelectedText } from './TextSelection';
 
 type ContentScreenProps = {
   route: {
@@ -256,8 +257,11 @@ function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
     }
   };
 
-  const handleOnPressOut = (event: GestureResponderEvent) => {
-    console.log('press out');
+  const handleOnPressOut = async (_event: GestureResponderEvent) => {
+    const selectedText = await getSelectedText();
+    if (selectedText) {
+      handleTextSelection(selectedText);
+    }
   }
 
   return (
