@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   StyleSheet,
-  Button,
   View,
   Alert,
   ScrollView,
@@ -187,7 +186,7 @@ function HomeScreen({ navigation }: any): React.JSX.Element {
     }
   };
 
-  const selectAndReadEpub = async () => {
+  const selectAndReadEpub = useCallback(async () => {
     let tempDir = '';
     try {
       const result = await DocumentPicker.pick({
@@ -244,7 +243,20 @@ function HomeScreen({ navigation }: any): React.JSX.Element {
         Alert.alert('Error', 'Failed to process EPUB file');
       }
     }
-  };
+  }, []);
+
+  React.useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity
+          onPress={selectAndReadEpub}
+          style={styles.headerButton}
+        >
+          <Text style={styles.headerButtonText}>📚</Text>
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, selectAndReadEpub]);
 
   const handleTocItemPress = async (item: TOCItem) => {
     try {
@@ -264,13 +276,6 @@ function HomeScreen({ navigation }: any): React.JSX.Element {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.buttonContainer}>
-        <Button
-          title="Select EPUB File"
-          onPress={selectAndReadEpub}
-        />
-      </View>
-      
       {tableOfContents.length > 0 ? (
         <ScrollView style={styles.tocContainer}>
           <Text style={styles.tocHeader}>Table of Contents ({tableOfContents.length} items)</Text>
@@ -319,11 +324,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  buttonContainer: {
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
-  },
   tocContainer: {
     flex: 1,
     padding: 10,
@@ -349,6 +349,12 @@ const styles = StyleSheet.create({
   noContentText: {
     fontSize: 16,
     color: '#666',
+  },
+  headerButton: {
+    padding: 10,
+  },
+  headerButtonText: {
+    fontSize: 24,
   },
 });
 
