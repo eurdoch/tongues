@@ -125,6 +125,7 @@ function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
       });
       const translateData = await translateResponse.json();
       setTranslation(translateData.translated_text);
+      console.log("Translated text: ", translateData);
 
       // Speech request
       const speechResponse = await fetch('https://tongues.directto.link/speech', {
@@ -132,7 +133,7 @@ function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ text: translateData.translated_text, language })
+        body: JSON.stringify({ text, language })
       });
 
       // Get array buffer from response and convert to Uint8Array
