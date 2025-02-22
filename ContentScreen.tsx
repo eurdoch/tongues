@@ -7,6 +7,7 @@ import {
   Text,
   Modal,
   GestureResponderEvent,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Sound from 'react-native-sound';
@@ -33,6 +34,7 @@ function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
   const [audioData, setAudioData] = useState<Uint8Array | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [parsedContent, setParsedContent] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     parseContent();
@@ -115,6 +117,7 @@ function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
 
   const translateSelection = async (text: string, language: string) => {
     try {
+      setIsLoading(true);
       // Translation request
       const translateResponse = await fetch('https://tongues.directto.link/translate', {
         method: 'POST',
@@ -140,15 +143,18 @@ function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
       const buffer = await speechResponse.arrayBuffer();
       const uint8Array = new Uint8Array(buffer);
       setAudioData(uint8Array);
-      
-      setShowSelectionModal(true);
+      setIsLoading(false);
     } catch (error) {
       console.error(error);
+      setIsLoading(false);
     }
   };
 
   const handleTextSelection = (text: string) => {
     setSelectedText(text);
+    setShowSelectionModal(true);
+    setTranslation('');
+    setAudioData(null);
     translateSelection(text, "French");
   };
 
@@ -285,19 +291,28 @@ function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
           <View style={styles.modalContent}>
             <ScrollView style={styles.selectedTextContainer}>
               <Text style={styles.selectedText}>{selectedText}</Text>
-              <Text style={styles.selectedText}>{translation}</Text>
+              {isLoading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color="#007AFF" />
+                  <Text style={styles.loadingText}>Loading translation...</Text>
+                </View>
+              ) : (
+                <>
+                  <Text style={styles.selectedText}>{translation}</Text>
+                  {audioData && (
+                    <TouchableOpacity
+                      style={[styles.button, styles.playButton]}
+                      onPress={playAudio}
+                      disabled={isPlaying}
+                    >
+                      <Text style={styles.buttonText}>
+                        {isPlaying ? 'Playing...' : 'Play Audio'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
             </ScrollView>
-            {audioData && (
-              <TouchableOpacity
-                style={[styles.button, styles.playButton]}
-                onPress={playAudio}
-                disabled={isPlaying}
-              >
-                <Text style={styles.buttonText}>
-                  {isPlaying ? 'Playing...' : 'Play Audio'}
-                </Text>
-              </TouchableOpacity>
-            )}
           </View>
         </TouchableOpacity>
       </Modal>
@@ -386,6 +401,16 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
   },
 });
 
