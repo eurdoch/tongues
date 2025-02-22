@@ -2,16 +2,17 @@ import React, { useState, useEffect } from 'react';
 import {
   ScrollView,
   StyleSheet,
-  Dimensions,
   View,
   TouchableOpacity,
   Text,
   Modal,
+  GestureResponderEvent,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Sound from 'react-native-sound';
 import RNFS from 'react-native-fs';
 import HTMLParser from 'node-html-parser';
+import GestureText from './GestureText';
 
 type ContentScreenProps = {
   route: {
@@ -200,33 +201,25 @@ function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
     switch (element.type) {
       case 'heading':
         return (
-          <Text
+          <GestureText
+            onPressOut={handleOnPressOut}
             key={index}
             style={[styles.heading, { fontSize: 28 - (element.level * 2) }]}
             selectable
-            onSelectionChange={(event: any) => {
-              const selection = event.nativeEvent.selection;
-              const text = element.content.slice(selection.start, selection.end);
-              if (text) handleTextSelection(text);
-            }}
           >
             {element.content}
-          </Text>
+          </GestureText>
         );
       case 'paragraph':
         return (
-          <Text
+          <GestureText
+            onPressOut={handleOnPressOut}
             key={index}
             style={styles.paragraph}
             selectable
-            onSelectionChange={(event) => {
-              const selection = event.nativeEvent.selection;
-              const text = element.content.slice(selection.start, selection.end);
-              if (text) handleTextSelection(text);
-            }}
           >
             {element.content}
-          </Text>
+          </GestureText>
         );
       case 'ul':
       case 'ol':
@@ -240,11 +233,6 @@ function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
                 <Text
                   style={styles.listItemText}
                   selectable
-                  onSelectionChange={(event) => {
-                    const selection = event.nativeEvent.selection;
-                    const text = item.slice(selection.start, selection.end);
-                    if (text) handleTextSelection(text);
-                  }}
                 >
                   {item}
                 </Text>
@@ -254,23 +242,23 @@ function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
         );
       case 'text':
         return (
-          <Text
+          <GestureText
+            onPressOut={handleOnPressOut}
             key={index}
             style={styles.text}
             selectable
-            onSelectionChange={(event) => {
-              const selection = event.nativeEvent.selection;
-              const text = element.content.slice(selection.start, selection.end);
-              if (text) handleTextSelection(text);
-            }}
           >
             {element.content}
-          </Text>
+          </GestureText>
         );
       default:
         return null;
     }
   };
+
+  const handleOnPressOut = (event: GestureResponderEvent) => {
+    console.log('press out');
+  }
 
   return (
     <SafeAreaView style={styles.container}>
