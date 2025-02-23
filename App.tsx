@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   Text,
   TouchableOpacity,
+  Button,
 } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -245,15 +246,13 @@ function HomeScreen({ navigation }: any): React.JSX.Element {
     }
   }, []);
 
-  React.useLayoutEffect(() => {
+  useEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <TouchableOpacity
-          onPress={selectAndReadEpub}
-          style={styles.headerButton}
-        >
-          <Text style={styles.headerButtonText}>📚</Text>
-        </TouchableOpacity>
+        <Button
+          onPress={() => {console.log('pressed'); selectAndReadEpub();}}
+          title="Select"
+        />
       ),
     });
   }, [navigation, selectAndReadEpub]);
