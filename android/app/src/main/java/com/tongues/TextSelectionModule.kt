@@ -52,4 +52,34 @@ class TextSelectionModule(private val reactContext: ReactApplicationContext) : R
             promise.reject("ERROR", e.message)
         }
     }
+
+    @ReactMethod
+    fun hasSelectedText(promise: Promise) {
+        val activity = currentActivity
+        if (activity == null) {
+            promise.reject("ERROR", "Activity not found")
+            return
+        }
+
+        try {
+            val currentFocus = activity.window.currentFocus
+            if (currentFocus is TextView) {
+                val selStart = currentFocus.selectionStart
+                val selEnd = currentFocus.selectionEnd
+                
+                if (selStart != -1 && selEnd != -1 && selStart != selEnd) {
+                    val selectedText = currentFocus.text.substring(selStart, selEnd)
+                    if (selectedText.isNotEmpty()) {
+                        promise.resolve(true)
+                        return
+                    }
+                }
+            }
+            
+            promise.resolve(false)
+            
+        } catch (e: Exception) {
+            promise.reject("ERROR", e.message)
+        }
+    }
 }
