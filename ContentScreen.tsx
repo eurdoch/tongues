@@ -22,12 +22,13 @@ type ContentScreenProps = {
       content: string;
       title: string;
       cssContent?: string;
+      language: string;
     };
   };
 };
 
 function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
-  const { content, title } = route.params;
+  const { content, title, language } = route.params;
   const [selectedText, setSelectedText] = useState<string>('');
   const [translation, setTranslation] = useState<string>('');
   const [showSelectionModal, setShowSelectionModal] = useState(false);
@@ -115,7 +116,7 @@ function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
     return btoa(binary);
   };
 
-  const translateSelection = async (text: string, language: string) => {
+  const translateSelection = async (text: string, targetLanguage: string) => {
     try {
       setIsLoading(true);
       // Translation request
@@ -124,7 +125,7 @@ function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ text, language })
+        body: JSON.stringify({ text, language: targetLanguage })
       });
       const translateData = await translateResponse.json();
       setTranslation(translateData.translated_text);
@@ -136,7 +137,7 @@ function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ text, language })
+        body: JSON.stringify({ text, language: targetLanguage })
       });
 
       // Get array buffer from response and convert to Uint8Array
@@ -155,7 +156,7 @@ function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
     setShowSelectionModal(true);
     setTranslation('');
     setAudioData(null);
-    translateSelection(text, "French");
+    translateSelection(text, language);
   };
 
   const playAudio = async () => {
@@ -274,6 +275,9 @@ function ContentScreen({ route }: ContentScreenProps): React.JSX.Element {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scrollView}>
+        <View style={styles.languageIndicator}>
+          <Text style={styles.languageText}>Translating to: {language}</Text>
+        </View>
         {parsedContent.map((element, index) => renderContent(element, index))}
       </ScrollView>
 
@@ -327,6 +331,17 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
     padding: 16,
+  },
+  languageIndicator: {
+    backgroundColor: '#f0f0f0',
+    padding: 8,
+    borderRadius: 5,
+    marginBottom: 10,
+    alignSelf: 'flex-start',
+  },
+  languageText: {
+    fontSize: 14,
+    color: '#555',
   },
   heading: {
     fontWeight: 'bold',

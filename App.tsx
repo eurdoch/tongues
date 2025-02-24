@@ -7,6 +7,7 @@ import {
   Text,
   TouchableOpacity,
   Button,
+  Modal,
 } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -29,7 +30,7 @@ interface StyleSheet {
 
 type RootStackParamList = {
   Home: undefined;
-  Content: { content: string; title: string; cssContent?: string };
+  Content: { content: string; title: string; cssContent?: string; language: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -38,6 +39,17 @@ function HomeScreen({ navigation }: any): React.JSX.Element {
   const [tableOfContents, setTableOfContents] = useState<TOCItem[]>([]);
   const [epubBasePath, setEpubBasePath] = useState<string>('');
   const [styleSheets, setStyleSheets] = useState<StyleSheet[]>([]);
+  const [showLanguageModal, setShowLanguageModal] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState('French');
+
+  // Available languages for translation
+  const languages = [
+    { label: 'French', value: 'French' },
+    { label: 'Spanish', value: 'Spanish' },
+    { label: 'German', value: 'German' },
+    { label: 'Italian', value: 'Italian' },
+    { label: 'Dutch', value: 'Dutch' },
+  ];
 
   const findStyleSheets = async (opfPath: string, manifestItems: { [key: string]: string }) => {
     const stylesheets: StyleSheet[] = [];
@@ -236,6 +248,11 @@ function HomeScreen({ navigation }: any): React.JSX.Element {
       
       console.log('Process completed. TOC items:', toc.length);
       
+      // Show language selection modal after EPUB is successfully parsed
+      if (toc.length > 0) {
+        setShowLanguageModal(true);
+      }
+      
     } catch (err) {
       if (DocumentPicker.isCancel(err)) {
         console.log('User cancelled the picker');
@@ -266,6 +283,7 @@ function HomeScreen({ navigation }: any): React.JSX.Element {
         content,
         title: item.label,
         cssContent: combinedCss,
+        language: selectedLanguage
       });
     } catch (error) {
       console.error('Error reading content:', error);
@@ -278,6 +296,13 @@ function HomeScreen({ navigation }: any): React.JSX.Element {
       {tableOfContents.length > 0 ? (
         <ScrollView style={styles.tocContainer}>
           <Text style={styles.tocHeader}>Table of Contents ({tableOfContents.length} items)</Text>
+          <Text style={styles.languageNote}>Selected language: {selectedLanguage}</Text>
+          <TouchableOpacity 
+            style={styles.changeLanguageButton}
+            onPress={() => setShowLanguageModal(true)}
+          >
+            <Text style={styles.changeLanguageButtonText}>Change Language</Text>
+          </TouchableOpacity>
           {tableOfContents.map((item, index) => (
             <TouchableOpacity
               key={index}
@@ -293,6 +318,50 @@ function HomeScreen({ navigation }: any): React.JSX.Element {
           <Text style={styles.noContentText}>No content loaded</Text>
         </View>
       )}
+
+      {/* Language Selection Modal */}
+      <Modal
+        visible={showLanguageModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowLanguageModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Select Translation Language</Text>
+            <ScrollView style={styles.languageList}>
+              {languages.map((language) => (
+                <TouchableOpacity
+                  key={language.value}
+                  style={[
+                    styles.languageItem,
+                    selectedLanguage === language.value && styles.selectedLanguageItem
+                  ]}
+                  onPress={() => {
+                    setSelectedLanguage(language.value);
+                    setShowLanguageModal(false);
+                  }}
+                >
+                  <Text 
+                    style={[
+                      styles.languageText,
+                      selectedLanguage === language.value && styles.selectedLanguageText
+                    ]}
+                  >
+                    {language.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setShowLanguageModal(false)}
+            >
+              <Text style={styles.closeButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -332,6 +401,22 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 10,
   },
+  languageNote: {
+    fontSize: 14,
+    marginBottom: 5,
+    color: '#444',
+  },
+  changeLanguageButton: {
+    backgroundColor: '#f0f0f0',
+    padding: 8,
+    borderRadius: 5,
+    marginBottom: 15,
+    alignSelf: 'flex-start',
+  },
+  changeLanguageButtonText: {
+    fontSize: 14,
+    color: '#007AFF',
+  },
   tocItem: {
     padding: 10,
     borderBottomWidth: 1,
@@ -354,6 +439,55 @@ const styles = StyleSheet.create({
   },
   headerButtonText: {
     fontSize: 24,
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 20,
+    width: '80%',
+    maxHeight: '60%',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  languageList: {
+    maxHeight: 300,
+  },
+  languageItem: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  selectedLanguageItem: {
+    backgroundColor: '#e6f7ff',
+  },
+  languageText: {
+    fontSize: 16,
+  },
+  selectedLanguageText: {
+    fontWeight: 'bold',
+    color: '#007AFF',
+  },
+  closeButton: {
+    marginTop: 15,
+    padding: 10,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 5,
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    fontSize: 16,
+    color: '#007AFF',
   },
 });
 
