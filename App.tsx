@@ -263,11 +263,11 @@ function HomeScreen({ navigation }: any): React.JSX.Element {
     }
   }, []);
 
-  useEffect(() => {
+  React.useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
         <Button
-          onPress={() => {console.log('pressed'); selectAndReadEpub();}}
+          onPress={selectAndReadEpub}
           title="Select"
         />
       ),
