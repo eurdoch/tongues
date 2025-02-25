@@ -1,14 +1,22 @@
-import { Text, View, StyleSheet, TouchableOpacity } from "react-native";
+import { Text, View, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
 import { parseEpub } from "./utils";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, DrawerActions } from "@react-navigation/native";
 import { pick } from "@react-native-documents/picker";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useState } from "react";
 
 function CustomDrawerContent() {
     const navigation = useNavigation();
+    const [isLoading, setIsLoading] = useState(false);
   
     const selectAndReadEpub = async () => {
       try {
+        // Close drawer immediately
+        navigation.dispatch(DrawerActions.closeDrawer());
+        
+        // Show loading indicator
+        setIsLoading(true);
+        
         const [file] = await pick({
           type: ['application/epub+zip'],
           mode: 'open',
@@ -22,6 +30,9 @@ function CustomDrawerContent() {
         }
       } catch (e: any) {
         console.log('pick failed: ', e);
+      } finally {
+        // Hide loading indicator
+        setIsLoading(false);
       }
     };
     
@@ -34,8 +45,13 @@ function CustomDrawerContent() {
           <TouchableOpacity 
             style={styles.button}
             onPress={selectAndReadEpub} 
+            disabled={isLoading}
           >
-            <Text style={styles.buttonText}>Open Book</Text>
+            {isLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Open Book</Text>
+            )}
           </TouchableOpacity>
         </View>
       </SafeAreaView>
