@@ -617,17 +617,22 @@ function ReaderScreen() {
   const renderLanguageModal = () => {
     return (
       <Modal
-        animationType="fade"
+        animationType="none"
         transparent={true}
         visible={showLanguageModal}
         onRequestClose={() => setShowLanguageModal(false)}
       >
-        <Pressable 
+        <TouchableOpacity 
           style={styles.modalOverlay}
+          activeOpacity={1}
           onPress={() => setShowLanguageModal(false)}
         >
-          <View style={styles.modalContainer}>
-            <View style={styles.modalContent} onStartShouldSetResponder={() => true}>
+          <TouchableOpacity 
+            style={styles.modalContainer}
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.modalContent}>
               <GestureText 
                 style={styles.modalTitle}
                 selectable={false}
@@ -642,9 +647,14 @@ function ReaderScreen() {
                       styles.languageOption,
                       selectedLanguage === language.value && styles.selectedLanguageOption
                     ]}
+                    activeOpacity={0.7}
+                    delayPressIn={0}
                     onPress={() => {
                       setSelectedLanguage(language.value);
-                      setShowLanguageModal(false);
+                      // Use setTimeout to allow the state update to render before closing modal
+                      setTimeout(() => {
+                        setShowLanguageModal(false);
+                      }, 100);
                     }}
                   >
                     <GestureText 
@@ -660,8 +670,8 @@ function ReaderScreen() {
                 ))}
               </View>
             </View>
-          </View>
-        </Pressable>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
     );
   };
@@ -769,41 +779,51 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContainer: {
-    width: '80%',
+    width: '85%',
     backgroundColor: 'white',
-    borderRadius: 12,
+    borderRadius: 16,
     overflow: 'hidden',
-    elevation: 5,
+    elevation: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
   },
   modalContent: {
-    padding: 20,
+    padding: 24,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 16,
+    marginBottom: 20,
     textAlign: 'center',
   },
   languageOptionsContainer: {
     marginTop: 8,
   },
   languageOption: {
-    paddingVertical: 12,
+    paddingVertical: 16,
     paddingHorizontal: 16,
     borderRadius: 8,
-    marginVertical: 4,
-    backgroundColor: '#f0f0f0',
+    marginVertical: 6,
+    backgroundColor: '#f5f5f5',
+    // Add a border for better visibility
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    // Improve touch feedback
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
   },
   selectedLanguageOption: {
     backgroundColor: '#1a73e8',
+    borderColor: '#0d47a1',
   },
   languageOptionText: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#333',
     textAlign: 'center',
   },
