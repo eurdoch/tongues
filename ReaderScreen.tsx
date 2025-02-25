@@ -1,6 +1,8 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Image, ActivityIndicator } from 'react-native';
 import { useRoute } from '@react-navigation/native';
+import { parseEpub } from './utils';
+import RNFS from 'react-native-fs';
 
 type ElementNode = {
   type: string;
@@ -262,7 +264,54 @@ const renderNodes = (nodes: (ElementNode | string)[]): React.ReactNode[] => {
 
 function ReaderScreen() {
   const route = useRoute();
-  const { content } = route.params || { content: 'No content available' };
+  const { fileUri } = route.params || {};
+  const [content, setContent] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadEpub = async () => {
+      if (!fileUri) {
+        setError('No file selected');
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        // Parse the epub file
+        const tocItems = await parseEpub(fileUri);
+        
+        if (!tocItems || tocItems.length === 0) {
+          setError('No content found in this epub file');
+          setIsLoading(false);
+          return;
+        }
+
+        // Read content from all files
+        const allContentPromises = tocItems.map(async (item) => {
+          try {
+            const fileContent = await RNFS.readFile(item.path, 'utf8');
+            return fileContent;
+          } catch (error) {
+            console.error(`Error reading file ${item.path}:`, error);
+            return '';
+          }
+        });
+        
+        const allContents = await Promise.all(allContentPromises);
+        const fullText = allContents.join('\n\n');
+        
+        setContent(fullText);
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error loading epub:', error);
+        setError('Failed to load the book');
+        setIsLoading(false);
+      }
+    };
+
+    loadEpub();
+  }, [fileUri]);
 
   const parsedContent = useMemo(() => {
     try {
@@ -272,6 +321,23 @@ function ReaderScreen() {
       return [{ type: 'text', children: ['Error parsing content'] }];
     }
   }, [content]);
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color="#1a73e8" />
+        <Text style={styles.loadingText}>Loading your book...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <Text style={styles.errorText}>{error}</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -287,6 +353,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8f9fa',
   },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   scrollView: {
     flex: 1,
     padding: 16,
@@ -295,6 +365,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
     color: '#333',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666',
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#e53935',
+    textAlign: 'center',
+    padding: 20,
   },
   h1: {
     fontSize: 28,

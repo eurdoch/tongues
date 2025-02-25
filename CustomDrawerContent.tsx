@@ -23,27 +23,9 @@ function CustomDrawerContent() {
           mode: 'open',
         });
   
-        const contents = await parseEpub(file.uri);
-        if (contents) {
-          // Concatenate all chapter contents into a single string
-          const allContentPromises = contents.map(async (item) => {
-            try {
-              const content = await RNFS.readFile(item.path, 'utf8');
-              return content;
-            } catch (error) {
-              console.error(`Error reading file ${item.path}:`, error);
-              return '';
-            }
-          });
-          
-          const allContents = await Promise.all(allContentPromises);
-          const fullText = allContents.join('\n\n');
-          
-          // Navigate to the Reader screen with the content
-          navigation.navigate('Reader', { content: fullText });
-        } else {
-          console.log('No opf file found.');
-        }
+        // Immediately navigate to Reader screen with just the file URI
+        // Let the Reader screen handle all the parsing
+        navigation.navigate('Reader', { fileUri: file.uri });
       } catch (e: any) {
         console.log('pick failed: ', e);
       } finally {
