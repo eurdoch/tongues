@@ -15,6 +15,7 @@ import { parseEpub } from './utils';
 import RNFS from 'react-native-fs';
 import GestureText from './GestureText';
 import { getSelectedText } from './TextSelection';
+import Sound from 'react-native-sound';
 
 type ElementNode = {
   type: string;
@@ -354,6 +355,20 @@ function ReaderScreen() {
   const [showLanguageModal, setShowLanguageModal] = useState<boolean>(false);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
 
+  // Reset state when a new file is selected
+  useEffect(() => {
+    // Reset states when fileUri changes
+    setContent('');
+    setError(null);
+    setIsLoading(true);
+    setTranslatedText(null);
+    setAudioPath(null);
+    if (sound) {
+      sound.release();
+      setSound(null);
+    }
+  }, [fileUri]);
+
   useEffect(() => {
     const loadEpub = async () => {
       if (!fileUri) {
@@ -361,6 +376,8 @@ function ReaderScreen() {
         setIsLoading(false);
         return;
       }
+      
+      console.log('Loading ePub from:', fileUri);
 
       try {
         // Parse the epub file
@@ -409,7 +426,132 @@ function ReaderScreen() {
   }, [content]);
 
   const [translatedText, setTranslatedText] = useState<string | null>(null);
+  const [audioPath, setAudioPath] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [sound, setSound] = useState<Sound | null>(null);
 
+  // Fetch speech audio from the API and save it to a temporary file
+  const fetchSpeechAudio = async (text: string, language: string) => {
+    try {
+      // Release previous sound if exists
+      if (sound) {
+        sound.release();
+        setSound(null);
+      }
+      
+      // Clear previous audio path
+      if (audioPath) {
+        try {
+          await RNFS.unlink(audioPath);
+        } catch (e) {
+          console.log('Error removing previous audio file:', e);
+        }
+      }
+      
+      // Make API call to speech service
+      const response = await fetch('https://tongues.directto.link/speech', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: text,
+          language: language,
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Speech request failed with status: ${response.status}`);
+      }
+      
+      // Get audio data as blob
+      const audioBlob = await response.blob();
+      
+      // Create a temporary file path
+      const tempFilePath = `${RNFS.CachesDirectoryPath}/speech_${Date.now()}.mp3`;
+      
+      // Convert blob to base64
+      const reader = new FileReader();
+      reader.readAsDataURL(audioBlob);
+      
+      return new Promise<void>((resolve, reject) => {
+        reader.onloadend = async () => {
+          try {
+            if (reader.result) {
+              // Extract base64 data (remove the data URL prefix)
+              const base64Data = (reader.result as string).split(',')[1];
+              
+              // Ensure the previous file is deleted if it exists
+              const exists = await RNFS.exists(tempFilePath);
+              if (exists) {
+                await RNFS.unlink(tempFilePath);
+              }
+              
+              // Write the file
+              await RNFS.writeFile(tempFilePath, base64Data, 'base64');
+              setAudioPath(tempFilePath);
+              console.log('Speech audio saved to:', tempFilePath);
+              
+              // Initialize Sound with the file
+              Sound.setCategory('Playback');
+              const newSound = new Sound(tempFilePath, '', (error) => {
+                if (error) {
+                  console.error('Failed to load sound:', error);
+                  reject(error);
+                } else {
+                  setSound(newSound);
+                  resolve();
+                }
+              });
+            }
+          } catch (error) {
+            console.error('Error saving audio file:', error);
+            reject(error);
+          }
+        };
+        
+        reader.onerror = reject;
+      });
+    } catch (error) {
+      console.error('Error fetching speech audio:', error);
+    }
+  };
+  
+  // Play the audio file
+  const playAudio = () => {
+    if (sound) {
+      setIsPlaying(true);
+      sound.play((success) => {
+        if (success) {
+          console.log('Audio playback finished successfully');
+        } else {
+          console.log('Audio playback failed');
+        }
+        setIsPlaying(false);
+      });
+    }
+  };
+  
+  // Stop audio playback
+  const stopAudio = () => {
+    if (sound) {
+      sound.stop();
+      setIsPlaying(false);
+    }
+  };
+  
+  // Clean up resources when component unmounts
+  useEffect(() => {
+    return () => {
+      if (sound) {
+        sound.release();
+      }
+      if (audioPath) {
+        RNFS.unlink(audioPath).catch(e => console.log('Error cleaning up audio file:', e));
+      }
+    };
+  }, [sound, audioPath]);
+  
   const handleTextSelection = async (event: GestureResponderEvent) => {
     try {
       const selectedText = await getSelectedText();
@@ -435,6 +577,9 @@ function ReaderScreen() {
         if (data.translated_text) {
           setTranslatedText(data.translated_text);
           console.log('Translation:', data.translated_text);
+          
+          // Fetch speech audio for the translated text
+          await fetchSpeechAudio(data.translated_text, selectedLanguage);
         }
       }
     } catch (error) {
@@ -545,9 +690,36 @@ function ReaderScreen() {
             <GestureText style={styles.translatedText} selectable={true}>
               {translatedText}
             </GestureText>
+            
+            <View style={styles.translationControls}>
+              {sound && (
+                <TouchableOpacity 
+                  style={[styles.audioButton, isPlaying && styles.audioButtonActive]}
+                  onPress={isPlaying ? stopAudio : playAudio}
+                >
+                  <GestureText style={styles.audioButtonText} selectable={false}>
+                    {isPlaying ? '■' : '▶'}
+                  </GestureText>
+                </TouchableOpacity>
+              )}
+            </View>
+            
             <TouchableOpacity 
               style={styles.closeButton}
-              onPress={() => setTranslatedText(null)}
+              onPress={() => {
+                setTranslatedText(null);
+                if (sound) {
+                  sound.stop();
+                  sound.release();
+                  setSound(null);
+                }
+                if (audioPath) {
+                  RNFS.unlink(audioPath).catch(e => 
+                    console.log('Error removing audio file:', e)
+                  );
+                  setAudioPath(null);
+                }
+              }}
             >
               <GestureText style={styles.closeButtonText} selectable={false}>
                 ✕
@@ -697,6 +869,27 @@ const styles = StyleSheet.create({
   closeButtonText: {
     color: 'white',
     fontSize: 14,
+    fontWeight: 'bold',
+  },
+  translationControls: {
+    flexDirection: 'row',
+    marginTop: 10,
+  },
+  audioButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  audioButtonActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  audioButtonText: {
+    color: 'white',
+    fontSize: 16,
     fontWeight: 'bold',
   },
   h1: {

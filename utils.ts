@@ -66,11 +66,25 @@ const extractEpub = async (fileUri: string) => {
       sourcePath = tempFilePath;
     }
     
-    // Create destination folder
-    const destinationPath = `${RNFS.CachesDirectoryPath}/extracted_epub`;
+    // Create a unique destination folder with timestamp
+    const timestamp = Date.now();
+    const destinationPath = `${RNFS.CachesDirectoryPath}/extracted_epub_${timestamp}`;
     
     // Ensure the destination directory exists
-    await RNFS.mkdir(destinationPath);
+    try {
+      // Check if the destination directory already exists and remove it
+      const exists = await RNFS.exists(destinationPath);
+      if (exists) {
+        await RNFS.unlink(destinationPath);
+      }
+      
+      // Create the directory
+      await RNFS.mkdir(destinationPath);
+    } catch (error) {
+      console.error('Error preparing extraction directory:', error);
+      // Still create the directory if it doesn't exist
+      await RNFS.mkdir(destinationPath);
+    }
     
     // Subscribe to unzipping progress (optional)
     const subscription = ZipArchive.subscribe(({ progress, filePath }) => {
