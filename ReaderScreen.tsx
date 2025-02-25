@@ -8,7 +8,6 @@ import {
   GestureResponderEvent,
   Modal,
   TouchableOpacity,
-  Pressable 
 } from 'react-native';
 import { useRoute } from '@react-navigation/native';
 import { parseEpub } from './utils';
@@ -711,14 +710,6 @@ function ReaderScreen() {
       
       {/* Language selection modal */}
       {renderLanguageModal()}
-      
-      {selectedLanguage ? (
-        <View style={styles.languageBadge}>
-          <GestureText style={styles.languageBadgeText} selectable={false}>
-            {selectedLanguage}
-          </GestureText>
-        </View>
-      ) : null}
       
       {/* Translation result popup */}
       {translatedText && selectedOriginalText && (
