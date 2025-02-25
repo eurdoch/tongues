@@ -8,6 +8,14 @@ interface StyleSheet {
   content: string;
 }
 
+const languages = [
+  { label: 'French', value: 'French' },
+  { label: 'Spanish', value: 'Spanish' },
+  { label: 'German', value: 'German' },
+  { label: 'Italian', value: 'Italian' },
+  { label: 'Dutch', value: 'Dutch' },
+];
+
 /**
  * Recursively searches for an OPF file in the given directory
  * @param {string} directoryPath - The directory to search in
