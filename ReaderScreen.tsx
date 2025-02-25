@@ -408,14 +408,37 @@ function ReaderScreen() {
     }
   }, [content]);
 
+  const [translatedText, setTranslatedText] = useState<string | null>(null);
+
   const handleTextSelection = async (event: GestureResponderEvent) => {
     try {
       const selectedText = await getSelectedText();
-      if (selectedText) {
-        console.log('Selected text:', selectedText);
+      if (selectedText && selectedLanguage) {
+        // Make API call to translation service
+        const response = await fetch('https://tongues.directto.link/translate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            text: selectedText,
+            language: selectedLanguage,
+          }),
+        });
+        
+        if (!response.ok) {
+          console.error(`Translation request failed with status: ${response.status}`);
+          return;
+        }
+        
+        const data = await response.json();
+        if (data.translated_text) {
+          setTranslatedText(data.translated_text);
+          console.log('Translation:', data.translated_text);
+        }
       }
     } catch (error) {
-      console.error('Error handling text selection:', error);
+      console.error('Error handling text selection or translation:', error);
     }
   };
 
@@ -514,6 +537,25 @@ function ReaderScreen() {
           </GestureText>
         </View>
       ) : null}
+      
+      {/* Translation result popup */}
+      {translatedText && (
+        <View style={styles.translationContainer}>
+          <View style={styles.translationResult}>
+            <GestureText style={styles.translatedText} selectable={true}>
+              {translatedText}
+            </GestureText>
+            <TouchableOpacity 
+              style={styles.closeButton}
+              onPress={() => setTranslatedText(null)}
+            >
+              <GestureText style={styles.closeButtonText} selectable={false}>
+                ✕
+              </GestureText>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -613,6 +655,46 @@ const styles = StyleSheet.create({
     shadowRadius: 1.41,
   },
   languageBadgeText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  // Translation styles
+  translationContainer: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    bottom: 30,
+    borderRadius: 12,
+    overflow: 'hidden',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+  },
+  translationResult: {
+    backgroundColor: 'rgba(26, 115, 232, 0.9)',
+    padding: 16,
+    paddingRight: 40,
+  },
+  translatedText: {
+    color: 'white',
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeButtonText: {
     color: 'white',
     fontSize: 14,
     fontWeight: 'bold',
