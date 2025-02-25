@@ -578,8 +578,8 @@ function ReaderScreen() {
           setTranslatedText(data.translated_text);
           console.log('Translation:', data.translated_text);
           
-          // Fetch speech audio for the translated text
-          await fetchSpeechAudio(data.translated_text, selectedLanguage);
+          // Fetch speech audio for the original text (not the translation)
+          await fetchSpeechAudio(selectedText, selectedLanguage);
         }
       }
     } catch (error) {
