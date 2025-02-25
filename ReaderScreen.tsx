@@ -15,6 +15,7 @@ import RNFS from 'react-native-fs';
 import GestureText from './GestureText';
 import { getSelectedText } from './TextSelection';
 import Sound from 'react-native-sound';
+import TOCItem from './types/TOCItem';
 
 type ElementNode = {
   type: string;
@@ -397,6 +398,7 @@ function ReaderScreen() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
+  const [tableOfContents, setTableOfContents] = useState<TOCItem[]>([]);
 
   // Reset state when a new file is selected
   useEffect(() => {
@@ -406,6 +408,7 @@ function ReaderScreen() {
     setIsLoading(true);
     setTranslatedText(null);
     setAudioPath(null);
+    setTableOfContents([]);
     if (sound) {
       sound.release();
       setSound(null);
@@ -431,6 +434,23 @@ function ReaderScreen() {
           setIsLoading(false);
           return;
         }
+        
+        // Filter out cover page (typically the first item or items with "cover" in their label/href)
+        const filteredTOC = tocItems.filter((item, index) => {
+          const isCover = item.label.toLowerCase().includes('cover') || 
+                          item.href.toLowerCase().includes('cover') ||
+                          (index === 0 && item.label.toLowerCase().includes('title'));
+          return !isCover;
+        });
+        
+        // Store filtered table of contents
+        setTableOfContents(filteredTOC);
+        
+        // Log table of contents to console
+        console.log('Table of Contents (excluding cover):');
+        filteredTOC.forEach((item, index) => {
+          console.log(`${index + 1}. ${item.label} (${item.href})`);
+        });
 
         // Read content from all files
         const allContentPromises = tocItems.map(async (item) => {
