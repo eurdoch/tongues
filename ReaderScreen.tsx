@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ScrollView, Image, ActivityIndicator, GestureResponderEvent } from 'react-native';
 import { useRoute } from '@react-navigation/native';
 import { parseEpub } from './utils';
 import RNFS from 'react-native-fs';
+import GestureText from './GestureText';
+import { getSelectedText } from './TextSelection';
 
 type ElementNode = {
   type: string;
@@ -138,82 +140,135 @@ function decodeHtmlEntities(text: string): string {
     .replace(/&#x2F;/g, '/');
 }
 
-const renderNodes = (nodes: (ElementNode | string)[]): React.ReactNode[] => {
+const renderNodes = (nodes: (ElementNode | string)[], handleTextSelection: (event: GestureResponderEvent) => void): React.ReactNode[] => {
   return nodes.map((node, index) => {
     if (typeof node === 'string') {
-      return <Text key={index} style={styles.text}>{node}</Text>;
+      return (
+        <GestureText 
+          key={index} 
+          style={styles.text}
+          selectable={true}
+          onPressOut={handleTextSelection}
+        >
+          {node}
+        </GestureText>
+      );
     }
 
     switch (node.type) {
       case 'h1':
         return (
-          <Text key={index} style={[styles.text, styles.h1]}>
-            {node.children && renderNodes(node.children)}
-          </Text>
+          <GestureText 
+            key={index} 
+            style={[styles.text, styles.h1]}
+            selectable={true}
+            onPressOut={handleTextSelection}
+          >
+            {node.children && renderNodes(node.children, handleTextSelection)}
+          </GestureText>
         );
       case 'h2':
         return (
-          <Text key={index} style={[styles.text, styles.h2]}>
-            {node.children && renderNodes(node.children)}
-          </Text>
+          <GestureText 
+            key={index} 
+            style={[styles.text, styles.h2]}
+            selectable={true}
+            onPressOut={handleTextSelection}
+          >
+            {node.children && renderNodes(node.children, handleTextSelection)}
+          </GestureText>
         );
       case 'h3':
         return (
-          <Text key={index} style={[styles.text, styles.h3]}>
-            {node.children && renderNodes(node.children)}
-          </Text>
+          <GestureText 
+            key={index} 
+            style={[styles.text, styles.h3]}
+            selectable={true}
+            onPressOut={handleTextSelection}
+          >
+            {node.children && renderNodes(node.children, handleTextSelection)}
+          </GestureText>
         );
       case 'h4':
       case 'h5':
       case 'h6':
         return (
-          <Text key={index} style={[styles.text, styles.h4]}>
-            {node.children && renderNodes(node.children)}
-          </Text>
+          <GestureText 
+            key={index} 
+            style={[styles.text, styles.h4]}
+            selectable={true}
+            onPressOut={handleTextSelection}
+          >
+            {node.children && renderNodes(node.children, handleTextSelection)}
+          </GestureText>
         );
       case 'p':
         return (
           <View key={index} style={styles.paragraph}>
-            <Text style={styles.text}>
-              {node.children && renderNodes(node.children)}
-            </Text>
+            <GestureText 
+              style={styles.text}
+              selectable={true}
+              onPressOut={handleTextSelection}
+            >
+              {node.children && renderNodes(node.children, handleTextSelection)}
+            </GestureText>
           </View>
         );
       case 'strong':
       case 'b':
         return (
-          <Text key={index} style={[styles.text, styles.bold]}>
-            {node.children && renderNodes(node.children)}
-          </Text>
+          <GestureText 
+            key={index} 
+            style={[styles.text, styles.bold]}
+            selectable={true}
+            onPressOut={handleTextSelection}
+          >
+            {node.children && renderNodes(node.children, handleTextSelection)}
+          </GestureText>
         );
       case 'em':
       case 'i':
         return (
-          <Text key={index} style={[styles.text, styles.italic]}>
-            {node.children && renderNodes(node.children)}
-          </Text>
+          <GestureText 
+            key={index} 
+            style={[styles.text, styles.italic]}
+            selectable={true}
+            onPressOut={handleTextSelection}
+          >
+            {node.children && renderNodes(node.children, handleTextSelection)}
+          </GestureText>
         );
       case 'u':
         return (
-          <Text key={index} style={[styles.text, styles.underline]}>
-            {node.children && renderNodes(node.children)}
-          </Text>
+          <GestureText 
+            key={index} 
+            style={[styles.text, styles.underline]}
+            selectable={true}
+            onPressOut={handleTextSelection}
+          >
+            {node.children && renderNodes(node.children, handleTextSelection)}
+          </GestureText>
         );
       case 'br':
-        return <Text key={index}>{'\n'}</Text>;
+        return <GestureText key={index} selectable={false}>{'\n'}</GestureText>;
       case 'hr':
         return <View key={index} style={styles.hr} />;
       case 'div':
         return (
           <View key={index} style={styles.div}>
-            {node.children && renderNodes(node.children)}
+            {node.children && renderNodes(node.children, handleTextSelection)}
           </View>
         );
       case 'span':
         return (
-          <Text key={index} style={styles.text}>
-            {node.children && renderNodes(node.children)}
-          </Text>
+          <GestureText 
+            key={index} 
+            style={styles.text}
+            selectable={true}
+            onPressOut={handleTextSelection}
+          >
+            {node.children && renderNodes(node.children, handleTextSelection)}
+          </GestureText>
         );
       case 'img':
         return (
@@ -226,36 +281,45 @@ const renderNodes = (nodes: (ElementNode | string)[]): React.ReactNode[] => {
         );
       case 'a':
         return (
-          <Text key={index} style={[styles.text, styles.link]}>
-            {node.children && renderNodes(node.children)}
-          </Text>
+          <GestureText 
+            key={index} 
+            style={[styles.text, styles.link]}
+            selectable={true}
+            onPressOut={handleTextSelection}
+          >
+            {node.children && renderNodes(node.children, handleTextSelection)}
+          </GestureText>
         );
       case 'ul':
         return (
           <View key={index} style={styles.list}>
-            {node.children && renderNodes(node.children)}
+            {node.children && renderNodes(node.children, handleTextSelection)}
           </View>
         );
       case 'ol':
         return (
           <View key={index} style={styles.list}>
-            {node.children && renderNodes(node.children)}
+            {node.children && renderNodes(node.children, handleTextSelection)}
           </View>
         );
       case 'li':
         return (
           <View key={index} style={styles.listItem}>
-            <Text style={styles.bullet}>• </Text>
-            <Text style={styles.text}>
-              {node.children && renderNodes(node.children)}
-            </Text>
+            <GestureText style={styles.bullet} selectable={false}>• </GestureText>
+            <GestureText 
+              style={styles.text}
+              selectable={true}
+              onPressOut={handleTextSelection}
+            >
+              {node.children && renderNodes(node.children, handleTextSelection)}
+            </GestureText>
           </View>
         );
       default:
         // For unhandled elements, return the children directly
         return (
           <View key={index}>
-            {node.children && renderNodes(node.children)}
+            {node.children && renderNodes(node.children, handleTextSelection)}
           </View>
         );
     }
@@ -322,11 +386,27 @@ function ReaderScreen() {
     }
   }, [content]);
 
+  const handleTextSelection = async (event: GestureResponderEvent) => {
+    try {
+      const selectedText = await getSelectedText();
+      if (selectedText) {
+        console.log('Selected text:', selectedText);
+      }
+    } catch (error) {
+      console.error('Error handling text selection:', error);
+    }
+  };
+
   if (isLoading) {
     return (
       <View style={[styles.container, styles.centerContent]}>
         <ActivityIndicator size="large" color="#1a73e8" />
-        <Text style={styles.loadingText}>Loading your book...</Text>
+        <GestureText 
+          style={styles.loadingText}
+          selectable={false}
+        >
+          Loading your book...
+        </GestureText>
       </View>
     );
   }
@@ -334,7 +414,12 @@ function ReaderScreen() {
   if (error) {
     return (
       <View style={[styles.container, styles.centerContent]}>
-        <Text style={styles.errorText}>{error}</Text>
+        <GestureText 
+          style={styles.errorText}
+          selectable={false}
+        >
+          {error}
+        </GestureText>
       </View>
     );
   }
@@ -342,7 +427,7 @@ function ReaderScreen() {
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollView}>
-        {renderNodes(parsedContent)}
+        {renderNodes(parsedContent, handleTextSelection)}
       </ScrollView>
     </View>
   );

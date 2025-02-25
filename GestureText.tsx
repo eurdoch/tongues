@@ -18,7 +18,6 @@ const GestureText: React.FC<GestureTextProps> = ({
   onPressIn,
   onPressOut,
   style,
-  selectable,
   ...props
 }) => {
   return (
@@ -29,12 +28,11 @@ const GestureText: React.FC<GestureTextProps> = ({
       onPress={onPress ? onPress : () => {}}
       onPressIn={onPressIn}
       onPressOut={onPressOut}
-      selectable={selectable}
+      selectable={props.selectable !== undefined ? props.selectable : true}
     >
       {children}
     </Text>
   );
 };
-
 
 export default GestureText;
