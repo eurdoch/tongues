@@ -416,12 +416,15 @@ function ReaderScreen() {
     loadEpub();
   }, [fileUri]);
 
-  const parsedContent = useMemo(() => {
+  const [parsedContent, setParsedContent] = useState<ElementNode[]>([]);
+  
+  useEffect(() => {
     try {
-      return parseHtml(content);
+      const parsed = parseHtml(content);
+      setParsedContent(parsed);
     } catch (error) {
       console.error('Error parsing HTML:', error);
-      return [{ type: 'text', children: ['Error parsing content'] }];
+      setParsedContent([{ type: 'text', children: ['Error parsing content'] }]);
     }
   }, [content]);
 
