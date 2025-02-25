@@ -1,5 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView, Image, ActivityIndicator, GestureResponderEvent } from 'react-native';
+import { 
+  View, 
+  StyleSheet, 
+  ScrollView, 
+  Image, 
+  ActivityIndicator, 
+  GestureResponderEvent,
+  Modal,
+  TouchableOpacity,
+  Pressable 
+} from 'react-native';
 import { useRoute } from '@react-navigation/native';
 import { parseEpub } from './utils';
 import RNFS from 'react-native-fs';
@@ -326,12 +336,23 @@ const renderNodes = (nodes: (ElementNode | string)[], handleTextSelection: (even
   });
 };
 
+// Define available languages
+const languages = [
+  { label: 'French', value: 'French' },
+  { label: 'Spanish', value: 'Spanish' },
+  { label: 'German', value: 'German' },
+  { label: 'Italian', value: 'Italian' },
+  { label: 'Dutch', value: 'Dutch' },
+];
+
 function ReaderScreen() {
   const route = useRoute();
   const { fileUri } = route.params || {};
   const [content, setContent] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [showLanguageModal, setShowLanguageModal] = useState<boolean>(false);
+  const [selectedLanguage, setSelectedLanguage] = useState<string>('');
 
   useEffect(() => {
     const loadEpub = async () => {
@@ -367,6 +388,7 @@ function ReaderScreen() {
         
         setContent(fullText);
         setIsLoading(false);
+        setShowLanguageModal(true);
       } catch (error) {
         console.error('Error loading epub:', error);
         setError('Failed to load the book');
@@ -424,11 +446,74 @@ function ReaderScreen() {
     );
   }
 
+  const renderLanguageModal = () => {
+    return (
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={showLanguageModal}
+        onRequestClose={() => setShowLanguageModal(false)}
+      >
+        <Pressable 
+          style={styles.modalOverlay}
+          onPress={() => setShowLanguageModal(false)}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalContent} onStartShouldSetResponder={() => true}>
+              <GestureText 
+                style={styles.modalTitle}
+                selectable={false}
+              >
+                Select Language
+              </GestureText>
+              <View style={styles.languageOptionsContainer}>
+                {languages.map((language) => (
+                  <TouchableOpacity
+                    key={language.value}
+                    style={[
+                      styles.languageOption,
+                      selectedLanguage === language.value && styles.selectedLanguageOption
+                    ]}
+                    onPress={() => {
+                      setSelectedLanguage(language.value);
+                      setShowLanguageModal(false);
+                    }}
+                  >
+                    <GestureText 
+                      style={[
+                        styles.languageOptionText,
+                        selectedLanguage === language.value && styles.selectedLanguageOptionText
+                      ]}
+                      selectable={false}
+                    >
+                      {language.label}
+                    </GestureText>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
+    );
+  };
+
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollView}>
         {renderNodes(parsedContent, handleTextSelection)}
       </ScrollView>
+      
+      {/* Language selection modal */}
+      {renderLanguageModal()}
+      
+      {selectedLanguage ? (
+        <View style={styles.languageBadge}>
+          <GestureText style={styles.languageBadgeText} selectable={false}>
+            {selectedLanguage}
+          </GestureText>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -461,6 +546,76 @@ const styles = StyleSheet.create({
     color: '#e53935',
     textAlign: 'center',
     padding: 20,
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    width: '80%',
+    backgroundColor: 'white',
+    borderRadius: 12,
+    overflow: 'hidden',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  modalContent: {
+    padding: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  languageOptionsContainer: {
+    marginTop: 8,
+  },
+  languageOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginVertical: 4,
+    backgroundColor: '#f0f0f0',
+  },
+  selectedLanguageOption: {
+    backgroundColor: '#1a73e8',
+  },
+  languageOptionText: {
+    fontSize: 16,
+    color: '#333',
+    textAlign: 'center',
+  },
+  selectedLanguageOptionText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  // Language badge
+  languageBadge: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    backgroundColor: '#1a73e8',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.41,
+  },
+  languageBadgeText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
   h1: {
     fontSize: 28,
