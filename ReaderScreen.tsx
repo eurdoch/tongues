@@ -334,14 +334,61 @@ const renderNode = (node: ElementNode | string, handleTextSelection: (event: Ges
   }
 };
 
-// Define available languages
-const languages = [
-  { label: 'French', value: 'French' },
-  { label: 'Spanish', value: 'Spanish' },
-  { label: 'German', value: 'German' },
-  { label: 'Italian', value: 'Italian' },
-  { label: 'Dutch', value: 'Dutch' },
+// Define available languages for reference
+const supportedLanguages = [
+  'French',
+  'Spanish',
+  'German',
+  'Italian',
+  'Dutch',
 ];
+
+// Helper function to extract a sample of content for language detection
+const extractContentSample = (text: string): string => {
+  // Find a paragraph with a reasonable length
+  const paragraphs = text.split(/\n+/);
+  const validParagraphs = paragraphs.filter(p => p.trim().length > 100 && p.trim().length < 1000);
+  
+  if (validParagraphs.length > 0) {
+    // Get a random paragraph
+    const randomIndex = Math.floor(Math.random() * validParagraphs.length);
+    return validParagraphs[randomIndex].trim();
+  }
+  
+  // If no suitable paragraphs, take a section from the middle of the text
+  if (text.length > 500) {
+    const startPos = Math.floor(text.length / 2) - 250;
+    return text.substring(startPos, startPos + 500);
+  }
+  
+  // Just return what we have
+  return text.trim();
+};
+
+// Function to detect language using the API
+const detectLanguage = async (text: string): Promise<string> => {
+  const response = await fetch('https://tongues.directto.link/language', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ text }),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Language detection failed with status: ${response.status}`);
+  }
+  
+  const data = await response.json();
+  
+  // Check if returned language is in our supported list
+  if (data.language && supportedLanguages.includes(data.language)) {
+    return data.language;
+  }
+  
+  // Default to French if not supported
+  return 'French';
+};
 
 function ReaderScreen() {
   const route = useRoute();
@@ -349,7 +396,6 @@ function ReaderScreen() {
   const [content, setContent] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [showLanguageModal, setShowLanguageModal] = useState<boolean>(false);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
 
   // Reset state when a new file is selected
@@ -401,8 +447,20 @@ function ReaderScreen() {
         const fullText = allContents.join('\n\n');
         
         setContent(fullText);
+        
+        // Detect language from content sample
+        try {
+          // Get a random section of content for language detection
+          const contentSample = extractContentSample(fullText);
+          const detectedLanguage = await detectLanguage(contentSample);
+          setSelectedLanguage(detectedLanguage);
+        } catch (langError) {
+          console.error('Error detecting language:', langError);
+          // Default to French if detection fails
+          setSelectedLanguage('French');
+        }
+        
         setIsLoading(false);
-        setShowLanguageModal(true);
       } catch (error) {
         console.error('Error loading epub:', error);
         setError('Failed to load the book');
@@ -623,68 +681,6 @@ function ReaderScreen() {
     );
   }
 
-  const renderLanguageModal = () => {
-    return (
-      <Modal
-        animationType="none"
-        transparent={true}
-        visible={showLanguageModal}
-        onRequestClose={() => setShowLanguageModal(false)}
-      >
-        <TouchableOpacity 
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowLanguageModal(false)}
-        >
-          <TouchableOpacity 
-            style={styles.modalContainer}
-            activeOpacity={1}
-            onPress={(e) => e.stopPropagation()}
-          >
-            <View style={styles.modalContent}>
-              <GestureText 
-                style={styles.modalTitle}
-                selectable={false}
-              >
-                Select Language
-              </GestureText>
-              <View style={styles.languageOptionsContainer}>
-                {languages.map((language) => (
-                  <TouchableOpacity
-                    key={language.value}
-                    style={[
-                      styles.languageOption,
-                      selectedLanguage === language.value && styles.selectedLanguageOption
-                    ]}
-                    activeOpacity={0.7}
-                    delayPressIn={0}
-                    onPress={() => {
-                      setSelectedLanguage(language.value);
-                      // Use setTimeout to allow the state update to render before closing modal
-                      setTimeout(() => {
-                        setShowLanguageModal(false);
-                      }, 100);
-                    }}
-                  >
-                    <GestureText 
-                      style={[
-                        styles.languageOptionText,
-                        selectedLanguage === language.value && styles.selectedLanguageOptionText
-                      ]}
-                      selectable={false}
-                    >
-                      {language.label}
-                    </GestureText>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
-    );
-  };
-
   // Render item for FlatList
   const renderItem = ({ item, index }: { item: ElementNode; index: number }) => {
     return (
@@ -708,8 +704,14 @@ function ReaderScreen() {
         scrollEventThrottle={16}
       />
       
-      {/* Language selection modal */}
-      {renderLanguageModal()}
+      {/* Language indicator */}
+      {selectedLanguage && (
+        <View style={styles.languageBadge}>
+          <GestureText style={styles.languageBadgeText} selectable={false}>
+            {selectedLanguage}
+          </GestureText>
+        </View>
+      )}
       
       {/* Translation result popup */}
       {translatedText && selectedOriginalText && (
@@ -804,67 +806,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     padding: 20,
   },
-  // Modal styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContainer: {
-    width: '85%',
-    backgroundColor: 'white',
-    borderRadius: 16,
-    overflow: 'hidden',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-  },
-  modalContent: {
-    padding: 24,
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  languageOptionsContainer: {
-    marginTop: 8,
-  },
-  languageOption: {
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    marginVertical: 6,
-    backgroundColor: '#f5f5f5',
-    // Add a border for better visibility
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    // Improve touch feedback
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
-  },
-  selectedLanguageOption: {
-    backgroundColor: '#1a73e8',
-    borderColor: '#0d47a1',
-  },
-  languageOptionText: {
-    fontSize: 18,
-    color: '#333',
-    textAlign: 'center',
-  },
-  selectedLanguageOptionText: {
-    color: 'white',
-    fontWeight: 'bold',
-  },
-  // Language badge
+  // Language badge styles
   languageBadge: {
     position: 'absolute',
     top: 16,
