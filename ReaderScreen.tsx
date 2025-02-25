@@ -426,6 +426,7 @@ function ReaderScreen() {
     }
   }, [content]);
 
+  const [selectedOriginalText, setSelectedOriginalText] = useState<string | null>(null);
   const [translatedText, setTranslatedText] = useState<string | null>(null);
   const [audioPath, setAudioPath] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -560,6 +561,9 @@ function ReaderScreen() {
         const selectedText = await getSelectedText();
         if (selectedText && selectedLanguage) {
           console.log('Selected text:', selectedText);
+          
+          // Store the original selected text
+          setSelectedOriginalText(selectedText);
           
           // Make API call to translation service
           const response = await fetch('https://tongues.directto.link/translate', {
@@ -717,47 +721,62 @@ function ReaderScreen() {
       ) : null}
       
       {/* Translation result popup */}
-      {translatedText && (
+      {translatedText && selectedOriginalText && (
         <View style={styles.translationContainer}>
           <View style={styles.translationResult}>
-            <GestureText style={styles.translatedText} selectable={true}>
-              {translatedText}
-            </GestureText>
-            
-            <View style={styles.translationControls}>
-              {sound && (
-                <TouchableOpacity 
-                  style={[styles.audioButton, isPlaying && styles.audioButtonActive]}
-                  onPress={isPlaying ? stopAudio : playAudio}
-                >
-                  <GestureText style={styles.audioButtonText} selectable={false}>
-                    {isPlaying ? '■' : '▶'}
-                  </GestureText>
-                </TouchableOpacity>
-              )}
+            <View style={styles.translationHeader}>
+              <GestureText style={styles.translationHeaderText} selectable={false}>
+                {selectedLanguage}
+              </GestureText>
+              
+              <View style={styles.translationControls}>
+                {sound && (
+                  <TouchableOpacity 
+                    style={[styles.audioButton, isPlaying && styles.audioButtonActive]}
+                    onPress={isPlaying ? stopAudio : playAudio}
+                  >
+                    <GestureText style={styles.audioButtonText} selectable={false}>
+                      {isPlaying ? '■' : '▶'}
+                    </GestureText>
+                  </TouchableOpacity>
+                )}
+              </View>
+              
+              <TouchableOpacity 
+                style={styles.closeButton}
+                onPress={() => {
+                  setSelectedOriginalText(null);
+                  setTranslatedText(null);
+                  if (sound) {
+                    sound.stop();
+                    sound.release();
+                    setSound(null);
+                  }
+                  if (audioPath) {
+                    RNFS.unlink(audioPath).catch(e => 
+                      console.log('Error removing audio file:', e)
+                    );
+                    setAudioPath(null);
+                  }
+                }}
+              >
+                <GestureText style={styles.closeButtonText} selectable={false}>
+                  ✕
+                </GestureText>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.originalTextContainer}>
+              <GestureText style={styles.originalText} selectable={true}>
+                {selectedOriginalText}
+              </GestureText>
             </View>
             
-            <TouchableOpacity 
-              style={styles.closeButton}
-              onPress={() => {
-                setTranslatedText(null);
-                if (sound) {
-                  sound.stop();
-                  sound.release();
-                  setSound(null);
-                }
-                if (audioPath) {
-                  RNFS.unlink(audioPath).catch(e => 
-                    console.log('Error removing audio file:', e)
-                  );
-                  setAudioPath(null);
-                }
-              }}
-            >
-              <GestureText style={styles.closeButtonText} selectable={false}>
-                ✕
+            <View style={styles.translatedTextContainer}>
+              <GestureText style={styles.translatedText} selectable={true}>
+                {translatedText}
               </GestureText>
-            </TouchableOpacity>
+            </View>
           </View>
         </View>
       )}
@@ -880,7 +899,7 @@ const styles = StyleSheet.create({
     left: 20,
     right: 20,
     bottom: 30,
-    borderRadius: 12,
+    borderRadius: 16,
     overflow: 'hidden',
     elevation: 8,
     shadowColor: '#000',
@@ -889,23 +908,39 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
   },
   translationResult: {
-    backgroundColor: 'rgba(26, 115, 232, 0.9)',
-    padding: 16,
-    paddingRight: 40,
+    backgroundColor: 'rgba(33, 33, 33, 0.95)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-  translatedText: {
+  translationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(26, 115, 232, 0.9)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  translationHeaderText: {
     color: 'white',
     fontSize: 16,
-    lineHeight: 24,
+    fontWeight: 'bold',
+  },
+  translationControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 'auto',
+    marginRight: 30,
   },
   closeButton: {
     position: 'absolute',
-    top: 8,
-    right: 8,
+    top: 10,
+    right: 10,
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -914,9 +949,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
   },
-  translationControls: {
-    flexDirection: 'row',
-    marginTop: 10,
+  originalTextContainer: {
+    padding: 16,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  originalText: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 15,
+    lineHeight: 22,
+    fontStyle: 'italic',
+  },
+  translatedTextContainer: {
+    padding: 16,
+    paddingTop: 8,
+  },
+  translatedText: {
+    color: 'white',
+    fontSize: 16,
+    lineHeight: 24,
+    fontWeight: '500',
   },
   audioButton: {
     width: 36,
