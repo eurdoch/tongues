@@ -4,6 +4,7 @@ import { useNavigation, DrawerActions } from "@react-navigation/native";
 import { pick } from "@react-native-documents/picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useState } from "react";
+import RNFS from "react-native-fs";
 
 function CustomDrawerContent() {
     const navigation = useNavigation();
@@ -24,7 +25,22 @@ function CustomDrawerContent() {
   
         const contents = await parseEpub(file.uri);
         if (contents) {
-          console.log(contents);
+          // Concatenate all chapter contents into a single string
+          const allContentPromises = contents.map(async (item) => {
+            try {
+              const content = await RNFS.readFile(item.path, 'utf8');
+              return content;
+            } catch (error) {
+              console.error(`Error reading file ${item.path}:`, error);
+              return '';
+            }
+          });
+          
+          const allContents = await Promise.all(allContentPromises);
+          const fullText = allContents.join('\n\n');
+          
+          // Navigate to the Reader screen with the content
+          navigation.navigate('Reader', { content: fullText });
         } else {
           console.log('No opf file found.');
         }
