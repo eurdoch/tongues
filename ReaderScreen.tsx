@@ -704,15 +704,6 @@ function ReaderScreen() {
         scrollEventThrottle={16}
       />
       
-      {/* Language indicator */}
-      {selectedLanguage && (
-        <View style={styles.languageBadge}>
-          <GestureText style={styles.languageBadgeText} selectable={false}>
-            {selectedLanguage}
-          </GestureText>
-        </View>
-      )}
-      
       {/* Translation result popup */}
       {translatedText && selectedOriginalText && (
         <View style={styles.translationContainer}>
@@ -805,26 +796,6 @@ const styles = StyleSheet.create({
     color: '#e53935',
     textAlign: 'center',
     padding: 20,
-  },
-  // Language badge styles
-  languageBadge: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    backgroundColor: '#1a73e8',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
-  },
-  languageBadgeText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: 'bold',
   },
   // Translation styles
   translationContainer: {
