@@ -33,6 +33,11 @@ function CustomDrawerContent() {
         setIsLoading(false);
       }
     };
+
+    const goToHome = () => {
+      navigation.navigate('Home');
+      navigation.dispatch(DrawerActions.closeDrawer());
+    };
     
     return (
       <SafeAreaView style={styles.container}>
@@ -40,6 +45,13 @@ function CustomDrawerContent() {
           <Text style={styles.title}>Tongues</Text>
         </View>
         <View style={styles.content}>
+          <TouchableOpacity 
+            style={styles.navButton}
+            onPress={goToHome}
+          >
+            <Text style={styles.navButtonText}>Home</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity 
             style={styles.button}
             onPress={selectAndReadEpub} 
@@ -74,6 +86,21 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
+  },
+  navButton: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'flex-start',
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#e1e4e8',
+  },
+  navButtonText: {
+    color: '#333',
+    fontWeight: '500',
+    fontSize: 16,
   },
   button: {
     backgroundColor: '#1a73e8',
