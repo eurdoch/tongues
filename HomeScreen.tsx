@@ -14,7 +14,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import RNFS from "react-native-fs";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import * as ZipArchive from 'react-native-zip-archive';
-import { request, PERMISSIONS, RESULTS } from 'react-native-permissions';
 
 interface EpubFile {
     id: string;
@@ -26,42 +25,6 @@ interface EpubFile {
     lastModified?: number;
 }
 
-const requestStoragePermission = async () => {
-  // Different permissions for different Android versions
-  const permission = Platform.Version >= 33
-    ? PERMISSIONS.ANDROID.READ_MEDIA_IMAGES
-    : PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE;
-  
-  try {
-    const result = await request(permission);
-    
-    switch (result) {
-      case RESULTS.GRANTED:
-        console.log('Storage permission granted');
-        // Permission granted, you can now access storage
-        break;
-      case RESULTS.DENIED:
-        console.log('Storage permission denied');
-        // Permission denied, but not permanently
-        break;
-      case RESULTS.BLOCKED:
-        console.log('Storage permission blocked');
-        Alert.alert(
-          'Storage Permission',
-          'Storage permission is blocked. Please enable it in app settings.',
-          [
-            { text: 'OK' }
-          ]
-        );
-        break;
-    }
-    
-    return result === RESULTS.GRANTED;
-  } catch (error) {
-    console.error('Error requesting storage permission:', error);
-    return false;
-  }
-};
 
 function HomeScreen(): React.JSX.Element {
     const [epubFiles, setEpubFiles] = useState<EpubFile[]>([]);
@@ -76,18 +39,11 @@ function HomeScreen(): React.JSX.Element {
         
         // Initial load when component mounts
         const loadInitialBooks = async () => {
-            const granted = await requestStoragePermission();
-            
             // Only continue if component is still mounted
             if (!isMounted) return;
             
-            if (granted) {
-                console.log('Initial book scan - permissions granted');
-                findEpubFiles();
-            } else {
-                console.log('Permission not granted');
-                setIsLoading(false);
-            }
+            console.log('Initial book scan');
+            findEpubFiles();
         };
         
         loadInitialBooks();
