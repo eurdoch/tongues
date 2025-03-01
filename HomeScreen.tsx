@@ -557,10 +557,12 @@ function HomeScreen(): React.JSX.Element {
                             if (!coverExists) {
                                 console.error('Cover file does not exist at resolved path:', fullCoverPath);
                             } else {
-                                // Create a cached copy of the cover image
+                                // Create a cached copy of the cover image with a stable filename based on book path
                                 const coverExt = decodedCoverPath.split('.').pop() || 'jpg';
-                                const cachedCoverPath = `${RNFS.CachesDirectoryPath}/book_cover_${timestamp}.${coverExt}`;
-                                console.log('Copying cover to cache:', cachedCoverPath);
+                                // Create a stable ID from the EPUB path to ensure covers are associated with books
+                                const bookId = epubUri.split('/').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'unknown';
+                                const cachedCoverPath = `${RNFS.CachesDirectoryPath}/book_cover_${bookId}.${coverExt}`;
+                                console.log('Copying cover to cache with stable ID:', cachedCoverPath);
                                 await RNFS.copyFile(fullCoverPath, cachedCoverPath);
                                 coverUri = cachedCoverPath;
                                 console.log('Successfully cached cover image at:', cachedCoverPath);
@@ -590,10 +592,12 @@ function HomeScreen(): React.JSX.Element {
                                         if (foundFile) {
                                             console.log('Found cover file by name search:', foundFile);
                                             
-                                            // Create a cached copy of the cover image
+                                            // Create a cached copy of the cover image with a stable filename
                                             const coverExt = coverFilename.split('.').pop() || 'jpg';
-                                            const cachedCoverPath = `${RNFS.CachesDirectoryPath}/book_cover_${timestamp}.${coverExt}`;
-                                            console.log('Copying found cover to cache:', cachedCoverPath);
+                                            // Create a stable ID from the EPUB path to ensure covers are associated with books
+                                            const bookId = epubUri.split('/').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'unknown';
+                                            const cachedCoverPath = `${RNFS.CachesDirectoryPath}/book_cover_${bookId}.${coverExt}`;
+                                            console.log('Copying found cover to cache with stable ID:', cachedCoverPath);
                                             await RNFS.copyFile(foundFile, cachedCoverPath);
                                             coverUri = cachedCoverPath;
                                             console.log('Successfully cached found cover image at:', cachedCoverPath);
@@ -603,10 +607,12 @@ function HomeScreen(): React.JSX.Element {
                                     }
                                 }
                             } else {
-                                // Create a cached copy of the cover image
+                                // Create a cached copy of the cover image with a stable filename
                                 const coverExt = normalizedPath.split('.').pop() || 'jpg';
-                                const cachedCoverPath = `${RNFS.CachesDirectoryPath}/book_cover_${timestamp}.${coverExt}`;
-                                console.log('Copying cover to cache:', cachedCoverPath);
+                                // Create a stable ID from the EPUB path to ensure covers are associated with books
+                                const bookId = epubUri.split('/').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'unknown';
+                                const cachedCoverPath = `${RNFS.CachesDirectoryPath}/book_cover_${bookId}.${coverExt}`;
+                                console.log('Copying cover to cache with stable ID:', cachedCoverPath);
                                 await RNFS.copyFile(fullCoverPath, cachedCoverPath);
                                 coverUri = cachedCoverPath;
                                 console.log('Successfully cached cover image at:', cachedCoverPath);
