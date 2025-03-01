@@ -175,6 +175,11 @@ class MainActivity : ReactActivity(), ReactInstanceEventListener {
         fileName
       }
       
+      // Log all existing files in the directory for debugging
+      val appDir = java.io.File(applicationContext.filesDir.absolutePath)
+      val existingFiles = appDir.listFiles()
+      Log.d("TonguesApp", "Existing files in app directory: ${existingFiles?.joinToString(", ") { it.name } ?: "none"}")
+      
       // Get path to app's document directory
       val targetDir = applicationContext.filesDir.absolutePath
       val targetPath = "$targetDir/$targetFileName"

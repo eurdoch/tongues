@@ -527,24 +527,52 @@ function ReaderScreen() {
     
     // Check if we're opening an external book that might be a duplicate
     if (fileUri && checkForDuplicates) {
-      import('./BookMetadataStore').then(async ({ checkIfBookExists }) => {
+      // For externally opened files, we need to verify if this book already exists
+      // to prevent duplicate entries in the library
+      import('./BookMetadataStore').then(async ({ checkIfBookExists, getAllBookMetadata }) => {
         try {
-          const exists = await checkIfBookExists(fileUri);
-          if (exists) {
-            console.log('[ReaderScreen] Book already exists in library, using existing version');
-            // We still load the book, but it will use the existing metadata from the store
+          // Get just the filename for comparison
+          const filename = fileUri.split('/').pop()?.toLowerCase() || '';
+          console.log('[ReaderScreen] Checking if book already exists:', filename);
+          
+          // Get all existing books
+          const allMetadata = await getAllBookMetadata();
+          let existingBook = null;
+          
+          // Search through metadata for a book with the same filename
+          for (const bookId in allMetadata) {
+            const book = allMetadata[bookId];
+            const existingFilename = book.filePath.split('/').pop()?.toLowerCase() || '';
+            
+            if (existingFilename === filename) {
+              console.log('[ReaderScreen] Found existing book with same filename:', existingFilename);
+              existingBook = book;
+              break;
+            }
+          }
+          
+          if (existingBook) {
+            console.log('[ReaderScreen] Using existing book instead of duplicate:', existingBook.filePath);
+            // If we found an existing book with the same name,
+            // update the navigation to use that book instead
+            navigation.setParams({ 
+              fileUri: existingBook.filePath,
+              checkForDuplicates: false  // Prevent infinite loop
+            });
+            return; // Don't load the duplicate, we'll load the existing book when params change
           }
         } catch (error) {
           console.error('[ReaderScreen] Error checking for duplicate:', error);
         }
-        // Load the book after checking for duplicates
+        
+        // If no duplicate was found, load this book
         loadEpub();
       });
     } else if (fileUri) {
       // Normal flow for books opened from within the app
       loadEpub();
     }
-  }, [fileUri, checkForDuplicates]);
+  }, [fileUri, checkForDuplicates, navigation]);
 
   const [parsedContent, setParsedContent] = useState<ElementNode[]>([]);
   

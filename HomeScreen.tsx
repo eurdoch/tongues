@@ -124,6 +124,8 @@ function HomeScreen(): React.JSX.Element {
                 continue;
             }
             
+            console.log(`Processing duplicate group with ${group.length} files:`, group.map(f => f.name).join(', '));
+            
             try {
                 // Sort by last modified (most recent first)
                 group.sort((a, b) => {
@@ -227,9 +229,17 @@ function HomeScreen(): React.JSX.Element {
                     const updatedEpubs = await searchDirectoryForEpubs(appDataDirectory);
                     
                     // Process new EPUBs that aren't in our metadata store
-                    const newEpubs = updatedEpubs.filter(epub => 
-                        !validStoredBooks.some(book => book.filePath === epub.uri)
-                    );
+                    // Use more robust filename-based duplicate detection instead of exact path matching
+                    const newEpubs = updatedEpubs.filter(epub => {
+                        // Get the filename without path
+                        const epubFilename = epub.uri.split('/').pop()?.toLowerCase() || '';
+                        
+                        // Check if this filename already exists in our valid stored books
+                        return !validStoredBooks.some(book => {
+                            const bookFilename = book.filePath.split('/').pop()?.toLowerCase() || '';
+                            return bookFilename === epubFilename;
+                        });
+                    });
                     
                     console.log(`Found ${newEpubs.length} new EPUB files not in metadata store`);
                     
@@ -284,9 +294,26 @@ function HomeScreen(): React.JSX.Element {
             }
             
             // Process new EPUBs that aren't in our metadata store
-            const newEpubs = epubs.filter(epub => 
-                !validStoredBooks.some(book => book.filePath === epub.uri)
-            );
+            // Use more robust filename-based duplicate detection instead of exact path matching
+            const newEpubs = epubs.filter(epub => {
+                // Get the filename without path
+                const epubFilename = epub.uri.split('/').pop()?.toLowerCase() || '';
+                
+                // Log the filename we're checking for duplicates
+                console.log(`Checking if ${epubFilename} is already in metadata store`);
+                
+                // Check if this filename already exists in our valid stored books
+                const isDuplicate = validStoredBooks.some(book => {
+                    const bookFilename = book.filePath.split('/').pop()?.toLowerCase() || '';
+                    const isMatch = bookFilename === epubFilename;
+                    if (isMatch) {
+                        console.log(`Found match: ${bookFilename} === ${epubFilename}`);
+                    }
+                    return isMatch;
+                });
+                
+                return !isDuplicate;
+            });
             
             console.log(`Found ${newEpubs.length} new EPUB files not in metadata store`);
             
