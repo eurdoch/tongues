@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import RNFS from "react-native-fs";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import * as ZipArchive from 'react-native-zip-archive';
 import { request, PERMISSIONS, RESULTS } from 'react-native-permissions';
 
@@ -65,7 +65,9 @@ function HomeScreen(): React.JSX.Element {
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const navigation = useNavigation();
+    const route = useRoute();
 
+    // Load books when the component mounts
     useEffect(() => {
         requestStoragePermission().then((granted: boolean) => {
           if (granted) {
@@ -76,6 +78,17 @@ function HomeScreen(): React.JSX.Element {
           }
         });
     }, []);
+    
+    // Also refresh the book list when returning with refreshBooks flag
+    useEffect(() => {
+        if (route.params?.refreshBooks) {
+            console.log('Refreshing book list due to navigation param');
+            findEpubFiles();
+            
+            // Clear the parameter after using it
+            navigation.setParams({ refreshBooks: undefined });
+        }
+    }, [route.params?.refreshBooks]);
 
     const findEpubFiles = async () => {
         try {

@@ -9,7 +9,7 @@ import {
   Modal,
   TouchableOpacity,
 } from 'react-native';
-import { useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { parseEpub } from './utils';
 import RNFS from 'react-native-fs';
 import GestureText from './GestureText';
@@ -393,12 +393,25 @@ const detectLanguage = async (text: string): Promise<string> => {
 
 function ReaderScreen() {
   const route = useRoute();
-  const { fileUri } = route.params || {};
+  const navigation = useNavigation();
+  const { fileUri, shouldRefreshHomeAfterClose } = route.params || {};
   const [content, setContent] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
   const [tableOfContents, setTableOfContents] = useState<TOCItem[]>([]);
+  
+  // When component is unmounted, refresh the HomeScreen if requested
+  useEffect(() => {
+    return () => {
+      if (shouldRefreshHomeAfterClose) {
+        // Wait a moment for navigation to complete, then refresh the Home screen
+        setTimeout(() => {
+          navigation.navigate('Home', { refreshBooks: true });
+        }, 300);
+      }
+    };
+  }, [shouldRefreshHomeAfterClose, navigation]);
 
   // Reset state when a new file is selected
   useEffect(() => {

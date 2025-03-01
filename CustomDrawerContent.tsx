@@ -22,15 +22,47 @@ function CustomDrawerContent() {
           type: ['application/epub+zip'],
           mode: 'open',
         });
-  
-        // Immediately navigate to Reader screen with just the file URI
-        // Let the Reader screen handle all the parsing
-        navigation.navigate('Reader', { fileUri: file.uri });
+        
+        // Copy the file to app storage for persistence
+        const savedFilePath = await copyFileToAppStorage(file.uri);
+        
+        // Navigate to Reader screen with the file URI
+        // If we successfully saved it, use the saved path, otherwise use the original URI
+        navigation.navigate('Reader', { 
+          fileUri: savedFilePath || file.uri,
+          shouldRefreshHomeAfterClose: true // Flag to refresh HomeScreen when done
+        });
+        
       } catch (e: any) {
         console.log('pick failed: ', e);
       } finally {
         // Hide loading indicator
         setIsLoading(false);
+      }
+    };
+    
+    // Function to copy the file to app storage
+    const copyFileToAppStorage = async (sourceUri: string): Promise<string | null> => {
+      try {
+        // Extract filename from the path or use a timestamp
+        const fileName = sourceUri.substring(sourceUri.lastIndexOf('/') + 1);
+        const targetFileName = fileName.endsWith('.epub') 
+          ? fileName 
+          : `${fileName}.epub`;
+        
+        // Create destination path in app's document directory
+        const destPath = `${RNFS.DocumentDirectoryPath}/${targetFileName}`;
+        
+        console.log(`Copying EPUB from ${sourceUri} to ${destPath}`);
+        
+        // Copy the file
+        await RNFS.copyFile(sourceUri, destPath);
+        
+        console.log('Successfully copied file to app storage');
+        return destPath;
+      } catch (error) {
+        console.error('Error copying file to app storage:', error);
+        return null;
       }
     };
 
