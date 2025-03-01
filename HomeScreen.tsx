@@ -524,16 +524,6 @@ function HomeScreen(): React.JSX.Element {
 
     return (
         <SafeAreaView style={styles.container}>
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>Your Books</Text>
-                <TouchableOpacity 
-                    style={styles.refreshButton}
-                    onPress={findEpubFiles}
-                >
-                    <Text style={styles.refreshButtonText}>Refresh</Text>
-                </TouchableOpacity>
-            </View>
-            
             {epubFiles.length === 0 ? (
                 <View style={styles.emptyContainer}>
                     <Text style={styles.emptyText}>No EPUB files found</Text>
@@ -558,30 +548,6 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#f8f9fa',
-    },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: '#e1e4e8',
-    },
-    headerTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#333',
-    },
-    refreshButton: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        backgroundColor: '#1a73e8',
-        borderRadius: 6,
-    },
-    refreshButtonText: {
-        color: 'white',
-        fontWeight: '500',
     },
     bookList: {
         padding: 16,
