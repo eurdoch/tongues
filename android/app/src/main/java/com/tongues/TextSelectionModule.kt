@@ -1,6 +1,5 @@
 package com.tongues
 
-import android.content.ClipboardManager
 import android.content.Context
 import android.view.View
 import android.widget.TextView
@@ -36,16 +35,7 @@ class TextSelectionModule(private val reactContext: ReactApplicationContext) : R
                 }
             }
 
-            // Fallback to clipboard
-            val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-            if (clipboard?.hasPrimaryClip() == true) {
-                val clipText = clipboard.primaryClip?.getItemAt(0)?.text
-                if (clipText?.isNotEmpty() == true) {
-                    promise.resolve(clipText.toString())
-                    return
-                }
-            }
-            
+            // No fallback, just return null if we can't get the selection directly
             promise.resolve(null)
             
         } catch (e: Exception) {

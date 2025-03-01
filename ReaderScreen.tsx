@@ -671,14 +671,7 @@ function ReaderScreen() {
           if (selectedText && selectedLanguage) {
             console.log('Selected text:', selectedText);
             
-            // Clear clipboard after getting selected text to prevent interference
-            try {
-              await Clipboard.setString('');
-            } catch (clipboardError) {
-              console.error('Error clearing clipboard after selection:', clipboardError);
-            }
-            
-            // Store the original selected text
+            // Store the original selected text (don't clear clipboard here)
             setSelectedOriginalText(selectedText);
             
             // Make API call to translation service
