@@ -72,14 +72,28 @@ function HomeScreen(): React.JSX.Element {
 
     // Load books when the component mounts
     useEffect(() => {
-        requestStoragePermission().then((granted: boolean) => {
-          if (granted) {
-            findEpubFiles();
-          } else {
-            console.log('Permission not granted');
-            setIsLoading(false);
-          }
-        });
+        let isMounted = true;
+        
+        const loadInitialBooks = async () => {
+            const granted = await requestStoragePermission();
+            
+            // Only continue if component is still mounted
+            if (!isMounted) return;
+            
+            if (granted) {
+                findEpubFiles();
+            } else {
+                console.log('Permission not granted');
+                setIsLoading(false);
+            }
+        };
+        
+        loadInitialBooks();
+        
+        // Cleanup function to prevent state updates after unmount
+        return () => {
+            isMounted = false;
+        };
     }, []);
     
     // Also refresh the book list when returning with refreshBooks flag
@@ -94,24 +108,37 @@ function HomeScreen(): React.JSX.Element {
     }, [route.params?.refreshBooks]);
 
     const findDuplicateEpubs = (epubs: EpubFile[]): Map<string, EpubFile[]> => {
-        // Group EPUBs by name and size
+        // Group EPUBs by name only (without considering size)
+        // This is more reliable since size might vary slightly between copies
         const duplicateGroups = new Map<string, EpubFile[]>();
         
-        // First, group by title and size
-        const groupKey = (epub: EpubFile) => `${epub.title}_${epub.size}`;
-        const groupedEpubs = new Map<string, EpubFile[]>();
+        // First, normalize filenames and group by name
+        const normalizeName = (name: string): string => {
+            // Remove extension if present
+            let normalized = name.replace(/\.epub$/i, "").trim();
+            // Replace special characters and spaces with underscores
+            normalized = normalized.replace(/[^a-z0-9]/gi, "_").toLowerCase();
+            return normalized;
+        };
+        
+        // Group by normalized name
+        const groupedByName = new Map<string, EpubFile[]>();
         
         epubs.forEach(epub => {
-            const key = groupKey(epub);
-            if (!groupedEpubs.has(key)) {
-                groupedEpubs.set(key, []);
+            const normalizedName = normalizeName(epub.name);
+            if (!groupedByName.has(normalizedName)) {
+                groupedByName.set(normalizedName, []);
             }
-            groupedEpubs.get(key)?.push(epub);
+            groupedByName.get(normalizedName)?.push(epub);
         });
         
         // Filter out groups with more than one file (these are potential duplicates)
-        for (const [key, group] of groupedEpubs.entries()) {
+        for (const [key, group] of groupedByName.entries()) {
             if (group.length > 1) {
+                console.log(`Found potential duplicates for "${key}": ${group.length} files`);
+                group.forEach(epub => {
+                    console.log(` - ${epub.name} (${epub.uri})`);
+                });
                 duplicateGroups.set(key, group);
             }
         }
@@ -123,27 +150,63 @@ function HomeScreen(): React.JSX.Element {
         let removedCount = 0;
         
         for (const group of duplicateGroups.values()) {
-            // Sort by last modified (most recent first)
-            group.sort((a, b) => {
-                const aTime = a.lastModified || 0;
-                const bTime = b.lastModified || 0;
-                return bTime - aTime;
-            });
+            // Skip very small groups (could be false positives)
+            if (group.length <= 1) {
+                continue;
+            }
             
-            // Keep the most recently modified file, delete the rest
-            const [keepFile, ...duplicatesToRemove] = group;
-            
-            // Log which file we're keeping and which we're removing
-            console.log(`Keeping: ${keepFile.name} (${keepFile.uri})`);
-            
-            for (const duplicate of duplicatesToRemove) {
-                try {
-                    console.log(`Removing duplicate: ${duplicate.name} (${duplicate.uri})`);
-                    await RNFS.unlink(duplicate.uri);
-                    removedCount++;
-                } catch (error) {
-                    console.error(`Failed to remove duplicate file ${duplicate.uri}:`, error);
+            try {
+                // Sort by last modified (most recent first)
+                group.sort((a, b) => {
+                    const aTime = a.lastModified || 0;
+                    const bTime = b.lastModified || 0;
+                    return bTime - aTime;
+                });
+                
+                // Keep the most recently modified file, delete the rest
+                const [keepFile, ...duplicatesToRemove] = group;
+                
+                // Skip if no duplicates to remove
+                if (duplicatesToRemove.length === 0) {
+                    continue;
                 }
+                
+                // Log which file we're keeping and which we're removing
+                console.log(`Keeping most recent file: ${keepFile.name} (${keepFile.uri})`);
+                console.log(`Last modified: ${new Date(keepFile.lastModified || 0).toLocaleString()}`);
+                
+                // Check that keepFile actually exists first
+                const keepFileExists = await RNFS.exists(keepFile.uri);
+                if (!keepFileExists) {
+                    console.error(`Error: The file we want to keep doesn't exist: ${keepFile.uri}`);
+                    continue; // Skip this group if the file we want to keep doesn't exist
+                }
+                
+                for (const duplicate of duplicatesToRemove) {
+                    try {
+                        // First verify that this file exists and is different from the one we're keeping
+                        if (duplicate.uri === keepFile.uri) {
+                            console.log(`Skipping identical file path: ${duplicate.uri}`);
+                            continue;
+                        }
+                        
+                        const duplicateExists = await RNFS.exists(duplicate.uri);
+                        if (!duplicateExists) {
+                            console.log(`File already doesn't exist: ${duplicate.uri}`);
+                            continue;
+                        }
+                        
+                        console.log(`Removing duplicate: ${duplicate.name} (${duplicate.uri})`);
+                        console.log(`Last modified: ${new Date(duplicate.lastModified || 0).toLocaleString()}`);
+                        
+                        await RNFS.unlink(duplicate.uri);
+                        removedCount++;
+                    } catch (error) {
+                        console.error(`Failed to remove duplicate file ${duplicate.uri}:`, error);
+                    }
+                }
+            } catch (groupError) {
+                console.error('Error processing duplicate group:', groupError);
             }
         }
         
@@ -225,25 +288,70 @@ function HomeScreen(): React.JSX.Element {
         try {
             if (maxDepth <= 0) return [];
 
+            // Check if directory exists
+            const dirExists = await RNFS.exists(directory);
+            if (!dirExists) {
+                console.log(`Directory does not exist: ${directory}`);
+                return [];
+            }
+
             const files = await RNFS.readDir(directory);
             let results: EpubFile[] = [];
+            
+            console.log(`Found ${files.length} files/folders in ${directory}`);
+
+            // Process file by file to prevent duplicate additions
+            const processedPaths = new Set<string>();
 
             for (const file of files) {
+                // Skip if we've already processed this exact path
+                if (processedPaths.has(file.path)) {
+                    console.log(`Skipping already processed path: ${file.path}`);
+                    continue;
+                }
+                
+                processedPaths.add(file.path);
+
                 if (file.isFile() && file.name.toLowerCase().endsWith(".epub")) {
-                    const stat = await RNFS.stat(file.path);
-                    results.push({
-                        id: file.path,
-                        uri: file.path,
-                        name: file.name.replace(/\.epub$/i, ""),
-                        title: file.name.replace(/\.epub$/i, ""), // Default to filename, will update with real title later
-                        coverUri: null,
-                        size: stat.size,
-                        lastModified: stat.mtime?.getTime()
-                    });
+                    try {
+                        console.log(`Found EPUB file: ${file.name} at ${file.path}`);
+                        
+                        // Check if the file still exists
+                        const fileExists = await RNFS.exists(file.path);
+                        if (!fileExists) {
+                            console.log(`File doesn't exist anymore: ${file.path}`);
+                            continue;
+                        }
+                        
+                        const stat = await RNFS.stat(file.path);
+                        
+                        // Generate a unique ID for the file
+                        const uniqueId = `${file.path}_${stat.size}_${stat.mtime?.getTime() || 0}`;
+                        
+                        results.push({
+                            id: uniqueId,
+                            uri: file.path,
+                            name: file.name.replace(/\.epub$/i, ""),
+                            title: file.name.replace(/\.epub$/i, ""), // Default to filename, will update with real title later
+                            coverUri: null,
+                            size: stat.size,
+                            lastModified: stat.mtime?.getTime()
+                        });
+                    } catch (statError) {
+                        console.error(`Error getting stats for ${file.path}:`, statError);
+                    }
                 } else if (file.isDirectory()) {
                     try {
+                        console.log(`Searching subdirectory: ${file.path}`);
                         const subResults = await searchDirectoryForEpubs(file.path, maxDepth - 1);
-                        results = [...results, ...subResults];
+                        
+                        // Only add unique results
+                        for (const result of subResults) {
+                            if (!processedPaths.has(result.uri)) {
+                                processedPaths.add(result.uri);
+                                results.push(result);
+                            }
+                        }
                     } catch (e) {
                         // Skip inaccessible directories
                         console.log(`Skipping directory ${file.path}: ${e}`);
@@ -251,6 +359,7 @@ function HomeScreen(): React.JSX.Element {
                 }
             }
 
+            console.log(`Found ${results.length} EPUB files in ${directory} and subdirectories`);
             return results;
         } catch (error) {
             console.log(`Error reading directory ${directory}:`, error);
