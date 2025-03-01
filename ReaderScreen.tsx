@@ -8,8 +8,8 @@ import {
   GestureResponderEvent,
   Modal,
   TouchableOpacity,
-  Clipboard,
 } from 'react-native';
+import Clipboard from '@react-native-clipboard/clipboard';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { parseEpub } from './utils';
 import RNFS from 'react-native-fs';
