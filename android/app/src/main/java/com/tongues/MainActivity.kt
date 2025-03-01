@@ -34,6 +34,16 @@ class MainActivity : ReactActivity(), ReactInstanceEventListener {
       DefaultReactActivityDelegate(this, mainComponentName, fabricEnabled)
       
   private var pendingFileUri: String? = null
+  
+  // Method for TonguesModule to access and clear pending file URIs
+  fun getAndClearPendingFileUri(): String? {
+    val uri = pendingFileUri
+    if (uri != null) {
+      Log.d("TonguesApp", "Getting and clearing pending file URI: $uri")
+      pendingFileUri = null
+    }
+    return uri
+  }
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)

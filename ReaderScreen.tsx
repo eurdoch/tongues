@@ -395,7 +395,12 @@ const detectLanguage = async (text: string): Promise<string> => {
 function ReaderScreen() {
   const route = useRoute();
   const navigation = useNavigation();
-  const { fileUri, shouldRefreshHomeAfterClose } = route.params || {};
+  const { fileUri, shouldRefreshHomeAfterClose, openedExternally } = route.params || {};
+  
+  // Log route params for debugging
+  useEffect(() => {
+    console.log('[ReaderScreen] Route params:', route.params);
+  }, [route.params]);
   const [content, setContent] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);

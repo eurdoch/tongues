@@ -54,7 +54,7 @@ const findOpfFile = async (directoryPath: string): Promise<string | null> => {
 
 const extractEpub = async (fileUri: string) => {
   try {
-    console.log('Extracting EPUB from URI:', fileUri);
+    console.log('[utils] Extracting EPUB from URI:', fileUri);
     
     // For content:// URIs or document URIs on Android, we need to copy the file to app's cache directory first
     let sourcePath = fileUri;
@@ -64,35 +64,35 @@ const extractEpub = async (fileUri: string) => {
       if (fileUri.startsWith('content://') || fileUri.startsWith('document:') || fileUri.includes('document%3A')) {
         // Create a temporary file path in cache directory
         const tempFilePath = `${RNFS.CachesDirectoryPath}/temp_epub_${Date.now()}.epub`;
-        console.log('Copying URI to temp file:', tempFilePath);
+        console.log('[utils] Copying URI to temp file:', tempFilePath);
         
         try {
           // Handle URL encoded paths
           const decodedUri = decodeURIComponent(fileUri);
-          console.log('Decoded URI:', decodedUri);
+          console.log('[utils] Decoded URI:', decodedUri);
           
           // Special handling for document: URIs
           if (decodedUri.startsWith('document:') || fileUri.includes('document%3A')) {
-            console.log('Handling document: URI scheme');
+            console.log('[utils] Handling document: URI scheme');
             
             try {
               // Use RNFS.readFile with base64 encoding and then write the file
               const base64Data = await RNFS.readFile(decodedUri, 'base64');
               await RNFS.writeFile(tempFilePath, base64Data, 'base64');
-              console.log('Successfully copied document: URI using read/write approach');
+              console.log('[utils] Successfully copied document: URI using read/write approach');
               sourcePath = tempFilePath;
             } catch (documentReadError) {
-              console.error('Error reading from document: URI:', documentReadError);
+              console.error('[utils] Error reading from document: URI:', documentReadError);
               
               // If that fails, try using copyFile with content:// conversion
               try {
                 // Some document: URIs can be accessed through content:// 
                 const contentUri = decodedUri.replace('document:', 'content://');
                 await RNFS.copyFile(contentUri, tempFilePath);
-                console.log('Successfully copied using content:// conversion');
+                console.log('[utils] Successfully copied using content:// conversion');
                 sourcePath = tempFilePath;
               } catch (contentConversionError) {
-                console.error('Error copying with content:// conversion:', contentConversionError);
+                console.error('[utils] Error copying with content:// conversion:', contentConversionError);
                 // Fall through to other methods
               }
             }
@@ -368,13 +368,24 @@ const readContentOpf = async (opfPath: string) => {
 };
 
 export const parseEpub = async (uri: string) => {
-    const extractedPath = await extractEpub(uri);
-    const opfPath = await findOpfFile(extractedPath);
-    if (opfPath) {
-        const content = readContentOpf(opfPath);
-        return content;
+    try {
+        console.log('[utils] ParseEpub called with URI:', uri);
+        const extractedPath = await extractEpub(uri);
+        console.log('[utils] EPUB extracted to path:', extractedPath);
+        
+        const opfPath = await findOpfFile(extractedPath);
+        if (opfPath) {
+            console.log('[utils] OPF file found at:', opfPath);
+            const content = await readContentOpf(opfPath);
+            return content;
+        } else {
+            console.error('[utils] No OPF file found in EPUB');
+            return null;
+        }
+    } catch (error) {
+        console.error('[utils] Error in parseEpub:', error);
+        return null;
     }
-    return null;
 }
 
 /**

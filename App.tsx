@@ -26,52 +26,81 @@ function App() {
       // Import DeviceEventEmitter directly to avoid NativeEventEmitter issues
       const DeviceEventEmitter = require('react-native').DeviceEventEmitter;
       
-      console.log('Setting up openEpubFile event listener with DeviceEventEmitter');
+      console.log('[App] Setting up openEpubFile event listener with DeviceEventEmitter');
       
       // Add a listener for the openEpubFile event
       eventListener = DeviceEventEmitter.addListener('openEpubFile', (event) => {
-        console.log('Received openEpubFile event:', event);
+        console.log('[App] Received openEpubFile event:', event);
         const { uri } = event;
         
-        if (uri && navigationRef.current) {
-          console.log('Navigating to Reader with URI:', uri);
+        if (!uri) {
+          console.error('[App] No URI received in openEpubFile event');
+          return;
+        }
+        
+        console.log(`[App] Received file URI to open: ${uri}`);
+        
+        // Use a multi-attempt approach with increasing delays
+        const attemptNavigation = (attempts: number = 0, maxAttempts: number = 10) => {
+          if (attempts >= maxAttempts) {
+            console.error(`[App] Failed to navigate after ${maxAttempts} attempts`);
+            return;
+          }
           
-          // Use a multi-attempt approach with increasing delays
-          const attemptNavigation = (attempts: number = 0, maxAttempts: number = 5) => {
-            if (attempts >= maxAttempts) {
-              console.error(`Failed to navigate after ${maxAttempts} attempts`);
-              return;
-            }
-            
-            try {
-              if (navigationRef.current && navigationRef.current.isReady()) {
-                console.log(`Navigation attempt ${attempts+1} successful: ${uri}`);
-                navigationRef.current.navigate('Reader', { fileUri: uri });
-              } else {
-                console.log(`Navigation not ready on attempt ${attempts+1}, retry in ${(attempts+1)*500}ms`);
-                setTimeout(() => attemptNavigation(attempts + 1), (attempts + 1) * 500);
-              }
-            } catch (error) {
-              console.error(`Navigation error on attempt ${attempts+1}:`, error);
+          try {
+            if (navigationRef.current && navigationRef.current.isReady()) {
+              console.log(`[App] Navigation attempt ${attempts+1} successful, navigating to Reader with URI: ${uri}`);
+              
+              // Reset to Home screen first to ensure clean reader state
+              navigationRef.current.reset({
+                index: 0,
+                routes: [{ name: 'Home' }],
+              });
+              
+              // Then navigate to Reader with a slight delay
+              setTimeout(() => {
+                if (navigationRef.current) {
+                  console.log(`[App] Now navigating to Reader with file: ${uri}`);
+                  navigationRef.current.navigate('Reader', { 
+                    fileUri: uri,
+                    shouldRefreshHomeAfterClose: true,
+                    openedExternally: true
+                  });
+                }
+              }, 500);
+            } else {
+              console.log(`[App] Navigation not ready on attempt ${attempts+1}, retry in ${(attempts+1)*500}ms`);
               setTimeout(() => attemptNavigation(attempts + 1), (attempts + 1) * 500);
             }
-          };
-          
-          // Start navigation attempts
-          attemptNavigation();
-        } else {
-          console.error('Unable to navigate to Reader - missing uri or navigationRef:', {
-            hasUri: !!uri,
-            hasNavigationRef: !!navigationRef.current
-          });
-        }
+          } catch (error) {
+            console.error(`[App] Navigation error on attempt ${attempts+1}:`, error);
+            setTimeout(() => attemptNavigation(attempts + 1), (attempts + 1) * 500);
+          }
+        };
+        
+        // Start navigation attempts
+        attemptNavigation();
       });
+      
+      // Try to manually trigger the event if there's a pending file
+      // This helps ensure we don't miss events that happened before the listener was ready
+      setTimeout(() => {
+        console.log('[App] Checking for early file open events that might have been missed');
+        try {
+          // This is a no-op if NativeModules.TonguesModule doesn't exist
+          if (NativeModules.TonguesModule && NativeModules.TonguesModule.checkPendingFiles) {
+            NativeModules.TonguesModule.checkPendingFiles();
+          }
+        } catch (error) {
+          console.log('[App] No pending file check method available:', error);
+        }
+      }, 2000);
     }
     
     // Clean up listener on unmount
     return () => {
       if (eventListener) {
-        console.log('Removing openEpubFile event listener');
+        console.log('[App] Removing openEpubFile event listener');
         eventListener.remove();
       }
     };
