@@ -398,22 +398,101 @@ function HomeScreen(): React.JSX.Element {
                 try {
                     const coverPath = match[1];
                     console.log('Found cover image path in OPF:', coverPath);
-                    const basePath = opfPath.substring(0, opfPath.lastIndexOf('/'));
-                    const fullCoverPath = `${basePath}/${coverPath}`;
-                    console.log('Full cover image path:', fullCoverPath);
                     
-                    // Check if cover file exists
-                    const coverExists = await RNFS.exists(fullCoverPath);
-                    if (!coverExists) {
-                        console.error('Cover file does not exist at path:', fullCoverPath);
+                    // Handle paths with special characters or URL encoding
+                    const decodedCoverPath = decodeURIComponent(coverPath);
+                    console.log('Decoded cover path:', decodedCoverPath);
+                    
+                    const basePath = opfPath.substring(0, opfPath.lastIndexOf('/'));
+                    
+                    // Normalize path separators and handle relative paths
+                    let normalizedPath = decodedCoverPath;
+                    
+                    // Remove any leading "./" from the path
+                    if (normalizedPath.startsWith('./')) {
+                        normalizedPath = normalizedPath.substring(2);
+                    }
+                    
+                    // Handle parent directory references (../path)
+                    if (normalizedPath.includes('../')) {
+                        const basePathParts = basePath.split('/');
+                        const coverPathParts = normalizedPath.split('/');
+                        let resultParts = [...basePathParts];
+                        
+                        for (const part of coverPathParts) {
+                            if (part === '..') {
+                                resultParts.pop(); // Go up one directory
+                            } else if (part !== '.') {
+                                resultParts.push(part);
+                            }
+                        }
+                        
+                        const fullCoverPath = resultParts.join('/');
+                        console.log('Full cover image path (resolved relative):', fullCoverPath);
+                        
+                        // Check if cover file exists
+                        try {
+                            const coverExists = await RNFS.exists(fullCoverPath);
+                            if (!coverExists) {
+                                console.error('Cover file does not exist at resolved path:', fullCoverPath);
+                            } else {
+                                // Create a cached copy of the cover image
+                                const coverExt = decodedCoverPath.split('.').pop() || 'jpg';
+                                const cachedCoverPath = `${RNFS.CachesDirectoryPath}/book_cover_${timestamp}.${coverExt}`;
+                                console.log('Copying cover to cache:', cachedCoverPath);
+                                await RNFS.copyFile(fullCoverPath, cachedCoverPath);
+                                coverUri = cachedCoverPath;
+                                console.log('Successfully cached cover image at:', cachedCoverPath);
+                            }
+                        } catch (existsError) {
+                            console.error('Error checking cover file existence:', existsError);
+                        }
                     } else {
-                        // Create a cached copy of the cover image
-                        const coverExt = coverPath.split('.').pop() || 'jpg';
-                        const cachedCoverPath = `${RNFS.CachesDirectoryPath}/book_cover_${timestamp}.${coverExt}`;
-                        console.log('Copying cover to cache:', cachedCoverPath);
-                        await RNFS.copyFile(fullCoverPath, cachedCoverPath);
-                        coverUri = cachedCoverPath;
-                        console.log('Successfully cached cover image at:', cachedCoverPath);
+                        // Regular path without parent directory references
+                        const fullCoverPath = `${basePath}/${normalizedPath}`;
+                        console.log('Full cover image path (direct):', fullCoverPath);
+                        
+                        // Check if cover file exists
+                        try {
+                            const coverExists = await RNFS.exists(fullCoverPath);
+                            if (!coverExists) {
+                                console.error('Cover file does not exist at direct path:', fullCoverPath);
+                                
+                                // Try alternative file resolution approaches
+                                const coverFilename = normalizedPath.split('/').pop() || '';
+                                console.log('Attempting to find cover by filename:', coverFilename);
+                                
+                                // Search for the file by name in the extraction directory
+                                if (coverFilename) {
+                                    try {
+                                        const foundFile = await findFileByName(extractedPath, coverFilename);
+                                        if (foundFile) {
+                                            console.log('Found cover file by name search:', foundFile);
+                                            
+                                            // Create a cached copy of the cover image
+                                            const coverExt = coverFilename.split('.').pop() || 'jpg';
+                                            const cachedCoverPath = `${RNFS.CachesDirectoryPath}/book_cover_${timestamp}.${coverExt}`;
+                                            console.log('Copying found cover to cache:', cachedCoverPath);
+                                            await RNFS.copyFile(foundFile, cachedCoverPath);
+                                            coverUri = cachedCoverPath;
+                                            console.log('Successfully cached found cover image at:', cachedCoverPath);
+                                        }
+                                    } catch (searchError) {
+                                        console.error('Error searching for cover file by name:', searchError);
+                                    }
+                                }
+                            } else {
+                                // Create a cached copy of the cover image
+                                const coverExt = normalizedPath.split('.').pop() || 'jpg';
+                                const cachedCoverPath = `${RNFS.CachesDirectoryPath}/book_cover_${timestamp}.${coverExt}`;
+                                console.log('Copying cover to cache:', cachedCoverPath);
+                                await RNFS.copyFile(fullCoverPath, cachedCoverPath);
+                                coverUri = cachedCoverPath;
+                                console.log('Successfully cached cover image at:', cachedCoverPath);
+                            }
+                        } catch (existsError) {
+                            console.error('Error checking cover file existence:', existsError);
+                        }
                     }
                 } catch (coverError) {
                     console.error('Error processing cover image:', coverError);
@@ -441,6 +520,38 @@ function HomeScreen(): React.JSX.Element {
     const extractCoverImage = async (epubUri: string): Promise<string | null> => {
         const { coverUri } = await extractEpubMetadata(epubUri);
         return coverUri;
+    };
+
+    // Function to find a file by name recursively in a directory
+    const findFileByName = async (directoryPath: string, fileName: string, maxDepth = 3): Promise<string | null> => {
+        try {
+            if (maxDepth <= 0) return null;
+            
+            const items = await RNFS.readDir(directoryPath);
+            
+            // Check for the file in the current directory
+            for (const item of items) {
+                if (!item.isDirectory() && item.name === fileName) {
+                    console.log(`Found file ${fileName} at ${item.path}`);
+                    return item.path;
+                }
+            }
+            
+            // If not found, search in subdirectories
+            for (const item of items) {
+                if (item.isDirectory()) {
+                    const filePath = await findFileByName(item.path, fileName, maxDepth - 1);
+                    if (filePath) {
+                        return filePath;
+                    }
+                }
+            }
+            
+            return null;
+        } catch (error) {
+            console.error(`Error searching for file ${fileName}:`, error);
+            return null;
+        }
     };
 
     const findOpfFile = async (directoryPath: string): Promise<string | null> => {
