@@ -44,24 +44,77 @@ function CustomDrawerContent() {
     // Function to copy the file to app storage
     const copyFileToAppStorage = async (sourceUri: string): Promise<string | null> => {
       try {
-        // Extract filename from the path or use a timestamp
-        const fileName = sourceUri.substring(sourceUri.lastIndexOf('/') + 1);
-        const targetFileName = fileName.endsWith('.epub') 
-          ? fileName 
-          : `${fileName}.epub`;
+        console.log("Original source URI:", sourceUri);
+        
+        // Generate a unique target filename with timestamp to avoid conflicts
+        const timestamp = Date.now();
+        const randomSuffix = Math.floor(Math.random() * 10000);
+        
+        // Try to extract original filename from URI if possible
+        let fileName;
+        
+        if (sourceUri.includes('/')) {
+          fileName = sourceUri.substring(sourceUri.lastIndexOf('/') + 1);
+          // For URIs with query parameters, keep only the filename part
+          if (fileName.includes('?')) {
+            fileName = fileName.substring(0, fileName.indexOf('?'));
+          }
+        } else {
+          // If we can't extract a reasonable filename, create one with the timestamp
+          fileName = `book_${timestamp}.epub`;
+        }
+        
+        // Ensure the extension is .epub
+        const targetFileName = fileName.toLowerCase().endsWith('.epub') 
+          ? `${fileName.substring(0, fileName.length - 5)}_${randomSuffix}.epub` 
+          : `${fileName}_${randomSuffix}.epub`;
         
         // Create destination path in app's document directory
         const destPath = `${RNFS.DocumentDirectoryPath}/${targetFileName}`;
         
-        console.log(`Copying EPUB from ${sourceUri} to ${destPath}`);
+        console.log(`Attempting to copy EPUB from ${sourceUri} to ${destPath}`);
         
-        // Copy the file
-        await RNFS.copyFile(sourceUri, destPath);
-        
-        console.log('Successfully copied file to app storage');
-        return destPath;
+        // Try different methods to copy the file based on the URI type
+        if (Platform.OS === 'android' && (sourceUri.startsWith('content://') || 
+            sourceUri.startsWith('document:') || sourceUri.includes('document%3A'))) {
+          
+          try {
+            console.log("Using readFile/writeFile method for content:// or document:// URI");
+            
+            // Read the file content using the original URI
+            const base64Data = await RNFS.readFile(sourceUri, 'base64');
+            // Write it to the destination
+            await RNFS.writeFile(destPath, base64Data, 'base64');
+            
+            console.log('Successfully copied file to app storage using read/write method');
+            return destPath;
+          } catch (readWriteError) {
+            console.error('Error using readFile/writeFile method:', readWriteError);
+            
+            // If read/write fails, try direct copyFile
+            try {
+              console.log("Trying direct copyFile as fallback");
+              await RNFS.copyFile(sourceUri, destPath);
+              console.log('Successfully copied file to app storage using direct copyFile');
+              return destPath;
+            } catch (copyError) {
+              console.error('Error using direct copyFile:', copyError);
+              return null;
+            }
+          }
+        } else {
+          // For regular file:// URIs, use copyFile
+          try {
+            await RNFS.copyFile(sourceUri, destPath);
+            console.log('Successfully copied file to app storage');
+            return destPath;
+          } catch (copyError) {
+            console.error('Error copying file:', copyError);
+            return null;
+          }
+        }
       } catch (error) {
-        console.error('Error copying file to app storage:', error);
+        console.error('Error in copyFileToAppStorage:', error);
         return null;
       }
     };
