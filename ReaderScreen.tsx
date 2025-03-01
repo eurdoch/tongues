@@ -8,6 +8,7 @@ import {
   GestureResponderEvent,
   Modal,
   TouchableOpacity,
+  Clipboard,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { parseEpub } from './utils';
@@ -437,6 +438,14 @@ function ReaderScreen() {
       }
       
       console.log('Loading ePub from:', fileUri);
+      
+      // Clear clipboard to prevent accidental text pasting
+      try {
+        await Clipboard.setString('');
+        console.log('Clipboard cleared before loading EPUB');
+      } catch (clipboardError) {
+        console.error('Error clearing clipboard:', clipboardError);
+      }
 
       try {
         // Parse the epub file
@@ -635,11 +644,18 @@ function ReaderScreen() {
   // Clean up resources when component unmounts
   useEffect(() => {
     return () => {
+      // Clear clipboard when leaving the screen
+      Clipboard.setString('').catch(e => 
+        console.log('Error clearing clipboard on unmount:', e)
+      );
+      
       if (sound) {
         sound.release();
       }
       if (audioPath) {
-        RNFS.unlink(audioPath).catch(e => console.log('Error cleaning up audio file:', e));
+        RNFS.unlink(audioPath).catch(e => 
+          console.log('Error cleaning up audio file:', e)
+        );
       }
     };
   }, [sound, audioPath]);
@@ -651,6 +667,13 @@ function ReaderScreen() {
         const selectedText = await getSelectedText();
         if (selectedText && selectedLanguage) {
           console.log('Selected text:', selectedText);
+          
+          // Clear clipboard after getting selected text to prevent interference
+          try {
+            await Clipboard.setString('');
+          } catch (clipboardError) {
+            console.error('Error clearing clipboard after selection:', clipboardError);
+          }
           
           // Store the original selected text
           setSelectedOriginalText(selectedText);
