@@ -1,6 +1,7 @@
 package com.tongues
 
 import android.content.Context
+import android.text.Selection
 import android.view.View
 import android.widget.TextView
 import com.facebook.react.bridge.ReactApplicationContext
@@ -68,6 +69,46 @@ class TextSelectionModule(private val reactContext: ReactApplicationContext) : R
             
             promise.resolve(false)
             
+        } catch (e: Exception) {
+            promise.reject("ERROR", e.message)
+        }
+    }
+    
+    @ReactMethod
+    fun clearSelection(promise: Promise) {
+        val activity = currentActivity
+        if (activity == null) {
+            promise.reject("ERROR", "Activity not found")
+            return
+        }
+
+        try {
+            val currentFocus = activity.window.currentFocus
+            if (currentFocus is TextView) {
+                // Simpler approach to clear selection
+                try {
+                    // For most TextView implementations, this should clear selection
+                    currentFocus.clearFocus()
+                    
+                    // Additional attempt - use Selection class
+                    Selection.removeSelection(currentFocus.editableText)
+                } catch (e: Exception) {
+                    // Fallback if the above methods fail
+                    try {
+                        // Move cursor to the beginning of the text by setting selection start/end to the same point
+                        if (currentFocus.text != null && currentFocus.text.isNotEmpty()) {
+                            Selection.setSelection(currentFocus.editableText, 0, 0)
+                        }
+                    } catch (e2: Exception) {
+                        // Final fallback - log but don't crash
+                        e2.printStackTrace()
+                    }
+                }
+                promise.resolve(true)
+                return
+            }
+            
+            promise.resolve(false)
         } catch (e: Exception) {
             promise.reject("ERROR", e.message)
         }

@@ -8,13 +8,15 @@ import {
   GestureResponderEvent,
   Modal,
   TouchableOpacity,
+  NativeModules,
+  Platform,
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { parseEpub } from './utils';
 import RNFS from 'react-native-fs';
 import GestureText from './GestureText';
-import { getSelectedText } from './TextSelection';
+import { getSelectedText, clearTextSelection } from './TextSelection';
 import Sound from 'react-native-sound';
 import TOCItem from './types/TOCItem';
 
@@ -758,6 +760,69 @@ function ReaderScreen() {
     );
   };
 
+  const clearSelection = () => {
+    try {
+      // Set UI states to null
+      setSelectedOriginalText(null);
+      setTranslatedText(null);
+      
+      // Clean up sound resources if they exist
+      if (sound) {
+        sound.stop();
+        sound.release();
+        setSound(null);
+      }
+      
+      // Clean up audio file if it exists - safely
+      if (audioPath) {
+        RNFS.exists(audioPath)
+          .then(exists => {
+            if (exists) {
+              return RNFS.unlink(audioPath);
+            }
+            return Promise.resolve();
+          })
+          .then(() => {
+            setAudioPath(null);
+          })
+          .catch(e => {
+            console.log('Error cleaning up audio file:', e);
+            // Still set audioPath to null even if cleanup fails
+            setAudioPath(null);
+          });
+      }
+      
+      // Clear any text selection when modal closes
+      // Using both immediate and delayed approach for better reliability
+      
+      // Immediate attempt
+      clearTextSelection().catch(() => {});
+      
+      // Delayed attempt (after modal animation starts)
+      setTimeout(() => {
+        // Try again after a delay to ensure modal is closed
+        clearTextSelection().catch(() => {});
+        
+        // On Android, also try to dismiss the keyboard as a fallback
+        if (Platform.OS === 'android') {
+          try {
+            const { Keyboard } = require('react-native');
+            Keyboard.dismiss();
+          } catch (e) {
+            // Ignore any errors
+          }
+        }
+      }, 150);
+    } catch (error) {
+      console.error('Error closing translation modal:', error);
+      // Ensure states are reset even if there's an error
+      setSelectedOriginalText(null);
+      setTranslatedText(null);
+      setSound(null);
+      setAudioPath(null);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <FlatList
@@ -770,93 +835,76 @@ function ReaderScreen() {
         windowSize={5}
         removeClippedSubviews={false}
         scrollEventThrottle={16}
+        onScrollBeginDrag={() => {
+          // When the user scrolls, clear any selections
+          // This provides another way to dismiss selection
+          if (selectedOriginalText || translatedText) {
+            clearSelection();
+          }
+        }}
       />
       
-      {/* Translation result popup */}
-      {translatedText && selectedOriginalText && (
-        <View style={styles.translationContainer}>
-          <View style={styles.translationResult}>
-            <View style={styles.translationHeader}>
-              <GestureText style={styles.translationHeaderText} selectable={false}>
-                {selectedLanguage}
-              </GestureText>
-              
-              <View style={styles.translationControls}>
-                {sound && (
-                  <TouchableOpacity 
-                    style={[styles.audioButton, isPlaying && styles.audioButtonActive]}
-                    onPress={isPlaying ? stopAudio : playAudio}
-                  >
-                    <GestureText style={styles.audioButtonText} selectable={false}>
-                      {isPlaying ? '■' : '▶'}
-                    </GestureText>
-                  </TouchableOpacity>
-                )}
+      {/* Translation result popup with Modal */}
+      <Modal
+        visible={!!translatedText && !!selectedOriginalText}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={clearSelection}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={clearSelection}
+        >
+          <TouchableOpacity 
+            activeOpacity={1}
+            style={styles.translationContainer}
+            onPress={(e) => e.stopPropagation()} // Prevent touch events from bubbling to parent
+          >
+            <View style={styles.translationResult}>
+              <View style={styles.translationHeader}>
+                <GestureText style={styles.translationHeaderText} selectable={false}>
+                  {selectedLanguage}
+                </GestureText>
+                
+                <View style={styles.translationControls}>
+                  {sound && (
+                    <TouchableOpacity 
+                      style={[styles.audioButton, isPlaying && styles.audioButtonActive]}
+                      onPress={isPlaying ? stopAudio : playAudio}
+                    >
+                      <GestureText style={styles.audioButtonText} selectable={false}>
+                        {isPlaying ? '■' : '▶'}
+                      </GestureText>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                
+                <TouchableOpacity 
+                  style={styles.closeButton}
+                  onPress={clearSelection}
+                >
+                  <GestureText style={styles.closeButtonText} selectable={false}>
+                    ✕
+                  </GestureText>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.originalTextContainer}>
+                <GestureText style={styles.originalText} selectable={true}>
+                  {selectedOriginalText}
+                </GestureText>
               </View>
               
-              <TouchableOpacity 
-                style={styles.closeButton}
-                onPress={() => {
-                  try {
-                    // First set UI states to null
-                    setSelectedOriginalText(null);
-                    setTranslatedText(null);
-                    
-                    // Then clean up sound resources if they exist
-                    if (sound) {
-                      sound.stop();
-                      sound.release();
-                      setSound(null);
-                    }
-                    
-                    // Clean up audio file if it exists - safely
-                    if (audioPath) {
-                      RNFS.exists(audioPath)
-                        .then(exists => {
-                          if (exists) {
-                            return RNFS.unlink(audioPath);
-                          }
-                          return Promise.resolve();
-                        })
-                        .then(() => {
-                          setAudioPath(null);
-                        })
-                        .catch(e => {
-                          console.log('Error cleaning up audio file:', e);
-                          // Still set audioPath to null even if cleanup fails
-                          setAudioPath(null);
-                        });
-                    }
-                  } catch (error) {
-                    console.error('Error closing translation modal:', error);
-                    // Ensure states are reset even if there's an error
-                    setSelectedOriginalText(null);
-                    setTranslatedText(null);
-                    setSound(null);
-                    setAudioPath(null);
-                  }
-                }}
-              >
-                <GestureText style={styles.closeButtonText} selectable={false}>
-                  ✕
+              <View style={styles.translatedTextContainer}>
+                <GestureText style={styles.translatedText} selectable={true}>
+                  {translatedText}
                 </GestureText>
-              </TouchableOpacity>
+              </View>
             </View>
-
-            <View style={styles.originalTextContainer}>
-              <GestureText style={styles.originalText} selectable={true}>
-                {selectedOriginalText}
-              </GestureText>
-            </View>
-            
-            <View style={styles.translatedTextContainer}>
-              <GestureText style={styles.translatedText} selectable={true}>
-                {translatedText}
-              </GestureText>
-            </View>
-          </View>
-        </View>
-      )}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -891,11 +939,14 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   // Translation styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+    paddingBottom: 30,
+  },
   translationContainer: {
-    position: 'absolute',
-    left: 20,
-    right: 20,
-    bottom: 30,
+    marginHorizontal: 20,
     borderRadius: 16,
     overflow: 'hidden',
     elevation: 8,
