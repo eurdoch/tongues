@@ -41,10 +41,93 @@ function CustomDrawerContent() {
       }
     };
     
+    // Function to check if the file already exists in the documents directory
+    const checkIfFileExists = async (sourceUri: string): Promise<string | null> => {
+      try {
+        console.log("Checking if file already exists locally");
+        // List all files in DocumentDirectoryPath
+        const files = await RNFS.readDir(RNFS.DocumentDirectoryPath);
+        const epubFiles = files.filter(file => file.name.toLowerCase().endsWith('.epub'));
+        
+        // If there's no source URI or no local files, return null
+        if (!sourceUri || epubFiles.length === 0) {
+          console.log("No existing files found or no source URI provided");
+          return null;
+        }
+        
+        // For content:// or document:// URIs, we need to compare by content hash
+        if (Platform.OS === 'android' && (sourceUri.startsWith('content://') || 
+            sourceUri.startsWith('document:') || sourceUri.includes('document%3A'))) {
+          
+          try {
+            // Try to read a small sample of the source file to create a fingerprint
+            const sourceContent = await RNFS.readFile(sourceUri, 'base64', 1024); // Read first 1KB
+            console.log(`Read source file sample: ${sourceContent.substring(0, 20)}...`);
+            
+            // Check each epub file by reading the same byte range
+            for (const file of epubFiles) {
+              try {
+                const localContent = await RNFS.readFile(file.path, 'base64', 1024);
+                if (sourceContent === localContent) {
+                  console.log(`Found matching file content: ${file.path}`);
+                  return file.path;
+                }
+              } catch (localReadError) {
+                console.log(`Error reading local file ${file.name}:`, localReadError);
+                // Continue to next file
+              }
+            }
+          } catch (sourceReadError) {
+            console.log('Error reading source file for comparison:', sourceReadError);
+            // Fall through to metadata comparison
+          }
+          
+          // If content comparison fails, we can't reliably determine if it's a duplicate
+          console.log("Content comparison did not find a match");
+          return null;
+        } else {
+          // For regular URIs, extract the filename and check if we already have it
+          let originalFileName = '';
+          if (sourceUri.includes('/')) {
+            originalFileName = sourceUri.substring(sourceUri.lastIndexOf('/') + 1);
+            // Remove query parameters if present
+            if (originalFileName.includes('?')) {
+              originalFileName = originalFileName.substring(0, originalFileName.indexOf('?'));
+            }
+            originalFileName = originalFileName.toLowerCase();
+          }
+          
+          // Look for files with similar names (without considering unique suffixes)
+          for (const file of epubFiles) {
+            // Clean up the local filename for comparison
+            const localFileName = file.name.toLowerCase();
+            
+            if (originalFileName && localFileName.includes(originalFileName.replace(/\.epub$/, ''))) {
+              console.log(`Found file with similar name: ${file.path}`);
+              return file.path;
+            }
+          }
+        }
+        
+        console.log("No existing matching file found");
+        return null;
+      } catch (error) {
+        console.error('Error checking if file exists:', error);
+        return null;
+      }
+    };
+    
     // Function to copy the file to app storage
     const copyFileToAppStorage = async (sourceUri: string): Promise<string | null> => {
       try {
         console.log("Original source URI:", sourceUri);
+        
+        // First, check if we already have this file in our app storage
+        const existingFilePath = await checkIfFileExists(sourceUri);
+        if (existingFilePath) {
+          console.log("File already exists in app storage, using existing file");
+          return existingFilePath;
+        }
         
         // Generate a unique target filename with timestamp to avoid conflicts
         const timestamp = Date.now();
