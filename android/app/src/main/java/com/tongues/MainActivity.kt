@@ -38,6 +38,9 @@ class MainActivity : ReactActivity(), ReactInstanceEventListener {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     
+    // Try to disable clipboard notifications (no-op on Android 12+)
+    ClipboardNotificationHelper.disableClipboardNotifications(this)
+    
     try {
       // Store the intent for processing after React is ready
       if (intent?.action == Intent.ACTION_VIEW && intent.data != null) {

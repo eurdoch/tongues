@@ -1,4 +1,4 @@
-import { NativeModules, Platform } from 'react-native';
+import { NativeModules } from 'react-native';
 const { TextSelectionModule } = NativeModules;
 
 export const getSelectedText = async (): Promise<string | null> => {

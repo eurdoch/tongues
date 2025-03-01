@@ -439,13 +439,7 @@ function ReaderScreen() {
       
       console.log('Loading ePub from:', fileUri);
       
-      // Clear clipboard to prevent accidental text pasting
-      try {
-        await Clipboard.setString('');
-        console.log('Clipboard cleared before loading EPUB');
-      } catch (clipboardError) {
-        console.error('Error clearing clipboard:', clipboardError);
-      }
+      // Don't clear clipboard on EPUB load to avoid notifications
 
       try {
         // Parse the epub file
@@ -644,12 +638,7 @@ function ReaderScreen() {
   // Clean up resources when component unmounts
   useEffect(() => {
     return () => {
-      // Clear clipboard when leaving the screen
-      try {
-        Clipboard.setString('');
-      } catch (e) {
-        console.log('Error clearing clipboard on unmount:', e);
-      }
+      // Don't clear clipboard on unmount to avoid notifications
       
       if (sound) {
         sound.release();
@@ -662,7 +651,7 @@ function ReaderScreen() {
     };
   }, [sound, audioPath]);
   
-  const handleTextSelection = async (event: GestureResponderEvent) => {
+  const handleTextSelection = async (_event: GestureResponderEvent) => {
     try {
       // Add a small delay to ensure selection is complete before trying to read it
       setTimeout(async () => {
