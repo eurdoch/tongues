@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import RNFS from "react-native-fs";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import * as ZipArchive from 'react-native-zip-archive';
+import { BookMetadata, getAllBookMetadata, processBookFile, updateLastRead } from './BookMetadataStore';
 
 interface EpubFile {
     id: string;
@@ -186,11 +187,30 @@ function HomeScreen(): React.JSX.Element {
             setIsLoading(true);
             setError(null);
 
-            // Only search in app's data directory
-            const appDataDirectory = RNFS.DocumentDirectoryPath;
-            console.log(`Searching app data directory: ${appDataDirectory}`);
+            // First, try to load books from metadata store
+            const storedMetadata = await getAllBookMetadata();
+            console.log(`Found ${Object.keys(storedMetadata).length} books in metadata store`);
 
-            // Only search the app's data directory
+            // Check if stored metadata files still exist
+            const validStoredBooks: BookMetadata[] = [];
+            for (const bookId in storedMetadata) {
+                const book = storedMetadata[bookId];
+                try {
+                    const exists = await RNFS.exists(book.filePath);
+                    if (exists) {
+                        validStoredBooks.push(book);
+                    } else {
+                        console.log(`Book no longer exists: ${book.filePath}`);
+                        // Could remove the metadata for this book here
+                    }
+                } catch (error) {
+                    console.error(`Error checking if book exists: ${book.filePath}`, error);
+                }
+            }
+
+            // Now search the app directory for any EPUBs not in our metadata store
+            const appDataDirectory = RNFS.DocumentDirectoryPath;
+            console.log(`Searching app data directory for new EPUBs: ${appDataDirectory}`);
             const epubs = await searchDirectoryForEpubs(appDataDirectory);
             
             // Check for and remove duplicates
@@ -206,19 +226,53 @@ function HomeScreen(): React.JSX.Element {
                     // Re-scan after removing duplicates
                     const updatedEpubs = await searchDirectoryForEpubs(appDataDirectory);
                     
-                    // Process found EPUBs and extract metadata
-                    const processedEpubs = await Promise.all(
-                        updatedEpubs.map(async (epub) => {
-                            const { title, coverUri } = await extractEpubMetadata(epub.uri);
-                            return {
-                                ...epub,
-                                title: title || epub.name, // Fall back to filename if no title found
-                                coverUri
-                            };
-                        })
+                    // Process new EPUBs that aren't in our metadata store
+                    const newEpubs = updatedEpubs.filter(epub => 
+                        !validStoredBooks.some(book => book.filePath === epub.uri)
                     );
                     
-                    setEpubFiles(processedEpubs);
+                    console.log(`Found ${newEpubs.length} new EPUB files not in metadata store`);
+                    
+                    // Process and store metadata for new EPUBs
+                    const newProcessedBooks: BookMetadata[] = [];
+                    for (const epub of newEpubs) {
+                        const metadata = await processBookFile(epub.uri);
+                        if (metadata) {
+                            newProcessedBooks.push(metadata);
+                        }
+                    }
+                    
+                    // Convert all BookMetadata to EpubFile format for display
+                    const allBooks: EpubFile[] = [
+                        ...validStoredBooks.map(book => ({
+                            id: book.id,
+                            uri: book.filePath,
+                            name: book.filePath.split('/').pop()?.replace(/\.epub$/i, '') || 'Unknown',
+                            title: book.title,
+                            coverUri: book.coverPath,
+                            size: book.fileSize,
+                            lastModified: book.lastModified
+                        })),
+                        ...newProcessedBooks.map(book => ({
+                            id: book.id,
+                            uri: book.filePath,
+                            name: book.filePath.split('/').pop()?.replace(/\.epub$/i, '') || 'Unknown',
+                            title: book.title,
+                            coverUri: book.coverPath,
+                            size: book.fileSize,
+                            lastModified: book.lastModified
+                        }))
+                    ];
+                    
+                    // Sort by last modified date (newest first)
+                    allBooks.sort((a, b) => {
+                        const aTime = a.lastModified || 0;
+                        const bTime = b.lastModified || 0;
+                        return bTime - aTime;
+                    });
+                    
+                    setEpubFiles(allBooks);
+                    
                     if (removedCount === 1) {
                         Alert.alert("Duplicate Removed", `Removed 1 duplicate EPUB file`);
                     } else {
@@ -229,21 +283,53 @@ function HomeScreen(): React.JSX.Element {
                 }
             }
             
-            console.log(`Found ${epubs.length} EPUB files`);
-
-            // Process found EPUBs and extract metadata
-            const processedEpubs = await Promise.all(
-                epubs.map(async (epub) => {
-                    const { title, coverUri } = await extractEpubMetadata(epub.uri);
-                    return {
-                        ...epub,
-                        title: title || epub.name, // Fall back to filename if no title found
-                        coverUri
-                    };
-                })
+            // Process new EPUBs that aren't in our metadata store
+            const newEpubs = epubs.filter(epub => 
+                !validStoredBooks.some(book => book.filePath === epub.uri)
             );
-
-            setEpubFiles(processedEpubs);
+            
+            console.log(`Found ${newEpubs.length} new EPUB files not in metadata store`);
+            
+            // Process and store metadata for new EPUBs
+            const newProcessedBooks: BookMetadata[] = [];
+            for (const epub of newEpubs) {
+                const metadata = await processBookFile(epub.uri);
+                if (metadata) {
+                    newProcessedBooks.push(metadata);
+                }
+            }
+            
+            // Convert all BookMetadata to EpubFile format for display
+            const allBooks: EpubFile[] = [
+                ...validStoredBooks.map(book => ({
+                    id: book.id,
+                    uri: book.filePath,
+                    name: book.filePath.split('/').pop()?.replace(/\.epub$/i, '') || 'Unknown',
+                    title: book.title,
+                    coverUri: book.coverPath,
+                    size: book.fileSize,
+                    lastModified: book.lastModified
+                })),
+                ...newProcessedBooks.map(book => ({
+                    id: book.id,
+                    uri: book.filePath,
+                    name: book.filePath.split('/').pop()?.replace(/\.epub$/i, '') || 'Unknown',
+                    title: book.title,
+                    coverUri: book.coverPath,
+                    size: book.fileSize,
+                    lastModified: book.lastModified
+                }))
+            ];
+            
+            // Sort by last modified date (newest first)
+            allBooks.sort((a, b) => {
+                const aTime = a.lastModified || 0;
+                const bTime = b.lastModified || 0;
+                return bTime - aTime;
+            });
+            
+            setEpubFiles(allBooks);
+            
         } catch (err) {
             console.error("Error finding EPUB files:", err);
             setError("Failed to scan for EPUB files");
@@ -665,7 +751,11 @@ function HomeScreen(): React.JSX.Element {
         }
     };
 
-    const openBook = (item: EpubFile) => {
+    const openBook = async (item: EpubFile) => {
+        // Update last read time in metadata
+        await updateLastRead(item.id);
+        
+        // Navigate to reader screen
         navigation.navigate('Reader', { fileUri: item.uri });
     };
 

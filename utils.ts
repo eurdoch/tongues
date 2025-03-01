@@ -376,3 +376,301 @@ export const parseEpub = async (uri: string) => {
     }
     return null;
 }
+
+/**
+ * Find a file by name recursively in a directory
+ */
+const findFileByName = async (directoryPath: string, fileName: string, maxDepth = 3): Promise<string | null> => {
+    try {
+        if (maxDepth <= 0) return null;
+        
+        const items = await RNFS.readDir(directoryPath);
+        
+        // Check for the file in the current directory
+        for (const item of items) {
+            if (!item.isDirectory() && item.name === fileName) {
+                console.log(`Found file ${fileName} at ${item.path}`);
+                return item.path;
+            }
+        }
+        
+        // If not found, search in subdirectories
+        for (const item of items) {
+            if (item.isDirectory()) {
+                const filePath = await findFileByName(item.path, fileName, maxDepth - 1);
+                if (filePath) {
+                    return filePath;
+                }
+            }
+        }
+        
+        return null;
+    } catch (error) {
+        console.error(`Error searching for file ${fileName}:`, error);
+        return null;
+    }
+};
+
+export const extractEpubMetadata = async (epubUri: string): Promise<{ title: string | null, coverUri: string | null }> => {
+    let tempDir = '';
+    try {
+        console.log('Extracting metadata from EPUB:', epubUri);
+        
+        // Normalize file URI
+        let normalizedUri = epubUri;
+        
+        // For Android, ensure path has proper format
+        if (Platform.OS === 'android') {
+            if (!epubUri.startsWith('file://') && epubUri.indexOf('://') === -1) {
+                normalizedUri = `file://${epubUri}`;
+                console.log('Normalized URI with file:// prefix:', normalizedUri);
+            }
+            
+            // Handle URL encoded paths
+            if (epubUri.includes('%')) {
+                try {
+                    const decodedUri = decodeURIComponent(epubUri);
+                    if (decodedUri !== epubUri) {
+                        console.log('Using decoded URI:', decodedUri);
+                        normalizedUri = decodedUri;
+                        
+                        // Add file:// prefix if needed
+                        if (!normalizedUri.startsWith('file://') && normalizedUri.indexOf('://') === -1) {
+                            normalizedUri = `file://${normalizedUri}`;
+                        }
+                    }
+                } catch (decodeError) {
+                    console.error('Error decoding URI:', decodeError);
+                }
+            }
+        }
+        
+        // Verify file exists before attempting to extract
+        try {
+            const fileExists = await RNFS.exists(normalizedUri);
+            if (!fileExists) {
+                // Try without file:// prefix as a fallback
+                if (normalizedUri.startsWith('file://')) {
+                    const withoutPrefix = normalizedUri.substring(7);
+                    const existsWithoutPrefix = await RNFS.exists(withoutPrefix);
+                    if (existsWithoutPrefix) {
+                        console.log('File exists without file:// prefix, using:', withoutPrefix);
+                        normalizedUri = withoutPrefix;
+                    } else {
+                        console.error('File does not exist at path:', normalizedUri);
+                        return { title: null, coverUri: null };
+                    }
+                } else {
+                    console.error('File does not exist at path:', normalizedUri);
+                    return { title: null, coverUri: null };
+                }
+            }
+        } catch (existsError) {
+            console.error('Error checking if file exists:', existsError);
+            // Continue anyway, the ZipArchive might handle it differently
+        }
+        
+        // Create a unique temp directory for extraction
+        const timestamp = Date.now();
+        tempDir = `${RNFS.CachesDirectoryPath}/temp_extract_${timestamp}`;
+        await RNFS.mkdir(tempDir);
+        console.log('Created temp directory for extraction:', tempDir);
+
+        // Extract the EPUB
+        console.log('Unzipping EPUB file to temp directory');
+        let extractedPath;
+        try {
+            extractedPath = await ZipArchive.unzip(normalizedUri, tempDir);
+            console.log('Successfully unzipped to:', extractedPath);
+        } catch (unzipError) {
+            console.error('Error unzipping file:', unzipError);
+            // Try one more time with/without the file:// prefix
+            try {
+                if (normalizedUri.startsWith('file://')) {
+                    const withoutPrefix = normalizedUri.substring(7);
+                    console.log('Retrying unzip without file:// prefix:', withoutPrefix);
+                    extractedPath = await ZipArchive.unzip(withoutPrefix, tempDir);
+                } else {
+                    console.log('Retrying unzip with file:// prefix:', `file://${normalizedUri}`);
+                    extractedPath = await ZipArchive.unzip(`file://${normalizedUri}`, tempDir);
+                }
+                console.log('Retry unzip succeeded to:', extractedPath);
+            } catch (retryError) {
+                console.error('Retry unzip also failed:', retryError);
+                await RNFS.unlink(tempDir).catch(e => console.log('Error removing temp dir:', e));
+                return { title: null, coverUri: null };
+            }
+        }
+
+        // Find the OPF file
+        console.log('Looking for OPF file in:', extractedPath);
+        const opfPath = await findOpfFile(extractedPath);
+        if (!opfPath) {
+            console.log('No OPF file found in extracted EPUB');
+            await RNFS.unlink(tempDir).catch(e => console.log('Error removing temp dir:', e));
+            return { title: null, coverUri: null };
+        }
+        console.log('Found OPF file at:', opfPath);
+
+        // Read the OPF file to find metadata and cover image
+        const opfContent = await RNFS.readFile(opfPath, 'utf8');
+        console.log('Successfully read OPF file content');
+        
+        // Extract title from metadata
+        let title: string | null = null;
+        const titlePattern = /<dc:title[^>]*>(.*?)<\/dc:title>/i;
+        const titleMatch = opfContent.match(titlePattern);
+        
+        if (titleMatch) {
+            title = titleMatch[1].trim();
+            console.log('Extracted title from metadata:', title);
+        } else {
+            console.log('No title found in metadata');
+        }
+        
+        // Look for cover image in manifest
+        const coverPattern = /<item[^>]*id="cover-image"[^>]*href="([^"]*)"[^>]*>/i;
+        let match = opfContent.match(coverPattern);
+        
+        if (!match) {
+            // Try alternative patterns for cover image
+            const altPatterns = [
+                /<item[^>]*id="cover"[^>]*href="([^"]*)"[^>]*>/i,
+                /<item[^>]*href="([^"]*)"[^>]*media-type="image\/[^"]*"[^>]*>/i
+            ];
+            
+            for (const pattern of altPatterns) {
+                match = opfContent.match(pattern);
+                if (match) break;
+            }
+        }
+        
+        let coverUri: string | null = null;
+        
+        if (match) {
+            try {
+                const coverPath = match[1];
+                console.log('Found cover image path in OPF:', coverPath);
+                
+                // Handle paths with special characters or URL encoding
+                const decodedCoverPath = decodeURIComponent(coverPath);
+                console.log('Decoded cover path:', decodedCoverPath);
+                
+                const basePath = opfPath.substring(0, opfPath.lastIndexOf('/'));
+                
+                // Normalize path separators and handle relative paths
+                let normalizedPath = decodedCoverPath;
+                
+                // Remove any leading "./" from the path
+                if (normalizedPath.startsWith('./')) {
+                    normalizedPath = normalizedPath.substring(2);
+                }
+                
+                // Handle parent directory references (../path)
+                if (normalizedPath.includes('../')) {
+                    const basePathParts = basePath.split('/');
+                    const coverPathParts = normalizedPath.split('/');
+                    let resultParts = [...basePathParts];
+                    
+                    for (const part of coverPathParts) {
+                        if (part === '..') {
+                            resultParts.pop(); // Go up one directory
+                        } else if (part !== '.') {
+                            resultParts.push(part);
+                        }
+                    }
+                    
+                    const fullCoverPath = resultParts.join('/');
+                    console.log('Full cover image path (resolved relative):', fullCoverPath);
+                    
+                    // Check if cover file exists
+                    try {
+                        const coverExists = await RNFS.exists(fullCoverPath);
+                        if (!coverExists) {
+                            console.error('Cover file does not exist at resolved path:', fullCoverPath);
+                        } else {
+                            // Create a stable book ID from the EPUB path
+                            const bookId = epubUri.split('/').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'unknown';
+                            // Create a cached copy of the cover image with a stable filename
+                            const coverExt = decodedCoverPath.split('.').pop() || 'jpg';
+                            const cachedCoverPath = `${RNFS.CachesDirectoryPath}/book_cover_${bookId}.${coverExt}`;
+                            console.log('Copying cover to cache with stable ID:', cachedCoverPath);
+                            await RNFS.copyFile(fullCoverPath, cachedCoverPath);
+                            coverUri = cachedCoverPath;
+                            console.log('Successfully cached cover image at:', cachedCoverPath);
+                        }
+                    } catch (existsError) {
+                        console.error('Error checking cover file existence:', existsError);
+                    }
+                } else {
+                    // Regular path without parent directory references
+                    const fullCoverPath = `${basePath}/${normalizedPath}`;
+                    console.log('Full cover image path (direct):', fullCoverPath);
+                    
+                    // Check if cover file exists
+                    try {
+                        const coverExists = await RNFS.exists(fullCoverPath);
+                        if (!coverExists) {
+                            console.error('Cover file does not exist at direct path:', fullCoverPath);
+                            
+                            // Try alternative file resolution approaches
+                            const coverFilename = normalizedPath.split('/').pop() || '';
+                            console.log('Attempting to find cover by filename:', coverFilename);
+                            
+                            // Search for the file by name in the extraction directory
+                            if (coverFilename) {
+                                try {
+                                    const foundFile = await findFileByName(extractedPath, coverFilename);
+                                    if (foundFile) {
+                                        console.log('Found cover file by name search:', foundFile);
+                                        
+                                        // Create a stable book ID from the EPUB path
+                                        const bookId = epubUri.split('/').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'unknown';
+                                        // Create a cached copy of the cover image with a stable filename
+                                        const coverExt = coverFilename.split('.').pop() || 'jpg';
+                                        const cachedCoverPath = `${RNFS.CachesDirectoryPath}/book_cover_${bookId}.${coverExt}`;
+                                        console.log('Copying found cover to cache with stable ID:', cachedCoverPath);
+                                        await RNFS.copyFile(foundFile, cachedCoverPath);
+                                        coverUri = cachedCoverPath;
+                                        console.log('Successfully cached found cover image at:', cachedCoverPath);
+                                    }
+                                } catch (searchError) {
+                                    console.error('Error searching for cover file by name:', searchError);
+                                }
+                            }
+                        } else {
+                            // Create a stable book ID from the EPUB path
+                            const bookId = epubUri.split('/').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'unknown';
+                            // Create a cached copy of the cover image with a stable filename
+                            const coverExt = normalizedPath.split('.').pop() || 'jpg';
+                            const cachedCoverPath = `${RNFS.CachesDirectoryPath}/book_cover_${bookId}.${coverExt}`;
+                            console.log('Copying cover to cache with stable ID:', cachedCoverPath);
+                            await RNFS.copyFile(fullCoverPath, cachedCoverPath);
+                            coverUri = cachedCoverPath;
+                            console.log('Successfully cached cover image at:', cachedCoverPath);
+                        }
+                    } catch (existsError) {
+                        console.error('Error checking cover file existence:', existsError);
+                    }
+                }
+            } catch (coverError) {
+                console.error('Error processing cover image:', coverError);
+            }
+        } else {
+            console.log('No cover image found in OPF file');
+        }
+        
+        // Clean up temp extraction directory
+        console.log('Cleaning up temp directory:', tempDir);
+        await RNFS.unlink(tempDir).catch(e => console.log('Error removing temp dir:', e));
+        
+        return { title, coverUri };
+    } catch (error) {
+        console.error("Error extracting metadata:", error);
+        // Clean up temp directory if it exists
+        if (tempDir) {
+            await RNFS.unlink(tempDir).catch(e => console.log('Error removing temp dir:', e));
+        }
+        return { title: null, coverUri: null };
+    }
+};
