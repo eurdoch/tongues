@@ -56,22 +56,66 @@ const extractEpub = async (fileUri: string) => {
   try {
     console.log('Extracting EPUB from URI:', fileUri);
     
-    // For content:// URIs on Android, we need to copy the file to app's cache directory first
+    // For content:// URIs or document URIs on Android, we need to copy the file to app's cache directory first
     let sourcePath = fileUri;
     
     if (Platform.OS === 'android') {
-      if (fileUri.startsWith('content://')) {
+      // Check if it's a content:// URI or a document:// URI
+      if (fileUri.startsWith('content://') || fileUri.startsWith('document:') || fileUri.includes('document%3A')) {
         // Create a temporary file path in cache directory
         const tempFilePath = `${RNFS.CachesDirectoryPath}/temp_epub_${Date.now()}.epub`;
-        console.log('Copying content URI to temp file:', tempFilePath);
+        console.log('Copying URI to temp file:', tempFilePath);
         
         try {
-          // Copy the file from content URI to the temp path
-          await RNFS.copyFile(fileUri, tempFilePath);
-          console.log('Successfully copied file to:', tempFilePath);
-          sourcePath = tempFilePath;
+          // Handle URL encoded paths
+          const decodedUri = decodeURIComponent(fileUri);
+          console.log('Decoded URI:', decodedUri);
+          
+          // Try to get file stats to verify it exists and is accessible
+          try {
+            const stats = await RNFS.stat(decodedUri);
+            console.log('File stats:', stats);
+          } catch (statError) {
+            console.error('Error getting file stats:', statError);
+          }
+          
+          // Copy the file from content/document URI to the temp path
+          // First try with decoded URI
+          try {
+            await RNFS.copyFile(decodedUri, tempFilePath);
+            console.log('Successfully copied file using decoded URI to:', tempFilePath);
+            sourcePath = tempFilePath;
+          } catch (decodedCopyError) {
+            console.error('Error copying using decoded URI:', decodedCopyError);
+            
+            // If that fails, try with original URI
+            try {
+              await RNFS.copyFile(fileUri, tempFilePath);
+              console.log('Successfully copied file using original URI to:', tempFilePath);
+              sourcePath = tempFilePath;
+            } catch (originalCopyError) {
+              console.error('Error copying using original URI:', originalCopyError);
+              
+              // Check if the problem is related to a file:// prefix
+              if (!fileUri.startsWith('file://') && !decodedUri.startsWith('file://')) {
+                try {
+                  const fileUriWithPrefix = `file://${decodedUri}`;
+                  await RNFS.copyFile(fileUriWithPrefix, tempFilePath);
+                  console.log('Successfully copied file using file:// prefix to:', tempFilePath);
+                  sourcePath = tempFilePath;
+                } catch (prefixCopyError) {
+                  console.error('Error copying with file:// prefix:', prefixCopyError);
+                  // Fall back to direct usage if all copy attempts fail
+                  sourcePath = fileUri;
+                }
+              } else {
+                // Fall back to direct usage if copy fails
+                sourcePath = fileUri;
+              }
+            }
+          }
         } catch (copyError) {
-          console.error('Error copying content URI:', copyError);
+          console.error('All copy attempts failed:', copyError);
           // Fall back to direct usage if copy fails
           sourcePath = fileUri;
         }
@@ -103,19 +147,41 @@ const extractEpub = async (fileUri: string) => {
       await RNFS.mkdir(destinationPath);
     }
     
+    console.log('Final source path for unzipping:', sourcePath);
+    
     // Subscribe to unzipping progress (optional)
     const subscription = ZipArchive.subscribe(({ progress, filePath }) => {
       console.log(`Unzipping progress: ${progress}%`);
     });
     
-    // Unzip the file
-    const extractedPath = await ZipArchive.unzip(sourcePath, destinationPath);
-    
-    // Unsubscribe from progress updates
-    subscription.remove();
-    
-    console.log('EPUB extracted to:', extractedPath);
-    return extractedPath;
+    try {
+      // Unzip the file
+      const extractedPath = await ZipArchive.unzip(sourcePath, destinationPath);
+      
+      // Unsubscribe from progress updates
+      subscription.remove();
+      
+      console.log('EPUB extracted to:', extractedPath);
+      return extractedPath;
+    } catch (unzipError) {
+      console.error('Error during unzipping:', unzipError);
+      
+      // If direct unzipping fails, try one more approach for Android
+      if (Platform.OS === 'android' && !sourcePath.startsWith('file://') && 
+          typeof sourcePath === 'string' && sourcePath.length > 0) {
+        try {
+          console.log('Trying unzipping with file:// prefix as fallback');
+          const extractedPath = await ZipArchive.unzip(`file://${sourcePath}`, destinationPath);
+          console.log('Fallback unzip succeeded to:', extractedPath);
+          return extractedPath;
+        } catch (fallbackError) {
+          console.error('Fallback unzip also failed:', fallbackError);
+          throw fallbackError;
+        }
+      } else {
+        throw unzipError;
+      }
+    }
   } catch (error) {
     console.error('Error extracting EPUB:', error);
     throw error;
