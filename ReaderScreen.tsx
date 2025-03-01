@@ -645,9 +645,11 @@ function ReaderScreen() {
   useEffect(() => {
     return () => {
       // Clear clipboard when leaving the screen
-      Clipboard.setString('').catch(e => 
-        console.log('Error clearing clipboard on unmount:', e)
-      );
+      try {
+        Clipboard.setString('');
+      } catch (e) {
+        console.log('Error clearing clipboard on unmount:', e);
+      }
       
       if (sound) {
         sound.release();
@@ -664,45 +666,53 @@ function ReaderScreen() {
     try {
       // Add a small delay to ensure selection is complete before trying to read it
       setTimeout(async () => {
-        const selectedText = await getSelectedText();
-        if (selectedText && selectedLanguage) {
-          console.log('Selected text:', selectedText);
-          
-          // Clear clipboard after getting selected text to prevent interference
-          try {
-            await Clipboard.setString('');
-          } catch (clipboardError) {
-            console.error('Error clearing clipboard after selection:', clipboardError);
-          }
-          
-          // Store the original selected text
-          setSelectedOriginalText(selectedText);
-          
-          // Make API call to translation service
-          const response = await fetch('https://tongues.directto.link/translate', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              text: selectedText,
-              language: selectedLanguage,
-            }),
-          });
-          
-          if (!response.ok) {
-            console.error(`Translation request failed with status: ${response.status}`);
-            return;
-          }
-          
-          const data = await response.json();
-          if (data.translated_text) {
-            setTranslatedText(data.translated_text);
-            console.log('Translation:', data.translated_text);
+        try {
+          const selectedText = await getSelectedText();
+          if (selectedText && selectedLanguage) {
+            console.log('Selected text:', selectedText);
             
-            // Fetch speech audio for the original text (not the translation)
-            await fetchSpeechAudio(selectedText, selectedLanguage);
+            // Clear clipboard after getting selected text to prevent interference
+            try {
+              await Clipboard.setString('');
+            } catch (clipboardError) {
+              console.error('Error clearing clipboard after selection:', clipboardError);
+            }
+            
+            // Store the original selected text
+            setSelectedOriginalText(selectedText);
+            
+            // Make API call to translation service
+            const response = await fetch('https://tongues.directto.link/translate', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                text: selectedText,
+                language: selectedLanguage,
+              }),
+            });
+            
+            if (!response.ok) {
+              console.error(`Translation request failed with status: ${response.status}`);
+              return;
+            }
+            
+            const data = await response.json();
+            if (data.translated_text) {
+              setTranslatedText(data.translated_text);
+              console.log('Translation:', data.translated_text);
+              
+              // Fetch speech audio for the original text (not the translation)
+              // Using Promise chaining rather than await to avoid returning undefined
+              fetchSpeechAudio(selectedText, selectedLanguage)
+                .catch(audioError => {
+                  console.error('Error fetching speech audio:', audioError);
+                });
+            }
           }
+        } catch (selectionError) {
+          console.error('Error in text selection handler:', selectionError);
         }
       }, 100);
     } catch (error) {
@@ -785,17 +795,42 @@ function ReaderScreen() {
               <TouchableOpacity 
                 style={styles.closeButton}
                 onPress={() => {
-                  setSelectedOriginalText(null);
-                  setTranslatedText(null);
-                  if (sound) {
-                    sound.stop();
-                    sound.release();
+                  try {
+                    // First set UI states to null
+                    setSelectedOriginalText(null);
+                    setTranslatedText(null);
+                    
+                    // Then clean up sound resources if they exist
+                    if (sound) {
+                      sound.stop();
+                      sound.release();
+                      setSound(null);
+                    }
+                    
+                    // Clean up audio file if it exists - safely
+                    if (audioPath) {
+                      RNFS.exists(audioPath)
+                        .then(exists => {
+                          if (exists) {
+                            return RNFS.unlink(audioPath);
+                          }
+                          return Promise.resolve();
+                        })
+                        .then(() => {
+                          setAudioPath(null);
+                        })
+                        .catch(e => {
+                          console.log('Error cleaning up audio file:', e);
+                          // Still set audioPath to null even if cleanup fails
+                          setAudioPath(null);
+                        });
+                    }
+                  } catch (error) {
+                    console.error('Error closing translation modal:', error);
+                    // Ensure states are reset even if there's an error
+                    setSelectedOriginalText(null);
+                    setTranslatedText(null);
                     setSound(null);
-                  }
-                  if (audioPath) {
-                    RNFS.unlink(audioPath).catch(e => 
-                      console.log('Error removing audio file:', e)
-                    );
                     setAudioPath(null);
                   }
                 }}

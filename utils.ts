@@ -71,46 +71,76 @@ const extractEpub = async (fileUri: string) => {
           const decodedUri = decodeURIComponent(fileUri);
           console.log('Decoded URI:', decodedUri);
           
-          // Try to get file stats to verify it exists and is accessible
-          try {
-            const stats = await RNFS.stat(decodedUri);
-            console.log('File stats:', stats);
-          } catch (statError) {
-            console.error('Error getting file stats:', statError);
+          // Special handling for document: URIs
+          if (decodedUri.startsWith('document:') || fileUri.includes('document%3A')) {
+            console.log('Handling document: URI scheme');
+            
+            try {
+              // Use RNFS.readFile with base64 encoding and then write the file
+              const base64Data = await RNFS.readFile(decodedUri, 'base64');
+              await RNFS.writeFile(tempFilePath, base64Data, 'base64');
+              console.log('Successfully copied document: URI using read/write approach');
+              sourcePath = tempFilePath;
+            } catch (documentReadError) {
+              console.error('Error reading from document: URI:', documentReadError);
+              
+              // If that fails, try using copyFile with content:// conversion
+              try {
+                // Some document: URIs can be accessed through content:// 
+                const contentUri = decodedUri.replace('document:', 'content://');
+                await RNFS.copyFile(contentUri, tempFilePath);
+                console.log('Successfully copied using content:// conversion');
+                sourcePath = tempFilePath;
+              } catch (contentConversionError) {
+                console.error('Error copying with content:// conversion:', contentConversionError);
+                // Fall through to other methods
+              }
+            }
           }
           
-          // Copy the file from content/document URI to the temp path
-          // First try with decoded URI
-          try {
-            await RNFS.copyFile(decodedUri, tempFilePath);
-            console.log('Successfully copied file using decoded URI to:', tempFilePath);
-            sourcePath = tempFilePath;
-          } catch (decodedCopyError) {
-            console.error('Error copying using decoded URI:', decodedCopyError);
-            
-            // If that fails, try with original URI
+          // If still not copied, try standard approaches
+          if (sourcePath === fileUri) {
+            // Try to get file stats to verify it exists and is accessible
             try {
-              await RNFS.copyFile(fileUri, tempFilePath);
-              console.log('Successfully copied file using original URI to:', tempFilePath);
+              const stats = await RNFS.stat(decodedUri);
+              console.log('File stats:', stats);
+            } catch (statError) {
+              console.error('Error getting file stats:', statError);
+            }
+            
+            // Copy the file from content/document URI to the temp path
+            // First try with decoded URI
+            try {
+              await RNFS.copyFile(decodedUri, tempFilePath);
+              console.log('Successfully copied file using decoded URI to:', tempFilePath);
               sourcePath = tempFilePath;
-            } catch (originalCopyError) {
-              console.error('Error copying using original URI:', originalCopyError);
+            } catch (decodedCopyError) {
+              console.error('Error copying using decoded URI:', decodedCopyError);
               
-              // Check if the problem is related to a file:// prefix
-              if (!fileUri.startsWith('file://') && !decodedUri.startsWith('file://')) {
-                try {
-                  const fileUriWithPrefix = `file://${decodedUri}`;
-                  await RNFS.copyFile(fileUriWithPrefix, tempFilePath);
-                  console.log('Successfully copied file using file:// prefix to:', tempFilePath);
-                  sourcePath = tempFilePath;
-                } catch (prefixCopyError) {
-                  console.error('Error copying with file:// prefix:', prefixCopyError);
-                  // Fall back to direct usage if all copy attempts fail
+              // If that fails, try with original URI
+              try {
+                await RNFS.copyFile(fileUri, tempFilePath);
+                console.log('Successfully copied file using original URI to:', tempFilePath);
+                sourcePath = tempFilePath;
+              } catch (originalCopyError) {
+                console.error('Error copying using original URI:', originalCopyError);
+                
+                // Check if the problem is related to a file:// prefix
+                if (!fileUri.startsWith('file://') && !decodedUri.startsWith('file://')) {
+                  try {
+                    const fileUriWithPrefix = `file://${decodedUri}`;
+                    await RNFS.copyFile(fileUriWithPrefix, tempFilePath);
+                    console.log('Successfully copied file using file:// prefix to:', tempFilePath);
+                    sourcePath = tempFilePath;
+                  } catch (prefixCopyError) {
+                    console.error('Error copying with file:// prefix:', prefixCopyError);
+                    // Fall back to direct usage if all copy attempts fail
+                    sourcePath = fileUri;
+                  }
+                } else {
+                  // Fall back to direct usage if copy fails
                   sourcePath = fileUri;
                 }
-              } else {
-                // Fall back to direct usage if copy fails
-                sourcePath = fileUri;
               }
             }
           }
