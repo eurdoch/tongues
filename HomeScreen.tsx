@@ -19,7 +19,8 @@ import { request, PERMISSIONS, RESULTS } from 'react-native-permissions';
 interface EpubFile {
     id: string;
     uri: string;
-    name: string;
+    name: string;  // Filename without extension
+    title: string; // Actual book title from metadata
     coverUri: string | null;
     size: number;
     lastModified?: number;
@@ -96,8 +97,8 @@ function HomeScreen(): React.JSX.Element {
         // Group EPUBs by name and size
         const duplicateGroups = new Map<string, EpubFile[]>();
         
-        // First, group by name and size
-        const groupKey = (epub: EpubFile) => `${epub.name}_${epub.size}`;
+        // First, group by title and size
+        const groupKey = (epub: EpubFile) => `${epub.title}_${epub.size}`;
         const groupedEpubs = new Map<string, EpubFile[]>();
         
         epubs.forEach(epub => {
@@ -174,12 +175,13 @@ function HomeScreen(): React.JSX.Element {
                     // Re-scan after removing duplicates
                     const updatedEpubs = await searchDirectoryForEpubs(appDataDirectory);
                     
-                    // Process found EPUBs and extract covers
+                    // Process found EPUBs and extract metadata
                     const processedEpubs = await Promise.all(
                         updatedEpubs.map(async (epub) => {
-                            const coverUri = await extractCoverImage(epub.uri);
+                            const { title, coverUri } = await extractEpubMetadata(epub.uri);
                             return {
                                 ...epub,
+                                title: title || epub.name, // Fall back to filename if no title found
                                 coverUri
                             };
                         })
@@ -198,12 +200,13 @@ function HomeScreen(): React.JSX.Element {
             
             console.log(`Found ${epubs.length} EPUB files`);
 
-            // Process found EPUBs and extract covers
+            // Process found EPUBs and extract metadata
             const processedEpubs = await Promise.all(
                 epubs.map(async (epub) => {
-                    const coverUri = await extractCoverImage(epub.uri);
+                    const { title, coverUri } = await extractEpubMetadata(epub.uri);
                     return {
                         ...epub,
+                        title: title || epub.name, // Fall back to filename if no title found
                         coverUri
                     };
                 })
@@ -232,6 +235,7 @@ function HomeScreen(): React.JSX.Element {
                         id: file.path,
                         uri: file.path,
                         name: file.name.replace(/\.epub$/i, ""),
+                        title: file.name.replace(/\.epub$/i, ""), // Default to filename, will update with real title later
                         coverUri: null,
                         size: stat.size,
                         lastModified: stat.mtime?.getTime()
@@ -254,7 +258,7 @@ function HomeScreen(): React.JSX.Element {
         }
     };
 
-    const extractCoverImage = async (epubUri: string): Promise<string | null> => {
+    const extractEpubMetadata = async (epubUri: string): Promise<{ title: string | null, coverUri: string | null }> => {
         try {
             // Create a unique temp directory for extraction
             const timestamp = Date.now();
@@ -268,11 +272,20 @@ function HomeScreen(): React.JSX.Element {
             const opfPath = await findOpfFile(extractedPath);
             if (!opfPath) {
                 await RNFS.unlink(tempDir);
-                return null;
+                return { title: null, coverUri: null };
             }
 
-            // Read the OPF file to find cover image reference
+            // Read the OPF file to find metadata and cover image
             const opfContent = await RNFS.readFile(opfPath, 'utf8');
+            
+            // Extract title from metadata
+            let title: string | null = null;
+            const titlePattern = /<dc:title[^>]*>(.*?)<\/dc:title>/i;
+            const titleMatch = opfContent.match(titlePattern);
+            
+            if (titleMatch) {
+                title = titleMatch[1].trim();
+            }
             
             // Look for cover image in manifest
             const coverPattern = /<item[^>]*id="cover-image"[^>]*href="([^"]*)"[^>]*>/i;
@@ -291,6 +304,8 @@ function HomeScreen(): React.JSX.Element {
                 }
             }
             
+            let coverUri: string | null = null;
+            
             if (match) {
                 const coverPath = match[1];
                 const basePath = opfPath.substring(0, opfPath.lastIndexOf('/'));
@@ -300,20 +315,23 @@ function HomeScreen(): React.JSX.Element {
                 const coverExt = coverPath.split('.').pop() || 'jpg';
                 const cachedCoverPath = `${RNFS.CachesDirectoryPath}/book_cover_${timestamp}.${coverExt}`;
                 await RNFS.copyFile(fullCoverPath, cachedCoverPath);
-                
-                // Clean up temp extraction directory
-                await RNFS.unlink(tempDir);
-                
-                return cachedCoverPath;
+                coverUri = cachedCoverPath;
             }
             
-            // Clean up if no cover found
+            // Clean up temp extraction directory
             await RNFS.unlink(tempDir);
-            return null;
+            
+            return { title, coverUri };
         } catch (error) {
-            console.error("Error extracting cover:", error);
-            return null;
+            console.error("Error extracting metadata:", error);
+            return { title: null, coverUri: null };
         }
+    };
+    
+    // Kept for compatibility, now delegates to extractEpubMetadata
+    const extractCoverImage = async (epubUri: string): Promise<string | null> => {
+        const { coverUri } = await extractEpubMetadata(epubUri);
+        return coverUri;
     };
 
     const findOpfFile = async (directoryPath: string): Promise<string | null> => {
@@ -364,7 +382,7 @@ function HomeScreen(): React.JSX.Element {
                     <Text style={styles.placeholderText}>No Cover</Text>
                 </View>
             )}
-            <Text style={styles.bookTitle} numberOfLines={2}>{item.name}</Text>
+            <Text style={styles.bookTitle} numberOfLines={2}>{item.title}</Text>
         </TouchableOpacity>
     );
 
