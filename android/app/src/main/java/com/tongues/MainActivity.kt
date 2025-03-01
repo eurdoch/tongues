@@ -116,11 +116,65 @@ class MainActivity : ReactActivity(), ReactInstanceEventListener {
         Log.d("TonguesApp", "Opening EPUB file: $data type=$type path=$path")
         val filePath = getFilePathFromUri(data)
         if (filePath != null) {
+          // Copy the file to app data directory for persistence
+          copyEpubToAppData(filePath)
+          
+          // Send event to open it
           sendEventToJS("openEpubFile", filePath)
         } else {
           Log.e("TonguesApp", "Failed to get file path from URI: $data")
         }
       }
+    }
+  }
+  
+  private fun copyEpubToAppData(inputFilePath: String) {
+    try {
+      // Extract filename from the path or use a timestamp
+      val fileName = if (inputFilePath.contains("/")) {
+        inputFilePath.substring(inputFilePath.lastIndexOf("/") + 1)
+      } else {
+        "book_${System.currentTimeMillis()}.epub"
+      }
+      
+      // If the filename doesn't end with .epub, append it
+      val targetFileName = if (!fileName.lowercase().endsWith(".epub")) {
+        "$fileName.epub"
+      } else {
+        fileName
+      }
+      
+      // Get path to app's document directory
+      val targetDir = applicationContext.filesDir.absolutePath
+      val targetPath = "$targetDir/$targetFileName"
+      
+      Log.d("TonguesApp", "Copying EPUB from $inputFilePath to $targetPath")
+      
+      // For content URIs, we need to use content resolver
+      if (inputFilePath.startsWith("content://")) {
+        try {
+          val uri = Uri.parse(inputFilePath)
+          contentResolver.openInputStream(uri)?.use { inputStream ->
+            java.io.FileOutputStream(targetPath).use { outputStream ->
+              inputStream.copyTo(outputStream)
+            }
+          }
+          Log.d("TonguesApp", "Successfully copied content URI to app data")
+        } catch (e: Exception) {
+          Log.e("TonguesApp", "Error copying from content URI", e)
+        }
+      } else {
+        // For file:// URIs and regular file paths
+        try {
+          val cleanPath = inputFilePath.replace("file://", "")
+          java.io.File(cleanPath).copyTo(java.io.File(targetPath), overwrite = true)
+          Log.d("TonguesApp", "Successfully copied file to app data")
+        } catch (e: Exception) {
+          Log.e("TonguesApp", "Error copying file", e)
+        }
+      }
+    } catch (e: Exception) {
+      Log.e("TonguesApp", "Error in copyEpubToAppData", e)
     }
   }
 

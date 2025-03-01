@@ -82,30 +82,21 @@ function HomeScreen(): React.JSX.Element {
             setIsLoading(true);
             setError(null);
 
-            // Define directories to search in
-            const directories = [
-                RNFS.DocumentDirectoryPath,
-                RNFS.DownloadDirectoryPath,
-                RNFS.ExternalDirectoryPath,
-                RNFS.ExternalStorageDirectoryPath
-            ].filter(Boolean); // Filter out undefined directories
+            // Only search in app's data directory
+            const appDataDirectory = RNFS.DocumentDirectoryPath;
+            console.log(`Searching app data directory: ${appDataDirectory}`);
 
             let allEpubs: EpubFile[] = [];
             const foundPaths = new Set<string>(); // Track unique paths
 
-            // Search each directory recursively
-            for (const directory of directories) {
-                if (directory) {
-                    console.log(`Searching directory: ${directory}`);
-                    const epubs = await searchDirectoryForEpubs(directory);
-                    
-                    // Only add unique EPUBs that haven't been found in other directories
-                    for (const epub of epubs) {
-                        if (!foundPaths.has(epub.uri)) {
-                            foundPaths.add(epub.uri);
-                            allEpubs.push(epub);
-                        }
-                    }
+            // Only search the app's data directory
+            const epubs = await searchDirectoryForEpubs(appDataDirectory);
+            
+            // Add all EPUBs from app data directory
+            for (const epub of epubs) {
+                if (!foundPaths.has(epub.uri)) {
+                    foundPaths.add(epub.uri);
+                    allEpubs.push(epub);
                 }
             }
 
@@ -321,7 +312,7 @@ function HomeScreen(): React.JSX.Element {
                 <View style={styles.emptyContainer}>
                     <Text style={styles.emptyText}>No EPUB files found</Text>
                     <Text style={styles.emptySubText}>
-                        Add EPUB files to your device and they will appear here
+                        EPUB files opened with this app will appear here
                     </Text>
                 </View>
             ) : (
