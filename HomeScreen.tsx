@@ -259,24 +259,109 @@ function HomeScreen(): React.JSX.Element {
     };
 
     const extractEpubMetadata = async (epubUri: string): Promise<{ title: string | null, coverUri: string | null }> => {
+        let tempDir = '';
         try {
+            console.log('Extracting metadata from EPUB:', epubUri);
+            
+            // Normalize file URI
+            let normalizedUri = epubUri;
+            
+            // For Android, ensure path has proper format
+            if (Platform.OS === 'android') {
+                if (!epubUri.startsWith('file://') && epubUri.indexOf('://') === -1) {
+                    normalizedUri = `file://${epubUri}`;
+                    console.log('Normalized URI with file:// prefix:', normalizedUri);
+                }
+                
+                // Handle URL encoded paths
+                if (epubUri.includes('%')) {
+                    try {
+                        const decodedUri = decodeURIComponent(epubUri);
+                        if (decodedUri !== epubUri) {
+                            console.log('Using decoded URI:', decodedUri);
+                            normalizedUri = decodedUri;
+                            
+                            // Add file:// prefix if needed
+                            if (!normalizedUri.startsWith('file://') && normalizedUri.indexOf('://') === -1) {
+                                normalizedUri = `file://${normalizedUri}`;
+                            }
+                        }
+                    } catch (decodeError) {
+                        console.error('Error decoding URI:', decodeError);
+                    }
+                }
+            }
+            
+            // Verify file exists before attempting to extract
+            try {
+                const fileExists = await RNFS.exists(normalizedUri);
+                if (!fileExists) {
+                    // Try without file:// prefix as a fallback
+                    if (normalizedUri.startsWith('file://')) {
+                        const withoutPrefix = normalizedUri.substring(7);
+                        const existsWithoutPrefix = await RNFS.exists(withoutPrefix);
+                        if (existsWithoutPrefix) {
+                            console.log('File exists without file:// prefix, using:', withoutPrefix);
+                            normalizedUri = withoutPrefix;
+                        } else {
+                            console.error('File does not exist at path:', normalizedUri);
+                            return { title: null, coverUri: null };
+                        }
+                    } else {
+                        console.error('File does not exist at path:', normalizedUri);
+                        return { title: null, coverUri: null };
+                    }
+                }
+            } catch (existsError) {
+                console.error('Error checking if file exists:', existsError);
+                // Continue anyway, the ZipArchive might handle it differently
+            }
+            
             // Create a unique temp directory for extraction
             const timestamp = Date.now();
-            const tempDir = `${RNFS.CachesDirectoryPath}/temp_extract_${timestamp}`;
+            tempDir = `${RNFS.CachesDirectoryPath}/temp_extract_${timestamp}`;
             await RNFS.mkdir(tempDir);
+            console.log('Created temp directory for extraction:', tempDir);
 
             // Extract the EPUB
-            const extractedPath = await ZipArchive.unzip(epubUri, tempDir);
+            console.log('Unzipping EPUB file to temp directory');
+            let extractedPath;
+            try {
+                extractedPath = await ZipArchive.unzip(normalizedUri, tempDir);
+                console.log('Successfully unzipped to:', extractedPath);
+            } catch (unzipError) {
+                console.error('Error unzipping file:', unzipError);
+                // Try one more time with/without the file:// prefix
+                try {
+                    if (normalizedUri.startsWith('file://')) {
+                        const withoutPrefix = normalizedUri.substring(7);
+                        console.log('Retrying unzip without file:// prefix:', withoutPrefix);
+                        extractedPath = await ZipArchive.unzip(withoutPrefix, tempDir);
+                    } else {
+                        console.log('Retrying unzip with file:// prefix:', `file://${normalizedUri}`);
+                        extractedPath = await ZipArchive.unzip(`file://${normalizedUri}`, tempDir);
+                    }
+                    console.log('Retry unzip succeeded to:', extractedPath);
+                } catch (retryError) {
+                    console.error('Retry unzip also failed:', retryError);
+                    await RNFS.unlink(tempDir).catch(e => console.log('Error removing temp dir:', e));
+                    return { title: null, coverUri: null };
+                }
+            }
 
             // Find the OPF file
+            console.log('Looking for OPF file in:', extractedPath);
             const opfPath = await findOpfFile(extractedPath);
             if (!opfPath) {
-                await RNFS.unlink(tempDir);
+                console.log('No OPF file found in extracted EPUB');
+                await RNFS.unlink(tempDir).catch(e => console.log('Error removing temp dir:', e));
                 return { title: null, coverUri: null };
             }
+            console.log('Found OPF file at:', opfPath);
 
             // Read the OPF file to find metadata and cover image
             const opfContent = await RNFS.readFile(opfPath, 'utf8');
+            console.log('Successfully read OPF file content');
             
             // Extract title from metadata
             let title: string | null = null;
@@ -285,6 +370,9 @@ function HomeScreen(): React.JSX.Element {
             
             if (titleMatch) {
                 title = titleMatch[1].trim();
+                console.log('Extracted title from metadata:', title);
+            } else {
+                console.log('No title found in metadata');
             }
             
             // Look for cover image in manifest
@@ -307,23 +395,44 @@ function HomeScreen(): React.JSX.Element {
             let coverUri: string | null = null;
             
             if (match) {
-                const coverPath = match[1];
-                const basePath = opfPath.substring(0, opfPath.lastIndexOf('/'));
-                const fullCoverPath = `${basePath}/${coverPath}`;
-                
-                // Create a cached copy of the cover image
-                const coverExt = coverPath.split('.').pop() || 'jpg';
-                const cachedCoverPath = `${RNFS.CachesDirectoryPath}/book_cover_${timestamp}.${coverExt}`;
-                await RNFS.copyFile(fullCoverPath, cachedCoverPath);
-                coverUri = cachedCoverPath;
+                try {
+                    const coverPath = match[1];
+                    console.log('Found cover image path in OPF:', coverPath);
+                    const basePath = opfPath.substring(0, opfPath.lastIndexOf('/'));
+                    const fullCoverPath = `${basePath}/${coverPath}`;
+                    console.log('Full cover image path:', fullCoverPath);
+                    
+                    // Check if cover file exists
+                    const coverExists = await RNFS.exists(fullCoverPath);
+                    if (!coverExists) {
+                        console.error('Cover file does not exist at path:', fullCoverPath);
+                    } else {
+                        // Create a cached copy of the cover image
+                        const coverExt = coverPath.split('.').pop() || 'jpg';
+                        const cachedCoverPath = `${RNFS.CachesDirectoryPath}/book_cover_${timestamp}.${coverExt}`;
+                        console.log('Copying cover to cache:', cachedCoverPath);
+                        await RNFS.copyFile(fullCoverPath, cachedCoverPath);
+                        coverUri = cachedCoverPath;
+                        console.log('Successfully cached cover image at:', cachedCoverPath);
+                    }
+                } catch (coverError) {
+                    console.error('Error processing cover image:', coverError);
+                }
+            } else {
+                console.log('No cover image found in OPF file');
             }
             
             // Clean up temp extraction directory
-            await RNFS.unlink(tempDir);
+            console.log('Cleaning up temp directory:', tempDir);
+            await RNFS.unlink(tempDir).catch(e => console.log('Error removing temp dir:', e));
             
             return { title, coverUri };
         } catch (error) {
             console.error("Error extracting metadata:", error);
+            // Clean up temp directory if it exists
+            if (tempDir) {
+                await RNFS.unlink(tempDir).catch(e => console.log('Error removing temp dir:', e));
+            }
             return { title: null, coverUri: null };
         }
     };
