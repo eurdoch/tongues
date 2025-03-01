@@ -23,23 +23,47 @@ function App() {
     
     // Set up event listener for EPUB file opens
     if (Platform.OS === 'android') {
-      const eventEmitter = new NativeEventEmitter();
+      // Import DeviceEventEmitter directly to avoid NativeEventEmitter issues
+      const DeviceEventEmitter = require('react-native').DeviceEventEmitter;
       
-      console.log('Setting up openEpubFile event listener');
+      console.log('Setting up openEpubFile event listener with DeviceEventEmitter');
       
-      eventListener = eventEmitter.addListener('openEpubFile', (event) => {
+      // Add a listener for the openEpubFile event
+      eventListener = DeviceEventEmitter.addListener('openEpubFile', (event) => {
         console.log('Received openEpubFile event:', event);
         const { uri } = event;
         
         if (uri && navigationRef.current) {
           console.log('Navigating to Reader with URI:', uri);
           
-          // Small delay to ensure navigation is ready
-          setTimeout(() => {
-            navigationRef.current?.navigate('Reader', { fileUri: uri });
-          }, 500);
+          // Use a multi-attempt approach with increasing delays
+          const attemptNavigation = (attempts: number = 0, maxAttempts: number = 5) => {
+            if (attempts >= maxAttempts) {
+              console.error(`Failed to navigate after ${maxAttempts} attempts`);
+              return;
+            }
+            
+            try {
+              if (navigationRef.current && navigationRef.current.isReady()) {
+                console.log(`Navigation attempt ${attempts+1} successful: ${uri}`);
+                navigationRef.current.navigate('Reader', { fileUri: uri });
+              } else {
+                console.log(`Navigation not ready on attempt ${attempts+1}, retry in ${(attempts+1)*500}ms`);
+                setTimeout(() => attemptNavigation(attempts + 1), (attempts + 1) * 500);
+              }
+            } catch (error) {
+              console.error(`Navigation error on attempt ${attempts+1}:`, error);
+              setTimeout(() => attemptNavigation(attempts + 1), (attempts + 1) * 500);
+            }
+          };
+          
+          // Start navigation attempts
+          attemptNavigation();
         } else {
-          console.error('Unable to navigate to Reader:', uri, navigationRef.current);
+          console.error('Unable to navigate to Reader - missing uri or navigationRef:', {
+            hasUri: !!uri,
+            hasNavigationRef: !!navigationRef.current
+          });
         }
       });
     }

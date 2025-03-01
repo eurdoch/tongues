@@ -71,10 +71,10 @@ function HomeScreen(): React.JSX.Element {
           if (granted) {
             findEpubFiles();
           } else {
-            console.log('Permission not granted you loser.');
+            console.log('Permission not granted');
+            setIsLoading(false);
           }
         });
-
     }, []);
 
     const findEpubFiles = async () => {

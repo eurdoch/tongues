@@ -54,16 +54,33 @@ const findOpfFile = async (directoryPath: string): Promise<string | null> => {
 
 const extractEpub = async (fileUri: string) => {
   try {
+    console.log('Extracting EPUB from URI:', fileUri);
+    
     // For content:// URIs on Android, we need to copy the file to app's cache directory first
     let sourcePath = fileUri;
     
-    if (Platform.OS === 'android' && fileUri.startsWith('content://')) {
-      // Create a temporary file path in cache directory
-      const tempFilePath = `${RNFS.CachesDirectoryPath}/temp_epub.epub`;
-      
-      // Copy the file from content URI to the temp path
-      await RNFS.copyFile(fileUri, tempFilePath);
-      sourcePath = tempFilePath;
+    if (Platform.OS === 'android') {
+      if (fileUri.startsWith('content://')) {
+        // Create a temporary file path in cache directory
+        const tempFilePath = `${RNFS.CachesDirectoryPath}/temp_epub_${Date.now()}.epub`;
+        console.log('Copying content URI to temp file:', tempFilePath);
+        
+        try {
+          // Copy the file from content URI to the temp path
+          await RNFS.copyFile(fileUri, tempFilePath);
+          console.log('Successfully copied file to:', tempFilePath);
+          sourcePath = tempFilePath;
+        } catch (copyError) {
+          console.error('Error copying content URI:', copyError);
+          // Fall back to direct usage if copy fails
+          sourcePath = fileUri;
+        }
+      } else if (!fileUri.startsWith('file://') && fileUri.toLowerCase().endsWith('.epub')) {
+        // Add file:// prefix for regular file paths if missing
+        // React Native file operations need absolute file:// paths on Android
+        console.log('Adding file:// prefix to path');
+        sourcePath = `file://${fileUri}`;
+      }
     }
     
     // Create a unique destination folder with timestamp
