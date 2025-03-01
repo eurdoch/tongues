@@ -23,6 +23,37 @@ function CustomDrawerContent() {
           mode: 'open',
         });
         
+        console.log("Selected file:", file);
+        
+        // First check the file size
+        let fileSize = 0;
+        
+        try {
+          // Get file stats to check size
+          const stats = await RNFS.stat(file.uri);
+          fileSize = stats.size;
+          console.log(`Selected file size: ${fileSize} bytes`);
+        } catch (statError) {
+          console.log('Error getting file stats:', statError);
+          // Continue even if we can't get the size
+        }
+        
+        // Look for existing files with the same size first
+        const existingFiles = await findExistingFiles(fileSize);
+        if (existingFiles.length > 0) {
+          console.log(`Found ${existingFiles.length} potential matches by size`);
+          
+          // Use the first one - this is likely to be the same file
+          const existingPath = existingFiles[0].path;
+          console.log(`Using existing file: ${existingPath}`);
+          
+          navigation.navigate('Reader', { 
+            fileUri: existingPath,
+            shouldRefreshHomeAfterClose: false // Don't need to refresh as we're using an existing file
+          });
+          return;
+        }
+        
         // Copy the file to app storage for persistence
         const savedFilePath = await copyFileToAppStorage(file.uri);
         
@@ -38,6 +69,41 @@ function CustomDrawerContent() {
       } finally {
         // Hide loading indicator
         setIsLoading(false);
+      }
+    };
+    
+    // Function to find existing files with the same size
+    const findExistingFiles = async (fileSize: number): Promise<Array<{path: string, name: string}>> => {
+      if (fileSize === 0) return [];
+      
+      try {
+        // Get all EPUB files in the app's storage
+        const files = await RNFS.readDir(RNFS.DocumentDirectoryPath);
+        const epubFiles = files.filter(file => file.name.toLowerCase().endsWith('.epub'));
+        
+        console.log(`Found ${epubFiles.length} EPUB files in app storage`);
+        
+        // Check each file's size
+        const sizeMatches = [];
+        for (const file of epubFiles) {
+          try {
+            const stats = await RNFS.stat(file.path);
+            console.log(`File ${file.name}: ${stats.size} bytes`);
+            
+            // The file size is a reliable way to identify the same file
+            if (stats.size === fileSize) {
+              console.log(`Size match found: ${file.path}`);
+              sizeMatches.push({ path: file.path, name: file.name });
+            }
+          } catch (statError) {
+            console.log(`Error checking file size for ${file.name}:`, statError);
+          }
+        }
+        
+        return sizeMatches;
+      } catch (error) {
+        console.error('Error finding existing files:', error);
+        return [];
       }
     };
     
