@@ -397,7 +397,7 @@ const detectLanguage = async (text: string): Promise<string> => {
 function ReaderScreen() {
   const route = useRoute();
   const navigation = useNavigation();
-  const { fileUri, shouldRefreshHomeAfterClose, openedExternally } = route.params || {};
+  const { fileUri, shouldRefreshHomeAfterClose, openedExternally, checkForDuplicates } = route.params || {};
   
   // Log route params for debugging
   useEffect(() => {
@@ -524,10 +524,27 @@ function ReaderScreen() {
   // Effect to load the EPUB when fileUri changes or on initial load
   useEffect(() => {
     console.log('[ReaderScreen] Load effect triggered with fileUri:', fileUri);
-    if (fileUri) {
+    
+    // Check if we're opening an external book that might be a duplicate
+    if (fileUri && checkForDuplicates) {
+      import('./BookMetadataStore').then(async ({ checkIfBookExists }) => {
+        try {
+          const exists = await checkIfBookExists(fileUri);
+          if (exists) {
+            console.log('[ReaderScreen] Book already exists in library, using existing version');
+            // We still load the book, but it will use the existing metadata from the store
+          }
+        } catch (error) {
+          console.error('[ReaderScreen] Error checking for duplicate:', error);
+        }
+        // Load the book after checking for duplicates
+        loadEpub();
+      });
+    } else if (fileUri) {
+      // Normal flow for books opened from within the app
       loadEpub();
     }
-  }, [fileUri]);
+  }, [fileUri, checkForDuplicates]);
 
   const [parsedContent, setParsedContent] = useState<ElementNode[]>([]);
   

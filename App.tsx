@@ -66,7 +66,8 @@ function App() {
                       fileUri: uri,
                       shouldRefreshHomeAfterClose: true,
                       openedExternally: true,
-                      timestamp: Date.now() // Force params to be different
+                      timestamp: Date.now(), // Force params to be different
+                      checkForDuplicates: true // Flag to indicate we should check for duplicates
                     }
                   }
                 });

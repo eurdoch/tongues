@@ -70,6 +70,35 @@ export const removeBookMetadata = async (id: string): Promise<void> => {
   }
 };
 
+/**
+ * Check if a book already exists in the metadata store with the same name/path
+ */
+export const checkIfBookExists = async (filePath: string): Promise<boolean> => {
+  try {
+    const allMetadata = await getAllBookMetadata();
+    
+    // Extract just the filename for comparison
+    const filename = filePath.split('/').pop()?.toLowerCase() || '';
+    if (!filename) return false;
+    
+    // Check if any existing book has the same filename
+    for (const bookId in allMetadata) {
+      const book = allMetadata[bookId];
+      const existingFilename = book.filePath.split('/').pop()?.toLowerCase() || '';
+      
+      if (existingFilename === filename) {
+        console.log(`Book with same filename already exists: ${existingFilename}`);
+        return true;
+      }
+    }
+    
+    return false;
+  } catch (error) {
+    console.error('Error checking if book exists:', error);
+    return false;
+  }
+};
+
 // Create or update metadata for a book file
 export const processBookFile = async (filePath: string): Promise<BookMetadata | null> => {
   try {
@@ -78,6 +107,31 @@ export const processBookFile = async (filePath: string): Promise<BookMetadata | 
     if (!exists) {
       console.log(`File does not exist: ${filePath}`);
       return null;
+    }
+    
+    // Check if we already have this book in metadata
+    const bookExists = await checkIfBookExists(filePath);
+    if (bookExists) {
+      console.log(`Book already exists in metadata store: ${filePath}`);
+      
+      // Get existing book metadata to return
+      const allMetadata = await getAllBookMetadata();
+      const filename = filePath.split('/').pop()?.toLowerCase() || '';
+      
+      for (const bookId in allMetadata) {
+        const book = allMetadata[bookId];
+        const existingFilename = book.filePath.split('/').pop()?.toLowerCase() || '';
+        
+        if (existingFilename === filename) {
+          // Update the last read time
+          const updatedBook = {
+            ...book,
+            lastRead: Date.now()
+          };
+          await saveBookMetadata(updatedBook);
+          return updatedBook;
+        }
+      }
     }
     
     // Get file stats

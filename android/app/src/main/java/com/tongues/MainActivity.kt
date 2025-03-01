@@ -179,6 +179,14 @@ class MainActivity : ReactActivity(), ReactInstanceEventListener {
       val targetDir = applicationContext.filesDir.absolutePath
       val targetPath = "$targetDir/$targetFileName"
       
+      // Check if a file with this name already exists
+      val targetFile = java.io.File(targetPath)
+      if (targetFile.exists()) {
+        Log.d("TonguesApp", "File already exists at $targetPath, skipping copy")
+        // Return the existing path since the file is already there
+        return targetPath
+      }
+      
       Log.d("TonguesApp", "Copying EPUB from $inputFilePath to $targetPath")
       
       var success = false
@@ -201,11 +209,17 @@ class MainActivity : ReactActivity(), ReactInstanceEventListener {
         // For file:// URIs and regular file paths
         try {
           val cleanPath = inputFilePath.replace("file://", "")
-          java.io.File(cleanPath).copyTo(java.io.File(targetPath), overwrite = true)
+          java.io.File(cleanPath).copyTo(java.io.File(targetPath), overwrite = false) // Set overwrite to false
           Log.d("TonguesApp", "Successfully copied file to app data")
           success = true
         } catch (e: Exception) {
-          Log.e("TonguesApp", "Error copying file", e)
+          // If error is because file exists, this is fine
+          if (e is java.nio.file.FileAlreadyExistsException) {
+            Log.d("TonguesApp", "File already exists, using existing file")
+            success = true
+          } else {
+            Log.e("TonguesApp", "Error copying file", e)
+          }
         }
       }
       
