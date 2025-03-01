@@ -70,10 +70,11 @@ function HomeScreen(): React.JSX.Element {
     const navigation = useNavigation();
     const route = useRoute();
 
-    // Load books when the component mounts
+    // Add a focus listener to refresh books whenever the screen gains focus
     useEffect(() => {
         let isMounted = true;
         
+        // Initial load when component mounts
         const loadInitialBooks = async () => {
             const granted = await requestStoragePermission();
             
@@ -81,6 +82,7 @@ function HomeScreen(): React.JSX.Element {
             if (!isMounted) return;
             
             if (granted) {
+                console.log('Initial book scan - permissions granted');
                 findEpubFiles();
             } else {
                 console.log('Permission not granted');
@@ -90,13 +92,23 @@ function HomeScreen(): React.JSX.Element {
         
         loadInitialBooks();
         
+        // Set up a focus listener to refresh the book list whenever screen comes into focus
+        const unsubscribe = navigation.addListener('focus', () => {
+            if (isMounted) {
+                console.log('HomeScreen focused - refreshing books');
+                findEpubFiles();
+            }
+        });
+        
         // Cleanup function to prevent state updates after unmount
         return () => {
             isMounted = false;
+            unsubscribe();
         };
-    }, []);
+    }, [navigation]);
     
     // Also refresh the book list when returning with refreshBooks flag
+    // (Keeping this for backward compatibility)
     useEffect(() => {
         if (route.params?.refreshBooks) {
             console.log('Refreshing book list due to navigation param');
