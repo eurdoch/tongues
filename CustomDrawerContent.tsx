@@ -208,15 +208,31 @@ function CustomDrawerContent() {
           if (fileName.includes('?')) {
             fileName = fileName.substring(0, fileName.indexOf('?'));
           }
+          
+          // Handle encoded characters in filename
+          try {
+            const decodedFileName = decodeURIComponent(fileName);
+            if (decodedFileName !== fileName) {
+              console.log(`Decoded filename from ${fileName} to ${decodedFileName}`);
+              fileName = decodedFileName;
+            }
+          } catch (decodeError) {
+            console.log("Error decoding filename:", decodeError);
+            // Continue with the original filename
+          }
+          
+          // Remove any strange characters from the filename
+          fileName = fileName.replace(/[^\w\d.-]/g, '_');
         } else {
           // If we can't extract a reasonable filename, create one with the timestamp
           fileName = `book_${timestamp}.epub`;
         }
         
-        // Ensure the extension is .epub
+        // Don't add any random suffixes or timestamps to the filename
+        // This helps prevent duplicates when the same file is selected multiple times
         const targetFileName = fileName.toLowerCase().endsWith('.epub') 
-          ? `${fileName.substring(0, fileName.length - 5)}_${randomSuffix}.epub` 
-          : `${fileName}_${randomSuffix}.epub`;
+          ? fileName 
+          : `${fileName}.epub`;
         
         // Create destination path in app's document directory
         const destPath = `${RNFS.DocumentDirectoryPath}/${targetFileName}`;
