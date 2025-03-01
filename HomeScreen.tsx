@@ -21,6 +21,8 @@ interface EpubFile {
     uri: string;
     name: string;
     coverUri: string | null;
+    size: number;
+    lastModified?: number;
 }
 
 const requestStoragePermission = async () => {
@@ -90,6 +92,63 @@ function HomeScreen(): React.JSX.Element {
         }
     }, [route.params?.refreshBooks]);
 
+    const findDuplicateEpubs = (epubs: EpubFile[]): Map<string, EpubFile[]> => {
+        // Group EPUBs by name and size
+        const duplicateGroups = new Map<string, EpubFile[]>();
+        
+        // First, group by name and size
+        const groupKey = (epub: EpubFile) => `${epub.name}_${epub.size}`;
+        const groupedEpubs = new Map<string, EpubFile[]>();
+        
+        epubs.forEach(epub => {
+            const key = groupKey(epub);
+            if (!groupedEpubs.has(key)) {
+                groupedEpubs.set(key, []);
+            }
+            groupedEpubs.get(key)?.push(epub);
+        });
+        
+        // Filter out groups with more than one file (these are potential duplicates)
+        for (const [key, group] of groupedEpubs.entries()) {
+            if (group.length > 1) {
+                duplicateGroups.set(key, group);
+            }
+        }
+        
+        return duplicateGroups;
+    };
+    
+    const removeDuplicateEpubs = async (duplicateGroups: Map<string, EpubFile[]>): Promise<number> => {
+        let removedCount = 0;
+        
+        for (const group of duplicateGroups.values()) {
+            // Sort by last modified (most recent first)
+            group.sort((a, b) => {
+                const aTime = a.lastModified || 0;
+                const bTime = b.lastModified || 0;
+                return bTime - aTime;
+            });
+            
+            // Keep the most recently modified file, delete the rest
+            const [keepFile, ...duplicatesToRemove] = group;
+            
+            // Log which file we're keeping and which we're removing
+            console.log(`Keeping: ${keepFile.name} (${keepFile.uri})`);
+            
+            for (const duplicate of duplicatesToRemove) {
+                try {
+                    console.log(`Removing duplicate: ${duplicate.name} (${duplicate.uri})`);
+                    await RNFS.unlink(duplicate.uri);
+                    removedCount++;
+                } catch (error) {
+                    console.error(`Failed to remove duplicate file ${duplicate.uri}:`, error);
+                }
+            }
+        }
+        
+        return removedCount;
+    };
+
     const findEpubFiles = async () => {
         try {
             setIsLoading(true);
@@ -99,25 +158,49 @@ function HomeScreen(): React.JSX.Element {
             const appDataDirectory = RNFS.DocumentDirectoryPath;
             console.log(`Searching app data directory: ${appDataDirectory}`);
 
-            let allEpubs: EpubFile[] = [];
-            const foundPaths = new Set<string>(); // Track unique paths
-
             // Only search the app's data directory
             const epubs = await searchDirectoryForEpubs(appDataDirectory);
             
-            // Add all EPUBs from app data directory
-            for (const epub of epubs) {
-                if (!foundPaths.has(epub.uri)) {
-                    foundPaths.add(epub.uri);
-                    allEpubs.push(epub);
+            // Check for and remove duplicates
+            const duplicateGroups = findDuplicateEpubs(epubs);
+            let removedCount = 0;
+            
+            if (duplicateGroups.size > 0) {
+                console.log(`Found ${duplicateGroups.size} groups of duplicate EPUBs`);
+                removedCount = await removeDuplicateEpubs(duplicateGroups);
+                
+                if (removedCount > 0) {
+                    console.log(`Removed ${removedCount} duplicate EPUB files`);
+                    // Re-scan after removing duplicates
+                    const updatedEpubs = await searchDirectoryForEpubs(appDataDirectory);
+                    
+                    // Process found EPUBs and extract covers
+                    const processedEpubs = await Promise.all(
+                        updatedEpubs.map(async (epub) => {
+                            const coverUri = await extractCoverImage(epub.uri);
+                            return {
+                                ...epub,
+                                coverUri
+                            };
+                        })
+                    );
+                    
+                    setEpubFiles(processedEpubs);
+                    if (removedCount === 1) {
+                        Alert.alert("Duplicate Removed", `Removed 1 duplicate EPUB file`);
+                    } else {
+                        Alert.alert("Duplicates Removed", `Removed ${removedCount} duplicate EPUB files`);
+                    }
+                    setIsLoading(false);
+                    return;
                 }
             }
-
-            console.log(`Found ${allEpubs.length} unique EPUB files`);
+            
+            console.log(`Found ${epubs.length} EPUB files`);
 
             // Process found EPUBs and extract covers
             const processedEpubs = await Promise.all(
-                allEpubs.map(async (epub) => {
+                epubs.map(async (epub) => {
                     const coverUri = await extractCoverImage(epub.uri);
                     return {
                         ...epub,
@@ -144,11 +227,14 @@ function HomeScreen(): React.JSX.Element {
 
             for (const file of files) {
                 if (file.isFile() && file.name.toLowerCase().endsWith(".epub")) {
+                    const stat = await RNFS.stat(file.path);
                     results.push({
                         id: file.path,
                         uri: file.path,
                         name: file.name.replace(/\.epub$/i, ""),
-                        coverUri: null
+                        coverUri: null,
+                        size: stat.size,
+                        lastModified: stat.mtime?.getTime()
                     });
                 } else if (file.isDirectory()) {
                     try {
