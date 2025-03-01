@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useLayoutEffect } from "react";
 import { 
     Text, 
     View, 
@@ -13,8 +13,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import RNFS from "react-native-fs";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { DrawerNavigationProp } from '@react-navigation/drawer';
 import * as ZipArchive from 'react-native-zip-archive';
-import { BookMetadata, getAllBookMetadata, processBookFile, updateLastRead } from './BookMetadataStore';
+import { BookMetadata, getAllBookMetadata, processBookFile, updateLastRead, removeBookMetadata } from './BookMetadataStore';
 
 interface EpubFile {
     id: string;
@@ -31,8 +32,79 @@ function HomeScreen(): React.JSX.Element {
     const [epubFiles, setEpubFiles] = useState<EpubFile[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
+    const [isSelectMode, setIsSelectMode] = useState<boolean>(false);
+    const [selectedBooks, setSelectedBooks] = useState<Set<string>>(new Set());
     const navigation = useNavigation();
     const route = useRoute();
+    
+    // Handle select all books
+    const handleSelectAll = () => {
+        const allBookIds = new Set(epubFiles.map(book => book.id));
+        setSelectedBooks(allBookIds);
+    };
+    
+    // Configure header buttons based on selection mode
+    useLayoutEffect(() => {
+        navigation.setOptions({
+            headerRight: () => (
+                <View style={styles.headerButtons}>
+                    {isSelectMode ? (
+                        <>
+                            <TouchableOpacity 
+                                style={styles.headerButton} 
+                                onPress={handleDeleteSelected}
+                                disabled={selectedBooks.size === 0}
+                            >
+                                <Text style={[
+                                    styles.headerButtonText, 
+                                    selectedBooks.size === 0 ? styles.disabledText : styles.deleteText
+                                ]}>
+                                    Delete
+                                </Text>
+                            </TouchableOpacity>
+                            {selectedBooks.size < epubFiles.length ? (
+                                <TouchableOpacity 
+                                    style={styles.headerButton} 
+                                    onPress={handleSelectAll}
+                                >
+                                    <Text style={styles.headerButtonText}>Select All</Text>
+                                </TouchableOpacity>
+                            ) : (
+                                <TouchableOpacity 
+                                    style={styles.headerButton} 
+                                    onPress={() => setSelectedBooks(new Set())}
+                                >
+                                    <Text style={styles.headerButtonText}>Deselect All</Text>
+                                </TouchableOpacity>
+                            )}
+                            <TouchableOpacity 
+                                style={styles.headerButton} 
+                                onPress={() => {
+                                    setIsSelectMode(false);
+                                    setSelectedBooks(new Set());
+                                }}
+                            >
+                                <Text style={styles.headerButtonText}>Cancel</Text>
+                            </TouchableOpacity>
+                        </>
+                    ) : (
+                        <TouchableOpacity 
+                            style={styles.headerButton} 
+                            onPress={() => setIsSelectMode(true)}
+                            disabled={epubFiles.length === 0}
+                        >
+                            <Text style={[
+                                styles.headerButtonText,
+                                epubFiles.length === 0 ? styles.disabledText : null
+                            ]}>
+                                Select
+                            </Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
+            ),
+        });
+    }, [navigation, isSelectMode, selectedBooks, epubFiles]);
 
     // Add a focus listener to refresh books whenever the screen gains focus
     useEffect(() => {
@@ -812,30 +884,107 @@ function HomeScreen(): React.JSX.Element {
     };
 
     const openBook = async (item: EpubFile) => {
-        // Update last read time in metadata
-        await updateLastRead(item.id);
+        if (isSelectMode) {
+            // Toggle selection
+            const newSelected = new Set(selectedBooks);
+            if (newSelected.has(item.id)) {
+                newSelected.delete(item.id);
+            } else {
+                newSelected.add(item.id);
+            }
+            setSelectedBooks(newSelected);
+        } else {
+            // Update last read time in metadata
+            await updateLastRead(item.id);
+            
+            // Navigate to reader screen
+            navigation.navigate('Reader', { fileUri: item.uri });
+        }
+    };
+    
+    // Handle deletion of selected books
+    const handleDeleteSelected = () => {
+        if (selectedBooks.size === 0) return;
         
-        // Navigate to reader screen
-        navigation.navigate('Reader', { fileUri: item.uri });
+        Alert.alert(
+            "Confirm Deletion",
+            `Delete ${selectedBooks.size} selected book${selectedBooks.size > 1 ? 's' : ''}?`,
+            [
+                {
+                    text: "Cancel",
+                    style: "cancel"
+                },
+                {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: async () => {
+                        // Create an array of books to delete
+                        const booksToDelete = epubFiles.filter(book => selectedBooks.has(book.id));
+                        
+                        // Delete each book
+                        for (const book of booksToDelete) {
+                            try {
+                                // Delete the file
+                                if (await RNFS.exists(book.uri)) {
+                                    await RNFS.unlink(book.uri);
+                                }
+                                
+                                // Delete the cover if it exists
+                                if (book.coverUri && await RNFS.exists(book.coverUri)) {
+                                    await RNFS.unlink(book.coverUri);
+                                }
+                                
+                                // Remove from metadata
+                                await removeBookMetadata(book.id);
+                            } catch (error) {
+                                console.error(`Error deleting book ${book.title}:`, error);
+                            }
+                        }
+                        
+                        // Refresh the book list
+                        setIsSelectMode(false);
+                        setSelectedBooks(new Set());
+                        findEpubFiles();
+                    }
+                }
+            ]
+        );
     };
 
     const renderEpubItem = ({ item }: { item: EpubFile }) => (
         <TouchableOpacity 
-            style={styles.bookItem} 
+            style={[
+                styles.bookItem, 
+                isSelectMode && selectedBooks.has(item.id) && styles.selectedBookItem
+            ]} 
             onPress={() => openBook(item)}
         >
-            {item.coverUri ? (
-                <Image 
-                    source={{ uri: `file://${item.coverUri}` }} 
-                    style={styles.bookCover}
-                    resizeMode="cover"
-                />
-            ) : (
-                <View style={styles.placeholderCover}>
-                    <Text style={styles.placeholderText}>No Cover</Text>
-                </View>
-            )}
-            <Text style={styles.bookTitle} numberOfLines={2}>{item.title}</Text>
+            <View style={styles.bookItemContent}>
+                {item.coverUri ? (
+                    <Image 
+                        source={{ uri: `file://${item.coverUri}` }} 
+                        style={styles.bookCover}
+                        resizeMode="cover"
+                    />
+                ) : (
+                    <View style={styles.placeholderCover}>
+                        <Text style={styles.placeholderText}>No Cover</Text>
+                    </View>
+                )}
+                {isSelectMode && (
+                    <View style={styles.selectionOverlay}>
+                        <View style={[
+                            styles.selectionIndicator,
+                            selectedBooks.has(item.id) && styles.selectionIndicatorSelected
+                        ]}>
+                            {selectedBooks.has(item.id) && (
+                                <Text style={styles.checkmark}>✓</Text>
+                            )}
+                        </View>
+                    </View>
+                )}
+                <Text style={styles.bookTitle} numberOfLines={2}>{item.title}</Text>
+            </View>
         </TouchableOpacity>
     );
 
@@ -893,6 +1042,25 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#f8f9fa',
     },
+    headerButtons: {
+        flexDirection: 'row',
+        paddingRight: 16,
+    },
+    headerButton: {
+        marginLeft: 15,
+        paddingVertical: 5,
+    },
+    headerButtonText: {
+        fontSize: 16,
+        color: '#1a73e8',
+        fontWeight: '500',
+    },
+    disabledText: {
+        color: '#aaa',
+    },
+    deleteText: {
+        color: '#d32f2f',
+    },
     bookList: {
         padding: 16,
     },
@@ -908,6 +1076,14 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 3,
+    },
+    selectedBookItem: {
+        borderWidth: 2,
+        borderColor: '#1a73e8',
+    },
+    bookItemContent: {
+        position: 'relative',
+        flex: 1,
     },
     bookCover: {
         width: '100%',
@@ -930,6 +1106,30 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '500',
         color: '#333',
+    },
+    selectionOverlay: {
+        position: 'absolute',
+        top: 10,
+        right: 10,
+        zIndex: 10,
+    },
+    selectionIndicator: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: 'white',
+        borderWidth: 2,
+        borderColor: '#ccc',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    selectionIndicatorSelected: {
+        backgroundColor: '#1a73e8',
+        borderColor: '#1a73e8',
+    },
+    checkmark: {
+        color: 'white',
+        fontWeight: 'bold',
     },
     loadingContainer: {
         flex: 1,
