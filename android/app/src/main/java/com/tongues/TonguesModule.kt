@@ -1,5 +1,7 @@
 package com.tongues
 
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
@@ -31,9 +33,15 @@ class TonguesModule(private val reactContext: ReactApplicationContext) : ReactCo
                         putString("uri", pendingUri)
                     }
                     
-                    reactContext
-                        .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                        .emit("openEpubFile", params)
+                    try {
+                        reactContext
+                            .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                            .emit("openEpubFile", params)
+                        
+                        Log.d("TonguesModule", "Successfully sent openEpubFile event")
+                    } catch (e: Exception) {
+                        Log.e("TonguesModule", "Error sending event", e)
+                    }
                     
                     promise?.resolve(true)
                 } else {
@@ -49,4 +57,5 @@ class TonguesModule(private val reactContext: ReactApplicationContext) : ReactCo
             promise?.reject("ERROR", e.message)
         }
     }
+    
 }

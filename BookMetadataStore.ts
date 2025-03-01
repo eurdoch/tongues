@@ -81,20 +81,31 @@ export const checkIfBookExists = async (filePath: string): Promise<boolean> => {
     const filename = filePath.split('/').pop()?.toLowerCase() || '';
     if (!filename) return false;
     
-    // Check if any existing book has the same filename
+    console.log(`[BookMetadataStore] Checking if book exists: ${filename} (${filePath})`);
+    console.log(`[BookMetadataStore] Comparing against ${Object.keys(allMetadata).length} stored books`);
+    
+    // Get filename without extension for more flexible comparison
+    const filenameNoExt = filename.replace(/\.epub$/i, '');
+    
+    // Check if any existing book has the same filename or similar name
     for (const bookId in allMetadata) {
       const book = allMetadata[bookId];
       const existingFilename = book.filePath.split('/').pop()?.toLowerCase() || '';
+      const existingFilenameNoExt = existingFilename.replace(/\.epub$/i, '');
       
-      if (existingFilename === filename) {
-        console.log(`Book with same filename already exists: ${existingFilename}`);
+      // Check both exact match and name without extension
+      if (existingFilename === filename || existingFilenameNoExt === filenameNoExt) {
+        console.log(`[BookMetadataStore] Book with same filename already exists:`);
+        console.log(`  - Existing: ${existingFilename} (${book.filePath})`);
+        console.log(`  - New: ${filename} (${filePath})`);
         return true;
       }
     }
     
+    console.log(`[BookMetadataStore] No duplicate found for: ${filename}`);
     return false;
   } catch (error) {
-    console.error('Error checking if book exists:', error);
+    console.error('[BookMetadataStore] Error checking if book exists:', error);
     return false;
   }
 };

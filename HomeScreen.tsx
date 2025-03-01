@@ -305,12 +305,45 @@ function HomeScreen(): React.JSX.Element {
                 // Check if this filename already exists in our valid stored books
                 const isDuplicate = validStoredBooks.some(book => {
                     const bookFilename = book.filePath.split('/').pop()?.toLowerCase() || '';
-                    const isMatch = bookFilename === epubFilename;
-                    if (isMatch) {
-                        console.log(`Found match: ${bookFilename} === ${epubFilename}`);
+                    
+                    // Check for exact match or filename without extension
+                    const exactMatch = bookFilename === epubFilename;
+                    
+                    // Also check for names without extensions (for more robust matching)
+                    const bookNameNoExt = bookFilename.replace(/\.epub$/i, '');
+                    const epubNameNoExt = epubFilename.replace(/\.epub$/i, '');
+                    const nameMatch = bookNameNoExt === epubNameNoExt;
+                    
+                    // Log detailed matching information
+                    if (exactMatch || nameMatch) {
+                        console.log(`Found duplicate match: 
+                            - Existing book: ${bookFilename} (${book.filePath})
+                            - New book: ${epubFilename} (${epub.uri})
+                            - Exact match: ${exactMatch}
+                            - Name match: ${nameMatch}`);
                     }
-                    return isMatch;
+                    
+                    return exactMatch || nameMatch;
                 });
+                
+                // If duplicate, update the 'lastModified' date of the existing book
+                // to make sure it appears at the top of the list
+                if (isDuplicate) {
+                    const epubFilename = epub.uri.split('/').pop()?.toLowerCase() || '';
+                    
+                    validStoredBooks.forEach(async book => {
+                        const bookFilename = book.filePath.split('/').pop()?.toLowerCase() || '';
+                        const bookNameNoExt = bookFilename.replace(/\.epub$/i, '');
+                        const epubNameNoExt = epubFilename.replace(/\.epub$/i, '');
+                        
+                        if (bookFilename === epubFilename || bookNameNoExt === epubNameNoExt) {
+                            console.log(`Updating lastModified date for duplicate book: ${book.filePath}`);
+                            // Import the function dynamically to avoid circular references
+                            const { updateLastRead } = require('./BookMetadataStore');
+                            await updateLastRead(book.id);
+                        }
+                    });
+                }
                 
                 return !isDuplicate;
             });

@@ -41,6 +41,8 @@ class MainActivity : ReactActivity(), ReactInstanceEventListener {
     if (uri != null) {
       Log.d("TonguesApp", "Getting and clearing pending file URI: $uri")
       pendingFileUri = null
+    } else {
+      Log.d("TonguesApp", "No pending file URI found")
     }
     return uri
   }
@@ -61,6 +63,7 @@ class MainActivity : ReactActivity(), ReactInstanceEventListener {
         
         if (isEpub) {
           Log.d("TonguesApp", "Storing EPUB URI for when React is ready: $data with type $mimeType")
+          
           val sourceFilePath = getFilePathFromUri(data!!)
           
           if (sourceFilePath != null) {
@@ -74,7 +77,7 @@ class MainActivity : ReactActivity(), ReactInstanceEventListener {
             // Store the path to be opened when React is ready
             pendingFileUri = pathToOpen
           } else {
-            Log.e("TonguesApp", "Failed to get file path from URI in onCreate: $data")
+            Log.e("TonguesApp", "Failed to get file path from URI: $data")
           }
           
           // Set the current intent to a MAIN intent to avoid processing this VIEW intent again
@@ -163,9 +166,13 @@ class MainActivity : ReactActivity(), ReactInstanceEventListener {
     try {
       // Extract filename from the path or use a timestamp
       val fileName = if (inputFilePath.contains("/")) {
-        inputFilePath.substring(inputFilePath.lastIndexOf("/") + 1)
+        val fullName = inputFilePath.substring(inputFilePath.lastIndexOf("/") + 1)
+        Log.d("TonguesApp", "Extracted filename: $fullName from path: $inputFilePath")
+        fullName
       } else {
-        "book_${System.currentTimeMillis()}.epub"
+        val generatedName = "book_${System.currentTimeMillis()}.epub"
+        Log.d("TonguesApp", "Using generated filename: $generatedName for path: $inputFilePath")
+        generatedName
       }
       
       // If the filename doesn't end with .epub, append it
@@ -175,13 +182,32 @@ class MainActivity : ReactActivity(), ReactInstanceEventListener {
         fileName
       }
       
-      // Log all existing files in the directory for debugging
-      val appDir = java.io.File(applicationContext.filesDir.absolutePath)
-      val existingFiles = appDir.listFiles()
-      Log.d("TonguesApp", "Existing files in app directory: ${existingFiles?.joinToString(", ") { it.name } ?: "none"}")
+      Log.d("TonguesApp", "Final target filename will be: $targetFileName")
       
       // Get path to app's document directory
       val targetDir = applicationContext.filesDir.absolutePath
+      Log.d("TonguesApp", "Target directory: $targetDir")
+      
+      // Log all existing files in the directory for debugging
+      val appDir = java.io.File(targetDir)
+      val existingFiles = appDir.listFiles()
+      val fileList = existingFiles?.joinToString(", ") { "${it.name} (${it.length()} bytes)" } ?: "none"
+      Log.d("TonguesApp", "Existing files in app directory: $fileList")
+      
+      // Advanced duplicate detection - check for files with same name or similar names
+      existingFiles?.forEach { existingFile ->
+        if (existingFile.name.equals(targetFileName, ignoreCase = true) ||
+            existingFile.nameWithoutExtension.equals(
+              java.io.File(targetFileName).nameWithoutExtension, 
+              ignoreCase = true
+            )
+        ) {
+          Log.d("TonguesApp", "Found potential duplicate: ${existingFile.name}")
+          Log.d("TonguesApp", "Returning existing file path: ${existingFile.absolutePath}")
+          return existingFile.absolutePath
+        }
+      }
+      
       val targetPath = "$targetDir/$targetFileName"
       
       // Check if a file with this name already exists
@@ -290,24 +316,41 @@ class MainActivity : ReactActivity(), ReactInstanceEventListener {
    * This is implementation of ReactInstanceEventListener interface
    */
   override fun onReactContextInitialized(context: ReactContext) {
+    Log.d("TonguesApp", "React context initialized, checking for pending URI")
+    
     pendingFileUri?.let { uri ->
-      Log.d("TonguesApp", "React context initialized, sending URI: $uri")
+      Log.d("TonguesApp", "Found pending URI to send: $uri")
       
-      // Small delay to make sure everything is ready
+      // Create an event payload
+      val params = Arguments.createMap().apply {
+        putString("uri", uri)
+      }
+      
+      // First attempt immediately
+      try {
+        Log.d("TonguesApp", "Sending openEpubFile event immediately: $uri")
+        context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+              .emit("openEpubFile", params)
+      } catch (e: Exception) {
+        Log.e("TonguesApp", "Error sending immediate event", e)
+      }
+      
+      // Second attempt after a delay
       Handler(Looper.getMainLooper()).postDelayed({
-        val params = Arguments.createMap().apply {
-          putString("uri", uri)
-        }
-        
         try {
+          Log.d("TonguesApp", "Sending openEpubFile event with delay: $uri")
           context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                 .emit("openEpubFile", params)
-          Log.d("TonguesApp", "Successfully sent EPUB file path to React from onReactContextInitialized: $uri")
+          
+          // Clear the pending URI after sending
           pendingFileUri = null
+          Log.d("TonguesApp", "Cleared pendingFileUri after event")
         } catch (e: Exception) {
-          Log.e("TonguesApp", "Error sending event from onReactContextInitialized", e)
+          Log.e("TonguesApp", "Error sending delayed event", e)
         }
-      }, 1000)
+      }, 2000)
+    } ?: run {
+      Log.d("TonguesApp", "No pending URI found at React context initialization")
     }
   }
 }

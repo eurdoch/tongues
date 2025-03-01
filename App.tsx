@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import { createDrawerNavigator } from '@react-navigation/drawer';
-import { NativeEventEmitter, NativeModules, Platform, EmitterSubscription } from 'react-native';
+import { NativeEventEmitter, NativeModules, Platform, EmitterSubscription, Alert, AppState } from 'react-native';
 import HomeScreen from './HomeScreen';
 import ReaderScreen from './ReaderScreen';
 import CustomDrawerContent from './CustomDrawerContent';
@@ -18,6 +18,28 @@ function App() {
   // Create a ref for navigation actions
   const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
   
+  // Listen to app state changes
+  useEffect(() => {
+    const appStateListener = AppState.addEventListener("change", nextAppState => {
+      console.log(`[App] App state changed to: ${nextAppState}`);
+      if (nextAppState === "active") {
+        // Directly try to check for files when app becomes active
+        setTimeout(() => {
+          console.log("[App] App became active, checking for files");
+          if (Platform.OS === 'android' && NativeModules.TonguesModule) {
+            NativeModules.TonguesModule.checkPendingFiles()
+              .then((result: any) => console.log("[App] checkPendingFiles result:", result))
+              .catch((error: any) => console.log("[App] checkPendingFiles error:", error));
+          }
+        }, 500);
+      }
+    });
+    
+    return () => {
+      appStateListener.remove();
+    };
+  }, []);
+  
   useEffect(() => {
     let eventListener: EmitterSubscription | undefined;
     
@@ -31,6 +53,7 @@ function App() {
       // Add a listener for the openEpubFile event
       eventListener = DeviceEventEmitter.addListener('openEpubFile', (event) => {
         console.log('[App] Received openEpubFile event:', event);
+        
         const { uri } = event;
         
         if (!uri) {
@@ -40,66 +63,57 @@ function App() {
         
         console.log(`[App] Received file URI to open: ${uri}`);
         
-        // Use a multi-attempt approach with increasing delays
-        const attemptNavigation = (attempts: number = 0, maxAttempts: number = 10) => {
-          if (attempts >= maxAttempts) {
-            console.error(`[App] Failed to navigate after ${maxAttempts} attempts`);
-            return;
-          }
-          
-          try {
-            if (navigationRef.current && navigationRef.current.isReady()) {
-              console.log(`[App] Navigation attempt ${attempts+1} successful, navigating to Reader with URI: ${uri}`);
-              
-              // Get current state to preserve drawer state
-              const currentState = navigationRef.current.getState();
-              
-              console.log(`[App] Navigating directly to Reader with file: ${uri}`);
-              
-              // Directly navigate to Reader screen
-              setTimeout(() => {
-                navigationRef.current.dispatch({
-                  type: 'NAVIGATE',
-                  payload: {
-                    name: 'Reader',
-                    params: {
-                      fileUri: uri,
-                      shouldRefreshHomeAfterClose: true,
-                      openedExternally: true,
-                      timestamp: Date.now(), // Force params to be different
-                      checkForDuplicates: true // Flag to indicate we should check for duplicates
-                    }
-                  }
-                });
-                
-                // Log success
-                console.log(`[App] Navigation to Reader dispatched successfully`);
-              }, 100);
-            } else {
-              console.log(`[App] Navigation not ready on attempt ${attempts+1}, retry in ${(attempts+1)*500}ms`);
-              setTimeout(() => attemptNavigation(attempts + 1), (attempts + 1) * 500);
-            }
-          } catch (error) {
-            console.error(`[App] Navigation error on attempt ${attempts+1}:`, error);
-            setTimeout(() => attemptNavigation(attempts + 1), (attempts + 1) * 500);
-          }
-        };
-        
-        // Start navigation attempts
-        attemptNavigation();
-      });
-      
-      // Try to manually trigger the event if there's a pending file
-      // This helps ensure we don't miss events that happened before the listener was ready
-      setTimeout(() => {
-        console.log('[App] Checking for early file open events that might have been missed');
+        // Simple navigation approach
         try {
-          // This is a no-op if NativeModules.TonguesModule doesn't exist
-          if (NativeModules.TonguesModule && NativeModules.TonguesModule.checkPendingFiles) {
-            NativeModules.TonguesModule.checkPendingFiles();
+          if (navigationRef.current && navigationRef.current.isReady()) {
+            console.log(`[App] Navigation is ready, navigating to Reader with URI: ${uri}`);
+            
+            // Basic navigation parameters
+            const params = {
+              fileUri: uri,
+              shouldRefreshHomeAfterClose: true,
+              openedExternally: true,
+              timestamp: Date.now(), // Force params to be different
+              checkForDuplicates: true // Check for duplicates in the library
+            };
+            
+            // Navigate directly to Reader screen
+            navigationRef.current.navigate('Reader', params);
+            console.log(`[App] Navigation.navigate method called`);
+          } else {
+            console.log(`[App] Navigation not ready yet, setting timeout`);
+            // Try again after a delay if navigation isn't ready
+            setTimeout(() => {
+              if (navigationRef.current && navigationRef.current.isReady()) {
+                console.log(`[App] Navigation ready after delay, navigating to Reader`);
+                navigationRef.current.navigate('Reader', {
+                  fileUri: uri,
+                  shouldRefreshHomeAfterClose: true,
+                  openedExternally: true,
+                  timestamp: Date.now(),
+                  checkForDuplicates: true
+                });
+              } else {
+                console.error('[App] Navigation still not ready after delay');
+              }
+            }, 1000);
           }
         } catch (error) {
-          console.log('[App] No pending file check method available:', error);
+          console.error('[App] Error during navigation:', error);
+        }
+      });
+      
+      // Try to check for pending files
+      setTimeout(() => {
+        console.log('[App] Checking for pending files');
+        try {
+          if (NativeModules.TonguesModule && NativeModules.TonguesModule.checkPendingFiles) {
+            NativeModules.TonguesModule.checkPendingFiles()
+              .then((result: any) => console.log('[App] checkPendingFiles result:', result))
+              .catch((error: any) => console.error('[App] checkPendingFiles error:', error));
+          }
+        } catch (error) {
+          console.error('[App] Error checking pending files:', error);
         }
       }, 2000);
     }
@@ -113,6 +127,7 @@ function App() {
     };
   }, []);
   
+  
   return (
     <NavigationContainer ref={navigationRef}>
       <Drawer.Navigator
@@ -125,7 +140,11 @@ function App() {
         }}
       >
         <Drawer.Screen name="Home" component={HomeScreen} />
-        <Drawer.Screen name="Reader" component={ReaderScreen} />
+        <Drawer.Screen 
+          name="Reader" 
+          component={ReaderScreen}
+          options={{ unmountOnBlur: false }} // Ensure component doesn't unmount between navigations
+        />
       </Drawer.Navigator>
     </NavigationContainer>
   );
