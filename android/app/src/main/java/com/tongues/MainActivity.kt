@@ -61,7 +61,21 @@ class MainActivity : ReactActivity(), ReactInstanceEventListener {
         
         if (isEpub) {
           Log.d("TonguesApp", "Storing EPUB URI for when React is ready: $data with type $mimeType")
-          pendingFileUri = getFilePathFromUri(data!!)
+          val sourceFilePath = getFilePathFromUri(data!!)
+          
+          if (sourceFilePath != null) {
+            // Copy the file to app data directory for persistence
+            val copiedFilePath = copyEpubToAppData(sourceFilePath)
+            
+            // Use the copied file path if available, otherwise use the original
+            val pathToOpen = copiedFilePath ?: sourceFilePath
+            Log.d("TonguesApp", "Storing copied file path for when React is ready: $pathToOpen")
+            
+            // Store the path to be opened when React is ready
+            pendingFileUri = pathToOpen
+          } else {
+            Log.e("TonguesApp", "Failed to get file path from URI in onCreate: $data")
+          }
           
           // Set the current intent to a MAIN intent to avoid processing this VIEW intent again
           val mainIntent = Intent(Intent.ACTION_MAIN)
@@ -130,10 +144,14 @@ class MainActivity : ReactActivity(), ReactInstanceEventListener {
         val filePath = getFilePathFromUri(data)
         if (filePath != null) {
           // Copy the file to app data directory for persistence
-          copyEpubToAppData(filePath)
+          val copiedFilePath = copyEpubToAppData(filePath)
+          
+          // Use the copied file path if available, otherwise use the original
+          val pathToOpen = copiedFilePath ?: filePath
+          Log.d("TonguesApp", "Sending event to open file: $pathToOpen")
           
           // Send event to open it
-          sendEventToJS("openEpubFile", filePath)
+          sendEventToJS("openEpubFile", pathToOpen)
         } else {
           Log.e("TonguesApp", "Failed to get file path from URI: $data")
         }
@@ -141,7 +159,7 @@ class MainActivity : ReactActivity(), ReactInstanceEventListener {
     }
   }
   
-  private fun copyEpubToAppData(inputFilePath: String) {
+  private fun copyEpubToAppData(inputFilePath: String): String? {
     try {
       // Extract filename from the path or use a timestamp
       val fileName = if (inputFilePath.contains("/")) {
@@ -163,6 +181,8 @@ class MainActivity : ReactActivity(), ReactInstanceEventListener {
       
       Log.d("TonguesApp", "Copying EPUB from $inputFilePath to $targetPath")
       
+      var success = false
+      
       // For content URIs, we need to use content resolver
       if (inputFilePath.startsWith("content://")) {
         try {
@@ -173,6 +193,7 @@ class MainActivity : ReactActivity(), ReactInstanceEventListener {
             }
           }
           Log.d("TonguesApp", "Successfully copied content URI to app data")
+          success = true
         } catch (e: Exception) {
           Log.e("TonguesApp", "Error copying from content URI", e)
         }
@@ -182,12 +203,18 @@ class MainActivity : ReactActivity(), ReactInstanceEventListener {
           val cleanPath = inputFilePath.replace("file://", "")
           java.io.File(cleanPath).copyTo(java.io.File(targetPath), overwrite = true)
           Log.d("TonguesApp", "Successfully copied file to app data")
+          success = true
         } catch (e: Exception) {
           Log.e("TonguesApp", "Error copying file", e)
         }
       }
+      
+      // Return the target path if successful, otherwise null
+      return if (success) targetPath else null
+      
     } catch (e: Exception) {
       Log.e("TonguesApp", "Error in copyEpubToAppData", e)
+      return null
     }
   }
 

@@ -51,23 +51,29 @@ function App() {
             if (navigationRef.current && navigationRef.current.isReady()) {
               console.log(`[App] Navigation attempt ${attempts+1} successful, navigating to Reader with URI: ${uri}`);
               
-              // Reset to Home screen first to ensure clean reader state
-              navigationRef.current.reset({
-                index: 0,
-                routes: [{ name: 'Home' }],
-              });
+              // Get current state to preserve drawer state
+              const currentState = navigationRef.current.getState();
               
-              // Then navigate to Reader with a slight delay
+              console.log(`[App] Navigating directly to Reader with file: ${uri}`);
+              
+              // Directly navigate to Reader screen
               setTimeout(() => {
-                if (navigationRef.current) {
-                  console.log(`[App] Now navigating to Reader with file: ${uri}`);
-                  navigationRef.current.navigate('Reader', { 
-                    fileUri: uri,
-                    shouldRefreshHomeAfterClose: true,
-                    openedExternally: true
-                  });
-                }
-              }, 500);
+                navigationRef.current.dispatch({
+                  type: 'NAVIGATE',
+                  payload: {
+                    name: 'Reader',
+                    params: {
+                      fileUri: uri,
+                      shouldRefreshHomeAfterClose: true,
+                      openedExternally: true,
+                      timestamp: Date.now() // Force params to be different
+                    }
+                  }
+                });
+                
+                // Log success
+                console.log(`[App] Navigation to Reader dispatched successfully`);
+              }, 100);
             } else {
               console.log(`[App] Navigation not ready on attempt ${attempts+1}, retry in ${(attempts+1)*500}ms`);
               setTimeout(() => attemptNavigation(attempts + 1), (attempts + 1) * 500);

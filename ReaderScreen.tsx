@@ -421,6 +421,16 @@ function ReaderScreen() {
 
   // Reset state when a new file is selected
   useEffect(() => {
+    // Only proceed if we have a fileUri
+    if (!fileUri) {
+      console.log('[ReaderScreen] No fileUri provided');
+      setError('No file selected');
+      setIsLoading(false);
+      return;
+    }
+    
+    console.log('[ReaderScreen] FileUri changed, resetting states:', fileUri);
+    
     // Reset states when fileUri changes
     setContent('');
     setError(null);
@@ -434,82 +444,87 @@ function ReaderScreen() {
     }
   }, [fileUri]);
 
-  useEffect(() => {
-    const loadEpub = async () => {
-      if (!fileUri) {
-        setError('No file selected');
+  // Define loadEpub outside useEffect so it can be called directly
+  const loadEpub = async () => {
+    if (!fileUri) {
+      setError('No file selected');
+      setIsLoading(false);
+      return;
+    }
+    
+    console.log('[ReaderScreen] Loading ePub from:', fileUri);
+    
+    // Don't clear clipboard on EPUB load to avoid notifications
+
+    try {
+      // Parse the epub file
+      const tocItems = await parseEpub(fileUri);
+      
+      if (!tocItems || tocItems.length === 0) {
+        setError('No content found in this epub file');
         setIsLoading(false);
         return;
       }
       
-      console.log('Loading ePub from:', fileUri);
+      // Filter out cover page (typically the first item or items with "cover" in their label/href)
+      const filteredTOC = tocItems.filter((item, index) => {
+        const isCover = item.label.toLowerCase().includes('cover') || 
+                        item.href.toLowerCase().includes('cover') ||
+                        (index === 0 && item.label.toLowerCase().includes('title'));
+        return !isCover;
+      });
       
-      // Don't clear clipboard on EPUB load to avoid notifications
+      // Store filtered table of contents
+      setTableOfContents(filteredTOC);
+      
+      // Log table of contents to console
+      console.log('[ReaderScreen] Table of Contents (excluding cover):');
+      filteredTOC.forEach((item, index) => {
+        console.log(`${index + 1}. ${item.label} (${item.href})`);
+      });
 
-      try {
-        // Parse the epub file
-        const tocItems = await parseEpub(fileUri);
-        
-        if (!tocItems || tocItems.length === 0) {
-          setError('No content found in this epub file');
-          setIsLoading(false);
-          return;
-        }
-        
-        // Filter out cover page (typically the first item or items with "cover" in their label/href)
-        const filteredTOC = tocItems.filter((item, index) => {
-          const isCover = item.label.toLowerCase().includes('cover') || 
-                          item.href.toLowerCase().includes('cover') ||
-                          (index === 0 && item.label.toLowerCase().includes('title'));
-          return !isCover;
-        });
-        
-        // Store filtered table of contents
-        setTableOfContents(filteredTOC);
-        
-        // Log table of contents to console
-        console.log('Table of Contents (excluding cover):');
-        filteredTOC.forEach((item, index) => {
-          console.log(`${index + 1}. ${item.label} (${item.href})`);
-        });
-
-        // Read content from all files
-        const allContentPromises = tocItems.map(async (item) => {
-          try {
-            const fileContent = await RNFS.readFile(item.path, 'utf8');
-            return fileContent;
-          } catch (error) {
-            console.error(`Error reading file ${item.path}:`, error);
-            return '';
-          }
-        });
-        
-        const allContents = await Promise.all(allContentPromises);
-        const fullText = allContents.join('\n\n');
-        
-        setContent(fullText);
-        
-        // Detect language from content sample
+      // Read content from all files
+      const allContentPromises = tocItems.map(async (item) => {
         try {
-          // Get a random section of content for language detection
-          const contentSample = extractContentSample(fullText);
-          const detectedLanguage = await detectLanguage(contentSample);
-          setSelectedLanguage(detectedLanguage);
-        } catch (langError) {
-          console.error('Error detecting language:', langError);
-          // Default to French if detection fails
-          setSelectedLanguage('French');
+          const fileContent = await RNFS.readFile(item.path, 'utf8');
+          return fileContent;
+        } catch (error) {
+          console.error(`[ReaderScreen] Error reading file ${item.path}:`, error);
+          return '';
         }
-        
-        setIsLoading(false);
-      } catch (error) {
-        console.error('Error loading epub:', error);
-        setError('Failed to load the book');
-        setIsLoading(false);
+      });
+      
+      const allContents = await Promise.all(allContentPromises);
+      const fullText = allContents.join('\n\n');
+      
+      setContent(fullText);
+      
+      // Detect language from content sample
+      try {
+        // Get a random section of content for language detection
+        const contentSample = extractContentSample(fullText);
+        const detectedLanguage = await detectLanguage(contentSample);
+        setSelectedLanguage(detectedLanguage);
+      } catch (langError) {
+        console.error('[ReaderScreen] Error detecting language:', langError);
+        // Default to French if detection fails
+        setSelectedLanguage('French');
       }
-    };
+      
+      setIsLoading(false);
+    } catch (error) {
+      console.error('[ReaderScreen] Error loading epub:', error);
+      setError('Failed to load the book');
+      setIsLoading(false);
+    }
+  };
 
-    loadEpub();
+  // Effect to load the EPUB when fileUri changes or on initial load
+  useEffect(() => {
+    console.log('[ReaderScreen] Load effect triggered with fileUri:', fileUri);
+    if (fileUri) {
+      loadEpub();
+    }
   }, [fileUri]);
 
   const [parsedContent, setParsedContent] = useState<ElementNode[]>([]);
