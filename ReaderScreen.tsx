@@ -1063,15 +1063,6 @@ function ReaderScreen() {
                     </TouchableOpacity>
                   )}
                 </View>
-                
-                <TouchableOpacity 
-                  style={styles.closeButton}
-                  onPress={clearSelection}
-                >
-                  <GestureText style={styles.closeButtonText} selectable={false}>
-                    ✕
-                  </GestureText>
-                </TouchableOpacity>
               </View>
 
               <View style={styles.originalTextContainer}>
