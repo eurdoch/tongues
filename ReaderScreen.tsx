@@ -468,6 +468,48 @@ function ReaderScreen() {
       setSound(null);
     }
   }, [fileUri]);
+  
+  // Set title in navigation header from metadata when EPUB loads
+  useEffect(() => {
+    if (fileUri) {
+      // Get book metadata to set title from metadata store
+      const getBookTitle = async () => {
+        try {
+          const { getBookMetadata } = await import('./BookMetadataStore');
+          // Create id from file path (same logic as in metadata store)
+          const id = fileUri.split('/').pop()?.replace(/[^a-zA-Z0-9]/g, '') || '';
+          const metadata = await getBookMetadata(id);
+          
+          if (metadata && metadata.title) {
+            // Set title from metadata
+            navigation.setOptions({
+              title: metadata.title,
+              headerTitleAlign: 'center',
+            });
+          } else if (tableOfContents.length > 0) {
+            // Fallback to TOC if metadata not available
+            const bookTitle = tableOfContents[0]?.label || 'Book';
+            navigation.setOptions({
+              title: bookTitle,
+              headerTitleAlign: 'center',
+            });
+          }
+        } catch (error) {
+          console.error('[ReaderScreen] Error getting book metadata for title:', error);
+          // Fallback to TOC
+          if (tableOfContents.length > 0) {
+            const bookTitle = tableOfContents[0]?.label || 'Book';
+            navigation.setOptions({
+              title: bookTitle,
+              headerTitleAlign: 'center',
+            });
+          }
+        }
+      };
+      
+      getBookTitle();
+    }
+  }, [fileUri, tableOfContents, navigation]);
 
   // Define loadEpub with useCallback so it can be included in dependency arrays
   const loadEpub = React.useCallback(async () => {
