@@ -19,20 +19,8 @@ export const translateText = async (
     throw new Error('Invalid language provided');
   }
   
-  // Normalize language to match API expectations
-  let normalizedLanguage = language.toLowerCase();
-  // Map language names to codes if needed
-  const languageMap = {
-    'spanish': 'es',
-    'french': 'fr',
-    'german': 'de',
-    'italian': 'it',
-    'dutch': 'nl'
-  };
-  
-  if (languageMap[normalizedLanguage]) {
-    normalizedLanguage = languageMap[normalizedLanguage];
-  }
+  // Make sure first letter is capitalized for consistency
+  const normalizedLanguage = language.charAt(0).toUpperCase() + language.slice(1).toLowerCase();
   
   console.log('Translating text:', { textLength: text.length, language: normalizedLanguage });
   
@@ -86,20 +74,8 @@ export const fetchWordTimestamps = async (
     throw new Error('Invalid language provided');
   }
   
-  // Normalize language to match API expectations
-  let normalizedLanguage = language.toLowerCase();
-  // Map language names to codes if needed
-  const languageMap = {
-    'spanish': 'es',
-    'french': 'fr',
-    'german': 'de',
-    'italian': 'it',
-    'dutch': 'nl'
-  };
-  
-  if (languageMap[normalizedLanguage]) {
-    normalizedLanguage = languageMap[normalizedLanguage];
-  }
+  // Make sure first letter is capitalized for consistency
+  const normalizedLanguage = language.charAt(0).toUpperCase() + language.slice(1).toLowerCase();
   
   console.log('Fetching timestamps for:', { text, language: normalizedLanguage });
   
@@ -146,6 +122,22 @@ export const fetchSpeechAudio = async (
   previousSound?: Sound | null,
   previousAudioPath?: string | null
 ): Promise<{ sound: Sound; audioPath: string }> => {
+  // Validate inputs
+  if (!text || typeof text !== 'string' || text.trim().length === 0) {
+    console.error('Invalid text provided to fetchSpeechAudio:', text);
+    throw new Error('Invalid text provided');
+  }
+  
+  if (!language || typeof language !== 'string') {
+    console.error('Invalid language provided to fetchSpeechAudio:', language);
+    throw new Error('Invalid language provided');
+  }
+  
+  // Make sure first letter is capitalized for consistency
+  const normalizedLanguage = language.charAt(0).toUpperCase() + language.slice(1).toLowerCase();
+  
+  console.log('Fetching speech audio:', { textLength: text.length, language: normalizedLanguage });
+  
   // Release previous sound if exists
   if (previousSound) {
     previousSound.release();
@@ -168,7 +160,7 @@ export const fetchSpeechAudio = async (
     },
     body: JSON.stringify({
       text: text,
-      language: language,
+      language: normalizedLanguage,
     }),
   });
 

@@ -155,19 +155,8 @@ function ReaderScreen() {
       }
       
       try {
-        // Try to get audio - normalize language like in other API calls
-        let normalizedLanguage = selectedLanguage.toLowerCase();
-        const languageMap = {
-          'spanish': 'es',
-          'french': 'fr',
-          'german': 'de',
-          'italian': 'it',
-          'dutch': 'nl'
-        };
-        
-        if (languageMap[normalizedLanguage]) {
-          normalizedLanguage = languageMap[normalizedLanguage];
-        }
+        // Ensure language has proper capitalization for consistency
+        const normalizedLanguage = selectedLanguage.charAt(0).toUpperCase() + selectedLanguage.slice(1).toLowerCase();
         
         console.log('Fetching speech for:', { textLength: sentence.length, language: normalizedLanguage });
         
