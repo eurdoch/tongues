@@ -331,16 +331,6 @@ function ReaderScreen() {
             navigation.setOptions({
               title: metadata.title,
               headerTitleAlign: 'center',
-              headerRight: () => (
-                <TouchableOpacity
-                  onPress={handleReadAlongPress}
-                  style={{ marginRight: 16 }}
-                >
-                  <Text style={{ fontSize: 22, color: '#007AFF' }}>
-                    🎧
-                  </Text>
-                </TouchableOpacity>
-              ),
             });
           } else if (tableOfContents.length > 0) {
             // Fallback to TOC if metadata not available
@@ -348,16 +338,6 @@ function ReaderScreen() {
             navigation.setOptions({
               title: bookTitle,
               headerTitleAlign: 'center',
-              headerRight: () => (
-                <TouchableOpacity
-                  onPress={handleReadAlongPress}
-                  style={{ marginRight: 16 }}
-                >
-                  <Text style={{ fontSize: 22, color: '#007AFF' }}>
-                    🎧
-                  </Text>
-                </TouchableOpacity>
-              ),
             });
           }
         } catch (error) {
@@ -368,16 +348,6 @@ function ReaderScreen() {
             navigation.setOptions({
               title: bookTitle,
               headerTitleAlign: 'center',
-              headerRight: () => (
-                <TouchableOpacity
-                  onPress={handleReadAlongPress}
-                  style={{ marginRight: 16 }}
-                >
-                  <Text style={{ fontSize: 22, color: '#007AFF' }}>
-                    🎧
-                  </Text>
-                </TouchableOpacity>
-              ),
             });
           }
         }
@@ -386,6 +356,30 @@ function ReaderScreen() {
       getBookTitle();
     }
   }, [fileUri, tableOfContents, navigation]);
+  
+  // Update navigation header based on loading state
+  useEffect(() => {
+    if (fileUri) {
+      if (!isLoading) {
+        navigation.setOptions({
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={handleReadAlongPress}
+              style={{ marginRight: 16 }}
+            >
+              <Text style={{ fontSize: 22, color: '#007AFF' }}>
+                🎧
+              </Text>
+            </TouchableOpacity>
+          ),
+        });
+      } else {
+        navigation.setOptions({
+          headerRight: () => null,
+        });
+      }
+    }
+  }, [isLoading, navigation, fileUri, handleReadAlongPress]);
 
   // Define loadEpub with useCallback
   const loadEpub = useCallback(async () => {
