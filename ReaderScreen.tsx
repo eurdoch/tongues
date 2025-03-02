@@ -180,17 +180,8 @@ function ReaderScreen() {
       
       try {
         // Try to get word timestamps from API
-        const apiTimestamps = await fetchWordTimestamps(sentence, selectedLanguage);
-        
-        // Format timestamps in the required format
-        const marks = apiTimestamps.map(ts => ({
-          time: ts.start * 1000, // Convert to milliseconds
-          type: 'word',
-          start: sentence.indexOf(ts.word),
-          end: sentence.indexOf(ts.word) + ts.word.length,
-          value: ts.word
-        }));
-        
+        // The API now returns data in the exact format we need
+        const marks = await fetchWordTimestamps(sentence, selectedLanguage);
         tsData = { marks };
       } catch (timestampError) {
         console.error('Timestamp error:', timestampError);

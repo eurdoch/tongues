@@ -62,7 +62,7 @@ export const translateText = async (
 export const fetchWordTimestamps = async (
   text: string,
   language: string
-): Promise<Array<{ word: string; start: number; end: number }>> => {
+): Promise<Array<{ time: number; type: string; start: number; end: number; value: string }>> => {
   // Validate inputs
   if (!text || typeof text !== 'string' || text.trim().length === 0) {
     console.error('Invalid text provided to fetchWordTimestamps:', text);
@@ -102,11 +102,21 @@ export const fetchWordTimestamps = async (
     const data = await response.json();
     console.log('Timestamp API response data:', data);
     
-    if (!data.timestamps || !Array.isArray(data.timestamps)) {
-      throw new Error('Timestamps API did not return valid data');
+    // The API returns an array of timestamp marks directly, not nested under 'timestamps'
+    if (!Array.isArray(data)) {
+      throw new Error('Timestamps API did not return an array');
     }
     
-    return data.timestamps;
+    // Verify the structure of at least one item
+    if (data.length > 0) {
+      const firstItem = data[0];
+      if (typeof firstItem.time !== 'number' || typeof firstItem.value !== 'string') {
+        console.error('Unexpected timestamp format:', firstItem);
+        throw new Error('Timestamps have unexpected format');
+      }
+    }
+    
+    return data;
   } catch (error) {
     console.error('Error in fetchWordTimestamps:', error);
     throw error;
