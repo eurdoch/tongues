@@ -32,6 +32,9 @@ interface ReadAlongModalProps {
   audioBuffer?: Blob;
   timestampData: TimestampData;
   translation: string;
+  contentSentences?: string[];
+  currentSentenceIndex?: number;
+  onSentenceComplete?: (index: number) => void;
 }
 
 interface WordTimestamp {
@@ -48,6 +51,9 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   audioBuffer,
   timestampData,
   translation,
+  contentSentences = [],
+  currentSentenceIndex = 0,
+  onSentenceComplete = () => {},
 }) => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,6 +81,18 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       }
     };
   }, [visible, text, language, audioBuffer, timestampData]);
+  
+  // Auto play audio when sound is loaded
+  useEffect(() => {
+    if (visible && sound && !isPlaying) {
+      // Add a small delay to ensure everything is ready
+      const timer = setTimeout(() => {
+        playAudio(true);
+      }, 300);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [visible, sound, currentSentenceIndex, isPlaying]);
 
   const loadData = async () => {
     if (!text || !language) return;
@@ -171,7 +189,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     }
   };
 
-  const playAudio = () => {
+  const playAudio = (autoAdvance = true) => {
     if (!sound) return;
     
     setIsPlaying(true);
@@ -181,6 +199,15 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     sound.play((success) => {
       if (success) {
         console.log('Audio playback finished successfully');
+        
+        // If auto-advance is enabled and there are more sentences, notify parent
+        if (autoAdvance && contentSentences.length > 0) {
+          const nextIndex = currentSentenceIndex + 1;
+          if (nextIndex < contentSentences.length) {
+            // Notify parent component to prepare next sentence
+            onSentenceComplete(nextIndex);
+          }
+        }
       } else {
         console.log('Audio playback failed');
       }
@@ -259,6 +286,22 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
               ) : (
                 <>
                   <ScrollView style={styles.contentContainer}>
+                    {contentSentences.length > 0 && (
+                      <View style={styles.progressSection}>
+                        <Text style={styles.progressText}>
+                          Sentence {currentSentenceIndex + 1} of {contentSentences.length}
+                        </Text>
+                        <View style={styles.progressBar}>
+                          <View 
+                            style={[
+                              styles.progressFill, 
+                              { width: `${(currentSentenceIndex / Math.max(1, contentSentences.length - 1)) * 100}%` }
+                            ]} 
+                          />
+                        </View>
+                      </View>
+                    )}
+                
                     <View style={styles.textSection}>
                       <Text style={styles.sectionTitle}>Original Text:</Text>
                       <View style={styles.highlightContainer}>
@@ -286,6 +329,25 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                   </ScrollView>
                   
                   <View style={styles.controls}>
+                    {contentSentences.length > 0 && (
+                      <TouchableOpacity
+                        style={[
+                          styles.controlButton, 
+                          styles.navButton, 
+                          currentSentenceIndex === 0 && { opacity: 0.5 }
+                        ]}
+                        disabled={currentSentenceIndex === 0}
+                        onPress={() => {
+                          stopAudio();
+                          onSentenceComplete(currentSentenceIndex - 1);
+                        }}
+                      >
+                        <Text style={styles.controlButtonText}>
+                          ◀ Prev
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                    
                     <TouchableOpacity
                       style={[styles.controlButton, !sound && { opacity: 0.5 }]}
                       disabled={!sound}
@@ -295,6 +357,25 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                         {isPlaying ? '■ Stop' : '▶ Play'}
                       </Text>
                     </TouchableOpacity>
+                    
+                    {contentSentences.length > 0 && (
+                      <TouchableOpacity
+                        style={[
+                          styles.controlButton, 
+                          styles.navButton,
+                          currentSentenceIndex === contentSentences.length - 1 && { opacity: 0.5 }
+                        ]}
+                        disabled={currentSentenceIndex === contentSentences.length - 1}
+                        onPress={() => {
+                          stopAudio();
+                          onSentenceComplete(currentSentenceIndex + 1);
+                        }}
+                      >
+                        <Text style={styles.controlButtonText}>
+                          Next ▶
+                        </Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </>
               )}
@@ -395,10 +476,15 @@ const styles = StyleSheet.create({
   },
   controls: {
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'space-around',
+    alignItems: 'center',
     padding: 15,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  navButton: {
+    backgroundColor: 'rgba(0, 122, 255, 0.4)',
+    minWidth: 80,
   },
   controlButton: {
     backgroundColor: 'rgba(0, 122, 255, 0.8)',
@@ -412,6 +498,26 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '500',
+  },
+  progressSection: {
+    marginBottom: 15,
+    paddingHorizontal: 5,
+  },
+  progressText: {
+    color: '#E0E0E0',
+    fontSize: 14,
+    marginBottom: 5,
+    textAlign: 'center',
+  },
+  progressBar: {
+    height: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#007AFF',
   },
 });
 
