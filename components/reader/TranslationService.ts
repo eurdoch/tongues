@@ -32,6 +32,36 @@ export const translateText = async (
 };
 
 /**
+ * Fetch word timestamps from the API
+ */
+export const fetchWordTimestamps = async (
+  text: string,
+  language: string
+): Promise<Array<{ word: string; start: number; end: number }>> => {
+  const response = await fetch('https://tongues.directto.link/marks', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      text: text,
+      language: language,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Word timestamps request failed with status: ${response.status}`);
+  }
+
+  const data = await response.json();
+  if (!data.timestamps || !Array.isArray(data.timestamps)) {
+    throw new Error('Timestamps API did not return valid data');
+  }
+
+  return data.timestamps;
+};
+
+/**
  * Fetch speech audio from the API and save it to a temporary file
  */
 export const fetchSpeechAudio = async (

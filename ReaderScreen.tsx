@@ -576,6 +576,8 @@ function ReaderScreen() {
       <ReadAlongModal
         visible={readAlongVisible}
         onClose={() => setReadAlongVisible(false)}
+        text={selectedOriginalText || 'Hello, welcome to Read Along mode'}
+        language={selectedLanguage}
       />
     </View>
   );
