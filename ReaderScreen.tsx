@@ -332,29 +332,66 @@ function ReaderScreen() {
   // Function to handle advancing to the next sentence
   const handleNextSentence = async (nextIndex) => {
     if (nextIndex >= contentSentences.length) {
-      console.log('Reached the end of content');
+      console.log('[ReaderScreen] Reached the end of content');
       return;
     }
     
+    console.log(`[ReaderScreen] Advancing to sentence ${nextIndex + 1}/${contentSentences.length}`);
+    
     try {
+      // Important: First update the index so the modal knows which sentence we're on
       setCurrentSentenceIndex(nextIndex);
+      
+      // Release all audio resources to ensure clean state
+      if (sound) {
+        console.log('[ReaderScreen] Releasing previous sound resources');
+        sound.stop();
+        sound.release();
+        setSound(null);
+      }
+      
+      // Clear any previous audio data
+      setCurrentAudioBuffer(null);
+      
+      // Get the next sentence and decode HTML entities
       const nextSentence = contentSentences[nextIndex];
-      // Make sure the sentence is properly decoded
       const decodedSentence = decodeHtmlEntities(nextSentence);
       
       // Make sure we have a valid language
       const language = selectedLanguage || 'Spanish';
-      console.log(`Preparing next sentence with language: ${language}`);
+      console.log(`[ReaderScreen] Preparing sentence ${nextIndex + 1}: "${decodedSentence.substring(0, 30)}..." with language: ${language}`);
       
       // Prepare data for the next sentence
       const sentenceData = await prepareSentenceData(decodedSentence, language);
       
-      // Update state with new sentence data
-      setCurrentAudioBuffer(sentenceData.audioBlob);
+      // Log what we received to help with debugging
+      console.log(`[ReaderScreen] Data ready for sentence ${nextIndex + 1}:`, {
+        hasAudio: !!sentenceData.audioBlob,
+        hasTranslation: !!sentenceData.translation,
+        hasTimestamps: !!(sentenceData.timestampData && 
+                     sentenceData.timestampData.marks && 
+                     sentenceData.timestampData.marks.length),
+        timestampCount: sentenceData.timestampData?.marks?.length || 0
+      });
+      
+      // Update state in a single batch to reduce render cycles
+      // Note that we set them in this specific order to ensure the modal gets everything it needs
       setTimestampData(sentenceData.timestampData);
       setSentenceTranslation(sentenceData.translation);
+      
+      // Set audio buffer last, as this often triggers audio processing
+      setTimeout(() => {
+        // Log more info about the audio buffer
+        console.log('[ReaderScreen] Setting audio buffer:', {
+          hasAudioBuffer: !!sentenceData.audioBlob,
+          bufferSize: sentenceData.audioBlob ? 
+            `${Math.round(sentenceData.audioBlob.size / 1024)}KB` : 'none'
+        });
+        
+        setCurrentAudioBuffer(sentenceData.audioBlob);
+      }, 200); // Slightly longer delay for more consistent timing
     } catch (error) {
-      console.error('Error preparing next sentence:', error);
+      console.error('[ReaderScreen] Error preparing next sentence:', error);
       
       // Use fallback data if there's an error
       const nextSentence = contentSentences[nextIndex];

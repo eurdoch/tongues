@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Modal,
   View,
@@ -56,6 +56,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   onSentenceComplete = () => {},
 }) => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isChangingSentence, setIsChangingSentence] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [sound, setSound] = useState<Sound | null>(null);
   const [audioPath, setAudioPath] = useState<string | null>(null);
@@ -64,43 +65,114 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   const [currentWordIndex, setCurrentWordIndex] = useState<number>(-1);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Fetch translation, audio, and word timestamps when visible
+  // Cleanup function for all timers and audio
+  const cleanupResources = useCallback(() => {
+    console.log('ReadAlongModal: Cleaning up resources');
+    
+    // Stop and clean up sound
+    if (sound) {
+      console.log('ReadAlongModal: Cleaning up sound');
+      sound.stop();
+      sound.release();
+      setSound(null);
+    }
+    
+    // Clear timers
+    if (timerRef.current) {
+      console.log('ReadAlongModal: Cleaning up timers');
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    
+    // Reset UI state
+    setCurrentWordIndex(-1);
+    setIsPlaying(false);
+    
+    // Don't reset loading state here - we handle that separately
+  }, [sound]);
+  
+  // Effect to handle sentence changes
   useEffect(() => {
+    // Only care about sentence index changes when visible
+    if (!visible) return;
+    
+    console.log(`ReadAlongModal: Sentence changed to index ${currentSentenceIndex}`);
+    
+    // Mark that we're changing sentences to prevent flickering
+    setIsChangingSentence(true);
+    
+    // Clean up previous resources
+    cleanupResources();
+    
+    // Cleanup function
+    return () => {
+      // Don't clear isChangingSentence here because we need it to persist
+      // during the transition between sentences
+    };
+  }, [currentSentenceIndex, visible, cleanupResources]);
+  
+  // Fetch translation, audio, and word timestamps when visible or when props change
+  useEffect(() => {
+    console.log('ReadAlongModal: Props changed - reloading data', {
+      visible,
+      textLength: text?.length,
+      language,
+      hasSentences: contentSentences?.length > 0,
+      sentenceIndex: currentSentenceIndex,
+      hasAudio: !!audioBuffer,
+      isChangingSentence
+    });
+    
+    // Always clean up previous resources first (except during sentence changes)
+    if (!isChangingSentence) {
+      cleanupResources();
+    }
+    
+    // Only load new data if the modal is visible and we have text
     if (visible && text && language) {
+      console.log(`ReadAlongModal: Loading data for sentence ${currentSentenceIndex + 1}`);
       loadData();
     }
     
-    return () => {
-      // Cleanup when modal is closed
-      if (sound) {
-        sound.stop();
-        sound.release();
-      }
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-      }
-    };
-  }, [visible, text, language, audioBuffer, timestampData]);
+    // Cleanup when unmounting or props change
+    return cleanupResources;
+  }, [visible, text, language, audioBuffer, isChangingSentence, cleanupResources]);
   
-  // Auto play audio when sound is loaded
+  // Auto play audio when sound is loaded or text/sentence changes
   useEffect(() => {
+    // Log for debugging
+    console.log('ReadAlongModal: Sound or content changed', {
+      hasSound: !!sound,
+      isPlaying,
+      textLength: text?.length || 0,
+      wordTimestampsLength: wordTimestamps.length,
+      sentenceIndex: currentSentenceIndex
+    });
+    
     if (visible && sound && !isPlaying) {
       // Add a small delay to ensure everything is ready
       const timer = setTimeout(() => {
+        console.log('ReadAlongModal: Auto-playing audio after delay');
         playAudio(true);
-      }, 300);
+      }, 500); // Increased delay for better reliability
       
       return () => clearTimeout(timer);
     }
-  }, [visible, sound, currentSentenceIndex, isPlaying]);
+  }, [visible, sound, text, isPlaying, wordTimestamps.length]);
 
   const loadData = async () => {
     if (!text || !language) return;
     
-    setIsLoading(true);
+    // Only show loading if we're not transitioning between sentences
+    if (!isChangingSentence) {
+      setIsLoading(true);
+    }
+    
     setError(null);
     
     try {
+      console.log('ReadAlongModal: Processing timestamp data for sentence');
+      
       // Convert timestamp data to the format needed by the component
       const timestamps = timestampData.marks.map(mark => ({
         word: mark.value,
@@ -112,11 +184,16 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       
       // Use the provided audio buffer if available
       if (audioBuffer) {
+        console.log('ReadAlongModal: Processing audio buffer');
         await processAudioBuffer(audioBuffer);
       }
+      
+      // All data is loaded, we can reset the changing state
+      setIsChangingSentence(false);
     } catch (err) {
       console.error('Error loading read-along data:', err);
       setError('Failed to load data. Please try again.');
+      setIsChangingSentence(false);
     } finally {
       setIsLoading(false);
     }
@@ -190,70 +267,139 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   };
 
   const playAudio = (autoAdvance = true) => {
-    if (!sound) return;
+    if (!sound) {
+      console.log('ReadAlongModal: Cannot play - sound is null');
+      return;
+    }
     
+    // Make sure we have word timestamps
+    if (!wordTimestamps || wordTimestamps.length === 0) {
+      console.log('ReadAlongModal: Warning - playing audio without timestamps');
+    }
+    
+    console.log(`ReadAlongModal: Playing audio for sentence ${currentSentenceIndex + 1}/${contentSentences.length}`);
+    
+    // Make sure we clear everything before starting
+    cleanupResources();
+    
+    // Reset state for new playback
     setIsPlaying(true);
     setCurrentWordIndex(-1);
     
-    // Start the audio
+    // Use a precise synchronization method with audio
+    let highlightStarted = false;
+    
+    // Start the audio with a completion callback
     sound.play((success) => {
-      if (success) {
-        console.log('Audio playback finished successfully');
-        
-        // If auto-advance is enabled and there are more sentences, notify parent
-        if (autoAdvance && contentSentences.length > 0) {
-          const nextIndex = currentSentenceIndex + 1;
-          if (nextIndex < contentSentences.length) {
-            // Notify parent component to prepare next sentence
+      console.log(`ReadAlongModal: Audio playback finished with success=${success}`);
+      
+      // Ensure we clean up all resources
+      cleanupResources();
+      
+      // If auto-advance is enabled and there are more sentences, notify parent
+      if (success && autoAdvance && contentSentences.length > 0) {
+        const nextIndex = currentSentenceIndex + 1;
+        if (nextIndex < contentSentences.length) {
+          console.log(`ReadAlongModal: Advancing to next sentence #${nextIndex + 1}`);
+          
+          // Important: Delay to allow React state to settle
+          setTimeout(() => {
             onSentenceComplete(nextIndex);
-          }
+          }, 200);
+        } else {
+          console.log('ReadAlongModal: Reached the end of content');
         }
-      } else {
-        console.log('Audio playback failed');
       }
-      setIsPlaying(false);
-      setCurrentWordIndex(-1);
     });
     
-    // Start word highlighting based on timestamps
-    startWordHighlighting();
+    // Start word highlighting in a timeout to ensure audio begins first
+    setTimeout(() => {
+      if (isPlaying) {
+        console.log('ReadAlongModal: Starting word highlighting');
+        startWordHighlighting();
+        highlightStarted = true;
+      }
+    }, 100);
+    
+    // Return a cleanup function
+    return () => {
+      if (!highlightStarted && isPlaying) {
+        // If highlight didn't start yet, clean up the audio
+        if (sound) {
+          sound.stop();
+          setIsPlaying(false);
+        }
+      }
+    };
   };
   
   const stopAudio = () => {
-    if (sound) {
-      sound.stop();
-      setIsPlaying(false);
-    }
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-    }
-    setCurrentWordIndex(-1);
+    // Use our cleanup utility to handle everything
+    cleanupResources();
   };
   
   const startWordHighlighting = () => {
-    if (!wordTimestamps.length) return;
+    // If we don't have valid timestamps, return early
+    if (!wordTimestamps || !wordTimestamps.length) {
+      console.log('ReadAlongModal: No valid word timestamps to highlight');
+      return;
+    }
     
-    // Reset current word index
+    // Reset to initial state
     setCurrentWordIndex(-1);
     
-    // Function to schedule highlighting for each word
-    const scheduleHighlights = () => {
-      wordTimestamps.forEach((timestamp, index) => {
-        timerRef.current = setTimeout(() => {
-          setCurrentWordIndex(index);
-        }, timestamp.start * 1000);
-      });
-      
-      // Reset highlighting after last word
-      if (wordTimestamps.length > 0) {
-        const lastTimestamp = wordTimestamps[wordTimestamps.length - 1];
-        timerRef.current = setTimeout(() => {
-          setCurrentWordIndex(-1);
-        }, (lastTimestamp.end + 0.5) * 1000);
+    // Clean up any existing timers to avoid memory leaks and weird behavior
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    
+    // Create a single coordinating timer instead of many individual ones
+    let wordIndex = 0;
+    let nextTimerMs = 0;
+    
+    console.log(`ReadAlongModal: Starting highlight controller for ${wordTimestamps.length} words`);
+    
+    // Function to schedule the next highlight
+    const scheduleNextHighlight = () => {
+      // If we're at the end, reset the highlight and exit
+      if (wordIndex >= wordTimestamps.length) {
+        setCurrentWordIndex(-1);
+        return;
       }
+      
+      // Get the current timestamp
+      const timestamp = wordTimestamps[wordIndex];
+      
+      // Calculate when to show this word
+      const delay = timestamp.start * 1000 - nextTimerMs;
+      
+      // Schedule the next timer
+      timerRef.current = setTimeout(() => {
+        // Update which word is highlighted
+        setCurrentWordIndex(wordIndex);
+        
+        // Move to the next word for the next timer
+        wordIndex++;
+        
+        // Update our time tracking
+        nextTimerMs = timestamp.start * 1000;
+        
+        // Schedule the next highlight
+        scheduleNextHighlight();
+      }, Math.max(10, delay)); // Ensure at least 10ms to avoid bunching
     };
     
-    scheduleHighlights();
+    // Start the highlighting process
+    scheduleNextHighlight();
+    
+    // Return a cleanup function
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    };
   };
 
   return (
@@ -274,14 +420,18 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
               {isLoading ? (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="large" color="#007AFF" />
-                  <Text style={styles.loadingText}>Loading...</Text>
+                  <Text style={styles.loadingText}>
+                    {isChangingSentence ? 'Preparing next sentence...' : 'Loading...'}
+                  </Text>
                 </View>
               ) : error ? (
                 <Text style={styles.errorText}>{error}</Text>
               ) : !sound && audioBuffer ? (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="large" color="#007AFF" />
-                  <Text style={styles.loadingText}>Processing audio...</Text>
+                  <Text style={styles.loadingText}>
+                    {isChangingSentence ? 'Preparing audio...' : 'Processing audio...'}
+                  </Text>
                 </View>
               ) : (
                 <>
@@ -303,7 +453,9 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                     )}
                 
                     <View style={styles.textSection}>
-                      <Text style={styles.sectionTitle}>Original Text:</Text>
+                      <Text style={styles.sectionTitle}>
+                        Original Text ({currentSentenceIndex + 1}/{contentSentences.length})
+                      </Text>
                       <View style={styles.highlightContainer}>
                         {wordTimestamps.length > 0 ? (
                           <Text style={styles.originalText}>
