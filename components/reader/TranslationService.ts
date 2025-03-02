@@ -8,27 +8,64 @@ export const translateText = async (
   text: string,
   language: string
 ): Promise<string> => {
-  const response = await fetch('https://tongues.directto.link/translate', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      text: text,
-      language: language,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Translation request failed with status: ${response.status}`);
+  // Validate inputs
+  if (!text || typeof text !== 'string' || text.trim().length === 0) {
+    console.error('Invalid text provided to translateText:', text);
+    throw new Error('Invalid text provided');
   }
-
-  const data = await response.json();
-  if (!data.translated_text) {
-    throw new Error('Translation API did not return a translated text');
+  
+  if (!language || typeof language !== 'string') {
+    console.error('Invalid language provided to translateText:', language);
+    throw new Error('Invalid language provided');
   }
-
-  return data.translated_text;
+  
+  // Normalize language to match API expectations
+  let normalizedLanguage = language.toLowerCase();
+  // Map language names to codes if needed
+  const languageMap = {
+    'spanish': 'es',
+    'french': 'fr',
+    'german': 'de',
+    'italian': 'it',
+    'dutch': 'nl'
+  };
+  
+  if (languageMap[normalizedLanguage]) {
+    normalizedLanguage = languageMap[normalizedLanguage];
+  }
+  
+  console.log('Translating text:', { textLength: text.length, language: normalizedLanguage });
+  
+  try {
+    const response = await fetch('https://tongues.directto.link/translate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        text: text,
+        language: normalizedLanguage,
+      }),
+    });
+    
+    console.log('Translation API response status:', response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'No error details');
+      console.error('Translation API error:', errorText);
+      throw new Error(`Translation request failed with status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    if (!data.translated_text) {
+      throw new Error('Translation API did not return a translated text');
+    }
+    
+    return data.translated_text;
+  } catch (error) {
+    console.error('Error in translateText:', error);
+    throw error;
+  }
 };
 
 /**
@@ -38,27 +75,66 @@ export const fetchWordTimestamps = async (
   text: string,
   language: string
 ): Promise<Array<{ word: string; start: number; end: number }>> => {
-  const response = await fetch('https://tongues.directto.link/marks', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      text: text,
-      language: language,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Word timestamps request failed with status: ${response.status}`);
+  // Validate inputs
+  if (!text || typeof text !== 'string' || text.trim().length === 0) {
+    console.error('Invalid text provided to fetchWordTimestamps:', text);
+    throw new Error('Invalid text provided');
   }
-
-  const data = await response.json();
-  if (!data.timestamps || !Array.isArray(data.timestamps)) {
-    throw new Error('Timestamps API did not return valid data');
+  
+  if (!language || typeof language !== 'string') {
+    console.error('Invalid language provided to fetchWordTimestamps:', language);
+    throw new Error('Invalid language provided');
   }
-
-  return data.timestamps;
+  
+  // Normalize language to match API expectations
+  let normalizedLanguage = language.toLowerCase();
+  // Map language names to codes if needed
+  const languageMap = {
+    'spanish': 'es',
+    'french': 'fr',
+    'german': 'de',
+    'italian': 'it',
+    'dutch': 'nl'
+  };
+  
+  if (languageMap[normalizedLanguage]) {
+    normalizedLanguage = languageMap[normalizedLanguage];
+  }
+  
+  console.log('Fetching timestamps for:', { text, language: normalizedLanguage });
+  
+  try {
+    const response = await fetch('https://tongues.directto.link/marks', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        text: text,
+        language: normalizedLanguage,
+      }),
+    });
+    
+    console.log('Timestamp API response status:', response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'No error details');
+      console.error('Timestamp API error:', errorText);
+      throw new Error(`Word timestamps request failed with status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('Timestamp API response data:', data);
+    
+    if (!data.timestamps || !Array.isArray(data.timestamps)) {
+      throw new Error('Timestamps API did not return valid data');
+    }
+    
+    return data.timestamps;
+  } catch (error) {
+    console.error('Error in fetchWordTimestamps:', error);
+    throw error;
+  }
 };
 
 /**

@@ -25,7 +25,8 @@ import {
 } from './components/reader/EpubLoader';
 import { 
   fetchSpeechAudio, 
-  translateText 
+  translateText,
+  fetchWordTimestamps 
 } from './components/reader/TranslationService';
 import TranslationModal from './components/reader/TranslationModal';
 import ReadAlongModal from './components/ReadAlongModal';
@@ -42,6 +43,24 @@ const supportedLanguages = [
 ];
 
 function ReaderScreen() {
+  // Function to get a sample sentence for read-along mode
+  const getSampleSentence = () => {
+    if (!content) return 'Hello, welcome to Read Along mode';
+    
+    // Extract a sample sentence from content
+    const textMatch = content.match(/[^.!?]+[.!?]+/g);
+    if (textMatch && textMatch.length > 0) {
+      // Find a sentence that's not too short or too long
+      const sentences = textMatch.filter(s => 
+        s.trim().length > 20 && s.trim().length < 100
+      );
+      if (sentences.length > 0) {
+        const randomIndex = Math.floor(Math.random() * Math.min(5, sentences.length));
+        return sentences[randomIndex].trim();
+      }
+    }
+    return 'Hello, welcome to Read Along mode';
+  };
   const route = useRoute();
   const navigation = useNavigation();
   const { fileUri, shouldRefreshHomeAfterClose, openedExternally, checkForDuplicates } = route.params || {};
@@ -87,6 +106,138 @@ function ReaderScreen() {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [sound, setSound] = useState<Sound | null>(null);
   const [readAlongVisible, setReadAlongVisible] = useState<boolean>(false);
+  const [currentSentence, setCurrentSentence] = useState<string>('');
+  const [currentAudioBuffer, setCurrentAudioBuffer] = useState<Blob | null>(null);
+  const [timestampData, setTimestampData] = useState<any>(null);
+  const [sentenceTranslation, setSentenceTranslation] = useState<string>('');
+  
+  // Function to prepare and show the read-along modal
+  const handleReadAlongPress = async () => {
+    try {
+      // Get a sample sentence from the content
+      const sentence = selectedOriginalText || getSampleSentence();
+      setCurrentSentence(sentence);
+      
+      // Generate fallback timestamps (in case API fails)
+      const generateFallbackTimestamps = (text) => {
+        const words = text.split(/\s+/);
+        const marks = [];
+        let startPos = 0;
+        
+        words.forEach((word, index) => {
+          const start = text.indexOf(word, startPos);
+          const end = start + word.length;
+          
+          marks.push({
+            time: index * 500, // Spread words 500ms apart
+            type: 'word',
+            start: start,
+            end: end,
+            value: word
+          });
+          
+          startPos = end;
+        });
+        
+        return { marks };
+      };
+      
+      setIsLoading(true);
+      let translation = "Translation not available";
+      let audioBlob = null;
+      let tsData = generateFallbackTimestamps(sentence);
+      
+      try {
+        // Try to get translation
+        translation = await translateText(sentence, selectedLanguage);
+      } catch (translationError) {
+        console.error('Translation error:', translationError);
+      }
+      
+      try {
+        // Try to get audio - normalize language like in other API calls
+        let normalizedLanguage = selectedLanguage.toLowerCase();
+        const languageMap = {
+          'spanish': 'es',
+          'french': 'fr',
+          'german': 'de',
+          'italian': 'it',
+          'dutch': 'nl'
+        };
+        
+        if (languageMap[normalizedLanguage]) {
+          normalizedLanguage = languageMap[normalizedLanguage];
+        }
+        
+        console.log('Fetching speech for:', { textLength: sentence.length, language: normalizedLanguage });
+        
+        const audioResponse = await fetch('https://tongues.directto.link/speech', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            text: sentence,
+            language: normalizedLanguage,
+          }),
+        });
+        
+        if (audioResponse.ok) {
+          audioBlob = await audioResponse.blob();
+        }
+      } catch (audioError) {
+        console.error('Audio fetch error:', audioError);
+      }
+      
+      try {
+        // Try to get word timestamps from API
+        const apiTimestamps = await fetchWordTimestamps(sentence, selectedLanguage);
+        
+        // Format timestamps in the required format
+        const marks = apiTimestamps.map(ts => ({
+          time: ts.start * 1000, // Convert to milliseconds
+          type: 'word',
+          start: sentence.indexOf(ts.word),
+          end: sentence.indexOf(ts.word) + ts.word.length,
+          value: ts.word
+        }));
+        
+        tsData = { marks };
+      } catch (timestampError) {
+        console.error('Timestamp error:', timestampError);
+        // We'll use the fallback timestamps already generated
+      }
+      
+      // Set the state with whatever we were able to get
+      setCurrentAudioBuffer(audioBlob);
+      setTimestampData(tsData);
+      setSentenceTranslation(translation);
+      
+      // Show the modal
+      setReadAlongVisible(true);
+    } catch (error) {
+      console.error('Error in read-along:', error);
+      // Show modal with minimal content
+      const sentence = selectedOriginalText || getSampleSentence();
+      setCurrentSentence(sentence);
+      setSentenceTranslation('Translation not available');
+      
+      // Create basic fallback timestamps
+      const words = sentence.split(/\s+/);
+      const fallbackMarks = words.map((word, i) => ({
+        time: i * 500,
+        type: 'word',
+        start: sentence.indexOf(word),
+        end: sentence.indexOf(word) + word.length,
+        value: word
+      }));
+      
+      setTimestampData({ marks: fallbackMarks });
+      setReadAlongVisible(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
   // When component is unmounted, refresh the HomeScreen if requested
   useEffect(() => {
@@ -143,7 +294,7 @@ function ReaderScreen() {
               headerTitleAlign: 'center',
               headerRight: () => (
                 <TouchableOpacity
-                  onPress={() => setReadAlongVisible(true)}
+                  onPress={handleReadAlongPress}
                   style={{ marginRight: 16 }}
                 >
                   <Text style={{ fontSize: 22, color: '#007AFF' }}>
@@ -160,7 +311,7 @@ function ReaderScreen() {
               headerTitleAlign: 'center',
               headerRight: () => (
                 <TouchableOpacity
-                  onPress={() => setReadAlongVisible(true)}
+                  onPress={handleReadAlongPress}
                   style={{ marginRight: 16 }}
                 >
                   <Text style={{ fontSize: 22, color: '#007AFF' }}>
@@ -180,7 +331,7 @@ function ReaderScreen() {
               headerTitleAlign: 'center',
               headerRight: () => (
                 <TouchableOpacity
-                  onPress={() => setReadAlongVisible(true)}
+                  onPress={handleReadAlongPress}
                   style={{ marginRight: 16 }}
                 >
                   <Text style={{ fontSize: 22, color: '#007AFF' }}>
@@ -576,8 +727,11 @@ function ReaderScreen() {
       <ReadAlongModal
         visible={readAlongVisible}
         onClose={() => setReadAlongVisible(false)}
-        text={selectedOriginalText || 'Hello, welcome to Read Along mode'}
+        text={currentSentence}
         language={selectedLanguage}
+        timestampData={timestampData}
+        translation={sentenceTranslation}
+        audioBuffer={currentAudioBuffer || undefined}
       />
     </View>
   );
