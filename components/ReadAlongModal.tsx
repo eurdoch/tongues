@@ -172,14 +172,19 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     try {
       console.log('ReadAlongModal: Processing timestamp data for sentence');
       
-      // Convert timestamp data to the format needed by the component
-      const timestamps = timestampData.marks.map(mark => ({
-        word: mark.value,
-        start: mark.time / 1000, // Convert to seconds
-        end: (mark.time / 1000) + 0.3 // Approximate end time
-      }));
-      
-      setWordTimestamps(timestamps);
+      // Check if timestamp data exists and has marks before mapping
+      if (timestampData && timestampData.marks) {
+        const timestamps = timestampData.marks.map(mark => ({
+          word: mark.value,
+          start: mark.time / 1000, // Convert to seconds
+          end: (mark.time / 1000) + 0.3 // Approximate end time
+        }));
+        
+        setWordTimestamps(timestamps);
+      } else {
+        console.log('ReadAlongModal: No valid timestamp data available');
+        setWordTimestamps([]);
+      }
       
       // Use the provided audio sound if available
       if (audioSound) {
