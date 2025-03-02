@@ -11,17 +11,27 @@ import {
 } from 'react-native';
 import Sound from 'react-native-sound';
 import RNFS from 'react-native-fs';
-import { 
-  translateText, 
-  fetchWordTimestamps 
-} from './reader/TranslationService';
+
+interface TimestampMark {
+  time: number;
+  type: string; 
+  start: number;
+  end: number;
+  value: string;
+}
+
+interface TimestampData {
+  marks: TimestampMark[];
+}
 
 interface ReadAlongModalProps {
   visible: boolean;
   onClose: () => void;
-  text?: string;
+  text: string;
   language?: string;
   audioBuffer?: Blob;
+  timestampData: TimestampData;
+  translation: string;
 }
 
 interface WordTimestamp {
@@ -33,11 +43,12 @@ interface WordTimestamp {
 const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   visible,
   onClose,
-  text = '',
+  text,
   language = 'Spanish',
   audioBuffer,
+  timestampData,
+  translation,
 }) => {
-  const [translatedText, setTranslatedText] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [sound, setSound] = useState<Sound | null>(null);
@@ -63,7 +74,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         clearTimeout(timerRef.current);
       }
     };
-  }, [visible, text, language, audioBuffer]);
+  }, [visible, text, language, audioBuffer, timestampData]);
 
   const loadData = async () => {
     if (!text || !language) return;
@@ -72,14 +83,14 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     setError(null);
     
     try {
-      // Fetch translation and timestamps in parallel
-      const [translationPromise, timestampsPromise] = await Promise.all([
-        translateText(text, language),
-        fetchWordTimestamps(text, language)
-      ]);
+      // Convert timestamp data to the format needed by the component
+      const timestamps = timestampData.marks.map(mark => ({
+        word: mark.value,
+        start: mark.time / 1000, // Convert to seconds
+        end: (mark.time / 1000) + 0.3 // Approximate end time
+      }));
       
-      setTranslatedText(translationPromise);
-      setWordTimestamps(timestampsPromise);
+      setWordTimestamps(timestamps);
       
       // Use the provided audio buffer if available
       if (audioBuffer) {
@@ -270,7 +281,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                     
                     <View style={styles.textSection}>
                       <Text style={styles.sectionTitle}>Translation:</Text>
-                      <Text style={styles.translatedText}>{translatedText}</Text>
+                      <Text style={styles.translatedText}>{translation}</Text>
                     </View>
                   </ScrollView>
                   
