@@ -10,9 +10,9 @@ import {
   ScrollView,
 } from 'react-native';
 import Sound from 'react-native-sound';
+import RNFS from 'react-native-fs';
 import { 
   translateText, 
-  fetchSpeechAudio, 
   fetchWordTimestamps 
 } from './reader/TranslationService';
 
@@ -21,6 +21,7 @@ interface ReadAlongModalProps {
   onClose: () => void;
   text?: string;
   language?: string;
+  audioBuffer?: Blob;
 }
 
 interface WordTimestamp {
@@ -34,6 +35,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   onClose,
   text = '',
   language = 'Spanish',
+  audioBuffer,
 }) => {
   const [translatedText, setTranslatedText] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -61,7 +63,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         clearTimeout(timerRef.current);
       }
     };
-  }, [visible, text, language]);
+  }, [visible, text, language, audioBuffer]);
 
   const loadData = async () => {
     if (!text || !language) return;
@@ -79,17 +81,82 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       setTranslatedText(translationPromise);
       setWordTimestamps(timestampsPromise);
       
-      // Fetch audio
-      const { sound: newSound, audioPath: newAudioPath } = 
-        await fetchSpeechAudio(text, language, sound, audioPath);
-      
-      setSound(newSound);
-      setAudioPath(newAudioPath);
+      // Use the provided audio buffer if available
+      if (audioBuffer) {
+        await processAudioBuffer(audioBuffer);
+      }
     } catch (err) {
       console.error('Error loading read-along data:', err);
       setError('Failed to load data. Please try again.');
     } finally {
       setIsLoading(false);
+    }
+  };
+  
+  const processAudioBuffer = async (buffer: Blob) => {
+    // Clean up previous sound if exists
+    if (sound) {
+      sound.release();
+    }
+    
+    // Clean up previous audio file if exists
+    if (audioPath) {
+      try {
+        await RNFS.unlink(audioPath);
+      } catch (e) {
+        console.log('Error removing previous audio file:', e);
+      }
+    }
+    
+    try {
+      // Create a temporary file path
+      const tempFilePath = `${RNFS.CachesDirectoryPath}/speech_${Date.now()}.mp3`;
+      
+      // Convert blob to base64
+      const reader = new FileReader();
+      reader.readAsDataURL(buffer);
+      
+      return new Promise<void>((resolve, reject) => {
+        reader.onloadend = async () => {
+          try {
+            if (reader.result) {
+              // Extract base64 data (remove the data URL prefix)
+              const base64Data = (reader.result as string).split(',')[1];
+              
+              // Ensure the previous file is deleted if it exists
+              const exists = await RNFS.exists(tempFilePath);
+              if (exists) {
+                await RNFS.unlink(tempFilePath);
+              }
+              
+              // Write the file
+              await RNFS.writeFile(tempFilePath, base64Data, 'base64');
+              console.log('Speech audio saved to:', tempFilePath);
+              
+              // Initialize Sound with the file
+              Sound.setCategory('Playback');
+              const newSound = new Sound(tempFilePath, '', (error) => {
+                if (error) {
+                  console.error('Failed to load sound:', error);
+                  reject(error);
+                } else {
+                  setSound(newSound);
+                  setAudioPath(tempFilePath);
+                  resolve();
+                }
+              });
+            }
+          } catch (error) {
+            console.error('Error saving audio file:', error);
+            reject(error);
+          }
+        };
+        
+        reader.onerror = reject;
+      });
+    } catch (error) {
+      console.error('Error processing audio buffer:', error);
+      throw error;
     }
   };
 
@@ -173,6 +240,11 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                 </View>
               ) : error ? (
                 <Text style={styles.errorText}>{error}</Text>
+              ) : !sound && audioBuffer ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color="#007AFF" />
+                  <Text style={styles.loadingText}>Processing audio...</Text>
+                </View>
               ) : (
                 <>
                   <ScrollView style={styles.contentContainer}>
@@ -204,7 +276,8 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                   
                   <View style={styles.controls}>
                     <TouchableOpacity
-                      style={styles.controlButton}
+                      style={[styles.controlButton, !sound && { opacity: 0.5 }]}
+                      disabled={!sound}
                       onPress={isPlaying ? stopAudio : playAudio}
                     >
                       <Text style={styles.controlButtonText}>
