@@ -47,21 +47,52 @@ function ReaderScreen() {
   const extractSentences = () => {
     if (!content) return ['Hello, welcome to Read Along mode'];
     
-    // Extract sentences from content
-    const textMatch = content.match(/[^.!?]+[.!?]+/g);
-    if (textMatch && textMatch.length > 0) {
-      // Filter out sentences that are too short or too long
-      const sentences = textMatch
-        .map(s => s.trim())
-        .filter(s => s.length > 10 && s.length < 200)
-        // Remove sentences that are just XML/HTML tags
-        .filter(s => !s.startsWith('<') || !s.endsWith('>'));
+    try {
+      // First, strip HTML tags to get clean text content
+      const stripHtml = (html) => {
+        // Simple regex-based HTML tag removal for React Native
+        return html
+          .replace(/<[^>]*>?/gm, ' ') // Replace HTML tags with space
+          .replace(/\s+/g, ' ')       // Normalize whitespace
+          .trim();                    // Trim leading/trailing whitespace
+      };
       
-      if (sentences.length > 0) {
-        return sentences;
+      // Clean the content of HTML tags
+      const cleanedContent = stripHtml(content);
+      console.log('[ReaderScreen] Content length after HTML cleaning:', cleanedContent.length);
+      
+      // Break the content into paragraphs first
+      const paragraphs = cleanedContent.split(/\n+/).filter(p => p.trim().length > 0);
+      
+      // Process each paragraph to extract sentences
+      let allSentences = [];
+      paragraphs.forEach(paragraph => {
+        // Match sentences ending with ., !, or ? followed by a space or end of string
+        const sentencesInParagraph = paragraph.match(/[^.!?]+[.!?]+(\s|$)/g) || [];
+        
+        // Clean up each sentence
+        const cleanSentences = sentencesInParagraph
+          .map(s => s.trim())
+          // Keep sentences of reasonable length (between 15 and 150 characters)
+          .filter(s => s.length >= 15 && s.length <= 150)
+          // Remove sentences with XML/HTML remnants
+          .filter(s => !s.includes('<') && !s.includes('>'));
+        
+        allSentences = [...allSentences, ...cleanSentences];
+      });
+      
+      console.log(`[ReaderScreen] Extracted ${allSentences.length} readable sentences`);
+      
+      // If we couldn't extract any good sentences, return a default
+      if (allSentences.length === 0) {
+        return ['Hello, welcome to Read Along mode'];
       }
+      
+      return allSentences;
+    } catch (error) {
+      console.error('Error extracting sentences:', error);
+      return ['Hello, welcome to Read Along mode'];
     }
-    return ['Hello, welcome to Read Along mode'];
   };
   
   // Function to get a sample sentence for read-along mode
@@ -207,26 +238,47 @@ function ReaderScreen() {
     try {
       setIsLoading(true);
       
-      // Use selected text as starting point or extract sentences from content
-      let sentences = [];
-      let startIndex = 0;
+      // Extract sentences from content
+      console.log('[ReaderScreen] Parsing content for sentences...');
+      let sentences = extractSentences();
       
+      // Start from selected text if available
+      let startIndex = 0;
       if (selectedOriginalText) {
-        // If text is selected, start with that sentence
-        sentences = [selectedOriginalText, ...extractSentences()];
-      } else {
-        // Otherwise, extract all sentences from content
-        sentences = extractSentences();
+        // Look for the selected text in our extracted sentences
+        const selectedSentence = selectedOriginalText.trim();
+        const matchedIndex = sentences.findIndex(s => 
+          s.includes(selectedSentence) || selectedSentence.includes(s)
+        );
+        
+        if (matchedIndex !== -1) {
+          console.log(`[ReaderScreen] Found selected text at index ${matchedIndex}`);
+          startIndex = matchedIndex;
+        } else {
+          // If we can't find an exact match, add it at the beginning
+          console.log('[ReaderScreen] Selected text not found in sentences, adding it');
+          sentences = [selectedOriginalText, ...sentences];
+        }
+      }
+      
+      console.log(`[ReaderScreen] Starting read-along with ${sentences.length} sentences at index ${startIndex}`);
+      
+      // Limit to a reasonable number of sentences to avoid performance issues
+      const maxSentences = 100;
+      if (sentences.length > maxSentences) {
+        console.log(`[ReaderScreen] Limiting to ${maxSentences} sentences`);
+        sentences = sentences.slice(startIndex, startIndex + maxSentences);
+        startIndex = 0;
       }
       
       // Store all content sentences for sequential reading
       setContentSentences(sentences);
-      setCurrentSentenceIndex(0);
+      setCurrentSentenceIndex(startIndex);
       
       // Prepare data for the first sentence
-      const firstSentence = sentences[0];
+      const firstSentence = sentences[startIndex];
       const language = selectedLanguage || 'Spanish'; // Ensure we have a valid language
-      console.log(`Starting read-along with language: ${language}`);
+      console.log(`[ReaderScreen] Starting read-along with language: ${language}`);
       const sentenceData = await prepareSentenceData(firstSentence, language);
       
       // Set initial data
