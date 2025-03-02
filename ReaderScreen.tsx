@@ -32,9 +32,7 @@ import TranslationModal from './components/reader/TranslationModal';
 import ReadAlongModal from './components/ReadAlongModal';
 import { ElementNode } from './components/reader/types';
 import { Text } from 'react-native-gesture-handler';
-import EventEmitter from 'react-native/Libraries/vendor/emitter/EventEmitter';
 
-// Define available languages for reference
 const supportedLanguages = [
   'French',
   'Spanish',
@@ -43,16 +41,24 @@ const supportedLanguages = [
   'Dutch',
 ];
 
-const audioEndEvent = new EventEmitter();
-
 function ReaderScreen() {
-  useEffect(() => {
-    audioEndEvent.addListener('AUDIO_END', () => console.log('Audio end'));
-
-    return () => {
-      audioEndEvent.removeAllListeners();
-    };
-  }, []);
+  const [content, setContent] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedLanguage, setSelectedLanguage] = useState<string>('');
+  const [tableOfContents, setTableOfContents] = useState<TOCItem[]>([]);
+  const [parsedContent, setParsedContent] = useState<ElementNode[]>([]);
+  const [selectedOriginalText, setSelectedOriginalText] = useState<string | null>(null);
+  const [translatedText, setTranslatedText] = useState<string | null>(null);
+  const [audioPath, setAudioPath] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [sound, setSound] = useState<Sound | null>(null);
+  const [readAlongVisible, setReadAlongVisible] = useState<boolean>(false);
+  const [contentSentences, setContentSentences] = useState<string[]>([]);
+  const [currentSentenceIndex, setCurrentSentenceIndex] = useState<number>(0);
+  const [currentSound, setCurrentSound] = useState<Sound | null>(null);
+  const [timestampData, setTimestampData] = useState<any>(null);
+  const [sentenceTranslation, setSentenceTranslation] = useState<string>('');
 
   // Function to extract all readable sentences from content
   const extractSentences = () => {
@@ -79,10 +85,10 @@ function ReaderScreen() {
       const paragraphs = cleanedContent.split(/\n+/).filter(p => p.trim().length > 0);
       
       // Process each paragraph to extract sentences
-      let allSentences = [];
+      let allSentences: string[] = [];
       paragraphs.forEach(paragraph => {
         // Match sentences ending with ., !, or ? followed by a space or end of string
-        const sentencesInParagraph = paragraph.match(/[^.!?]+[.!?]+(\s|$)/g) || [];
+        const sentencesInParagraph: string[] = paragraph.match(/[^.!?]+[.!?]+(\s|$)/g) || [];
         
         // Clean up each sentence
         const cleanSentences = sentencesInParagraph
@@ -147,25 +153,7 @@ function ReaderScreen() {
     }
   }, [route.params, fileUri]);
 
-  // State variables
-  const [content, setContent] = useState<string>('');
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedLanguage, setSelectedLanguage] = useState<string>('');
-  const [tableOfContents, setTableOfContents] = useState<TOCItem[]>([]);
-  const [parsedContent, setParsedContent] = useState<ElementNode[]>([]);
-  const [selectedOriginalText, setSelectedOriginalText] = useState<string | null>(null);
-  const [translatedText, setTranslatedText] = useState<string | null>(null);
-  const [audioPath, setAudioPath] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [sound, setSound] = useState<Sound | null>(null);
-  const [readAlongVisible, setReadAlongVisible] = useState<boolean>(false);
-  const [contentSentences, setContentSentences] = useState<string[]>([]);
-  const [currentSentenceIndex, setCurrentSentenceIndex] = useState<number>(0);
-  const [currentSound, setCurrentSound] = useState<Sound | null>(null);
-  const [timestampData, setTimestampData] = useState<any>(null);
-  const [sentenceTranslation, setSentenceTranslation] = useState<string>('');
-  
+    
   // Helper function to decode HTML entities
   const decodeHtmlEntities = (text) => {
     if (!text) return '';
@@ -696,7 +684,7 @@ function ReaderScreen() {
 
   const handleAudioFinish = (success: boolean) => {
     if (success) {
-      audioEndEvent.emit('AUDIO_END');
+      setCurrentSentenceIndex(prev => prev + 1);
     }
   }
 
