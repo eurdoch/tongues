@@ -32,6 +32,7 @@ import TranslationModal from './components/reader/TranslationModal';
 import ReadAlongModal from './components/ReadAlongModal';
 import { ElementNode } from './components/reader/types';
 import { Text } from 'react-native-gesture-handler';
+import EventEmitter from 'react-native/Libraries/vendor/emitter/EventEmitter';
 
 // Define available languages for reference
 const supportedLanguages = [
@@ -42,14 +43,24 @@ const supportedLanguages = [
   'Dutch',
 ];
 
+const audioEndEvent = new EventEmitter();
+
 function ReaderScreen() {
+  useEffect(() => {
+    audioEndEvent.addListener('AUDIO_END', () => console.log('Audio end'));
+
+    return () => {
+      audioEndEvent.removeAllListeners();
+    };
+  }, []);
+
   // Function to extract all readable sentences from content
   const extractSentences = () => {
     if (!content) return ['Hello, welcome to Read Along mode'];
     
     try {
       // First, strip HTML tags and decode entities to get clean text content
-      const stripHtml = (html) => {
+      const stripHtml = (html: string) => {
         // Simple regex-based HTML tag removal for React Native
         const noTags = html
           .replace(/<[^>]*>?/gm, ' ') // Replace HTML tags with space
@@ -685,7 +696,7 @@ function ReaderScreen() {
 
   const handleAudioFinish = (success: boolean) => {
     if (success) {
-      console.log('Audio finished');
+      audioEndEvent.emit('AUDIO_END');
     }
   }
 
