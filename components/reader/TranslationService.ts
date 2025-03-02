@@ -102,21 +102,26 @@ export const fetchWordTimestamps = async (
     const data = await response.json();
     console.log('Timestamp API response data:', data);
     
-    // The API returns an array of timestamp marks directly, not nested under 'timestamps'
-    if (!Array.isArray(data)) {
-      throw new Error('Timestamps API did not return an array');
+    // The API returns an object with a 'marks' property containing the array
+    if (!data || typeof data !== 'object') {
+      throw new Error('Timestamps API did not return a valid object');
+    }
+    
+    // Extract the marks array
+    if (!data.marks || !Array.isArray(data.marks)) {
+      throw new Error('Timestamps API did not return a marks array');
     }
     
     // Verify the structure of at least one item
-    if (data.length > 0) {
-      const firstItem = data[0];
+    if (data.marks.length > 0) {
+      const firstItem = data.marks[0];
       if (typeof firstItem.time !== 'number' || typeof firstItem.value !== 'string') {
         console.error('Unexpected timestamp format:', firstItem);
         throw new Error('Timestamps have unexpected format');
       }
     }
     
-    return data;
+    return data.marks;
   } catch (error) {
     console.error('Error in fetchWordTimestamps:', error);
     throw error;
