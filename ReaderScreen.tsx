@@ -6,6 +6,7 @@ import {
   ActivityIndicator, 
   GestureResponderEvent,
   Platform,
+  TouchableOpacity,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import RNFS from 'react-native-fs';
@@ -27,7 +28,9 @@ import {
   translateText 
 } from './components/reader/TranslationService';
 import TranslationModal from './components/reader/TranslationModal';
+import ReadAlongModal from './components/ReadAlongModal';
 import { ElementNode } from './components/reader/types';
+import { Text } from 'react-native-gesture-handler';
 
 // Define available languages for reference
 const supportedLanguages = [
@@ -83,6 +86,7 @@ function ReaderScreen() {
   const [audioPath, setAudioPath] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [sound, setSound] = useState<Sound | null>(null);
+  const [readAlongVisible, setReadAlongVisible] = useState<boolean>(false);
   
   // When component is unmounted, refresh the HomeScreen if requested
   useEffect(() => {
@@ -137,6 +141,16 @@ function ReaderScreen() {
             navigation.setOptions({
               title: metadata.title,
               headerTitleAlign: 'center',
+              headerRight: () => (
+                <TouchableOpacity
+                  onPress={() => setReadAlongVisible(true)}
+                  style={{ marginRight: 16 }}
+                >
+                  <Text style={{ fontSize: 22, color: '#007AFF' }}>
+                    🎧
+                  </Text>
+                </TouchableOpacity>
+              ),
             });
           } else if (tableOfContents.length > 0) {
             // Fallback to TOC if metadata not available
@@ -144,6 +158,16 @@ function ReaderScreen() {
             navigation.setOptions({
               title: bookTitle,
               headerTitleAlign: 'center',
+              headerRight: () => (
+                <TouchableOpacity
+                  onPress={() => setReadAlongVisible(true)}
+                  style={{ marginRight: 16 }}
+                >
+                  <Text style={{ fontSize: 22, color: '#007AFF' }}>
+                    🎧
+                  </Text>
+                </TouchableOpacity>
+              ),
             });
           }
         } catch (error) {
@@ -154,6 +178,16 @@ function ReaderScreen() {
             navigation.setOptions({
               title: bookTitle,
               headerTitleAlign: 'center',
+              headerRight: () => (
+                <TouchableOpacity
+                  onPress={() => setReadAlongVisible(true)}
+                  style={{ marginRight: 16 }}
+                >
+                  <Text style={{ fontSize: 22, color: '#007AFF' }}>
+                    🎧
+                  </Text>
+                </TouchableOpacity>
+              ),
             });
           }
         }
@@ -536,6 +570,12 @@ function ReaderScreen() {
         onClose={clearSelection}
         onPlayAudio={playAudio}
         onStopAudio={stopAudio}
+      />
+
+      {/* Read Along Modal */}
+      <ReadAlongModal
+        visible={readAlongVisible}
+        onClose={() => setReadAlongVisible(false)}
       />
     </View>
   );
