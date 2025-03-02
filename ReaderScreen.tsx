@@ -48,13 +48,16 @@ function ReaderScreen() {
     if (!content) return ['Hello, welcome to Read Along mode'];
     
     try {
-      // First, strip HTML tags to get clean text content
+      // First, strip HTML tags and decode entities to get clean text content
       const stripHtml = (html) => {
         // Simple regex-based HTML tag removal for React Native
-        return html
+        const noTags = html
           .replace(/<[^>]*>?/gm, ' ') // Replace HTML tags with space
           .replace(/\s+/g, ' ')       // Normalize whitespace
           .trim();                    // Trim leading/trailing whitespace
+          
+        // Decode entities after removing tags
+        return decodeHtmlEntities(noTags);
       };
       
       // Clean the content of HTML tags
@@ -152,6 +155,25 @@ function ReaderScreen() {
   const [timestampData, setTimestampData] = useState<any>(null);
   const [sentenceTranslation, setSentenceTranslation] = useState<string>('');
   
+  // Helper function to decode HTML entities
+  const decodeHtmlEntities = (text) => {
+    if (!text) return '';
+    return text
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#039;/g, "'")
+      .replace(/&rsquo;/g, "'")
+      .replace(/&ldquo;/g, '"')
+      .replace(/&rdquo;/g, '"')
+      .replace(/&ndash;/g, '–')
+      .replace(/&mdash;/g, '—')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec))
+      .replace(/&#x([0-9A-F]+);/gi, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
+  };
+
   // Helper function to generate fallback timestamps
   const generateFallbackTimestamps = (text) => {
     const words = text.split(/\s+/);
@@ -277,9 +299,11 @@ function ReaderScreen() {
       
       // Prepare data for the first sentence
       const firstSentence = sentences[startIndex];
+      // Make sure the sentence is properly decoded
+      const decodedSentence = decodeHtmlEntities(firstSentence);
       const language = selectedLanguage || 'Spanish'; // Ensure we have a valid language
       console.log(`[ReaderScreen] Starting read-along with language: ${language}`);
-      const sentenceData = await prepareSentenceData(firstSentence, language);
+      const sentenceData = await prepareSentenceData(decodedSentence, language);
       
       // Set initial data
       setCurrentAudioBuffer(sentenceData.audioBlob);
@@ -315,13 +339,15 @@ function ReaderScreen() {
     try {
       setCurrentSentenceIndex(nextIndex);
       const nextSentence = contentSentences[nextIndex];
+      // Make sure the sentence is properly decoded
+      const decodedSentence = decodeHtmlEntities(nextSentence);
       
       // Make sure we have a valid language
       const language = selectedLanguage || 'Spanish';
       console.log(`Preparing next sentence with language: ${language}`);
       
       // Prepare data for the next sentence
-      const sentenceData = await prepareSentenceData(nextSentence, language);
+      const sentenceData = await prepareSentenceData(decodedSentence, language);
       
       // Update state with new sentence data
       setCurrentAudioBuffer(sentenceData.audioBlob);
