@@ -27,8 +27,6 @@ import {
   fetchSpeechAudio, 
   translateText,
   fetchWordTimestamps, 
-  getBlobFromPath,
-  loadFileToBuffer
 } from './components/reader/TranslationService';
 import TranslationModal from './components/reader/TranslationModal';
 import ReadAlongModal from './components/ReadAlongModal';
@@ -266,7 +264,6 @@ function ReaderScreen() {
     let sentences = extractSentences();
     setContentSentences(sentences);
     
-    console.log('selectedLanguage: ', selectedLanguage);
     let translation = await translateText(sentences[0], selectedLanguage);
     const timestamps = await fetchWordTimestamps(sentences[0], selectedLanguage);
     let speech = await fetchSpeechAudio(sentences[0], selectedLanguage);
@@ -686,6 +683,12 @@ function ReaderScreen() {
     }
   };
 
+  const handleAudioFinish = (success: boolean) => {
+    if (success) {
+      console.log('Audio finished');
+    }
+  }
+
   // Render item for FlatList
   const renderItemForFlatList = ({ item, index }: { item: ElementNode; index: number }) => {
     return (
@@ -766,9 +769,7 @@ function ReaderScreen() {
         timestampData={timestampData}
         translation={sentenceTranslation}
         audioSound={currentSound || undefined}
-        contentSentences={contentSentences}
-        currentSentenceIndex={currentSentenceIndex}
-        onSentenceComplete={() => {}}
+        handleAudioFinish={handleAudioFinish}
       />
     </View>
   );
