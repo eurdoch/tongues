@@ -230,3 +230,31 @@ export const fetchSpeechAudio = async (
     reader.onerror = reject;
   });
 };
+
+export async function loadFileToBlob(filePath: string) {
+  try {
+    // Read the file as base64
+    const base64Data = await RNFS.readFile(filePath, 'base64');
+    
+    // Determine MIME type based on file extension (you can expand this)
+    const extension = filePath.split('.').pop().toLowerCase();
+    let mimeType = 'application/octet-stream'; // Default
+    
+    // Set common MIME types
+    if (extension === 'mp3') mimeType = 'audio/mp3';
+    else if (extension === 'wav') mimeType = 'audio/wav';
+    else if (extension === 'aac') mimeType = 'audio/aac';
+    else if (extension === 'ogg') mimeType = 'audio/ogg';
+    else if (extension === 'm4a') mimeType = 'audio/mp4';
+    
+    // Convert base64 to a Blob
+    const response = await fetch(`data:${mimeType};base64,${base64Data}`);
+    const blob = await response.blob();
+    
+    return blob;
+  } catch (error) {
+    console.error('Error loading file to Blob:', error);
+    throw error;
+  }
+}
+

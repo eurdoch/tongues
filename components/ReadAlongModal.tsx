@@ -29,7 +29,7 @@ interface ReadAlongModalProps {
   onClose: () => void;
   text: string;
   language?: string;
-  audioBuffer?: Blob;
+  audioSound?: Sound;
   timestampData: TimestampData;
   translation: string;
   contentSentences?: string[];
@@ -48,7 +48,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   onClose,
   text,
   language = 'Spanish',
-  audioBuffer,
+  audioSound,
   timestampData,
   translation,
   contentSentences = [],
@@ -59,7 +59,6 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   const [isChangingSentence, setIsChangingSentence] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [sound, setSound] = useState<Sound | null>(null);
-  const [audioPath, setAudioPath] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [wordTimestamps, setWordTimestamps] = useState<WordTimestamp[]>([]);
   const [currentWordIndex, setCurrentWordIndex] = useState<number>(-1);
@@ -119,7 +118,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       language,
       hasSentences: contentSentences?.length > 0,
       sentenceIndex: currentSentenceIndex,
-      hasAudio: !!audioBuffer,
+      hasAudio: !!audioSound,
       isChangingSentence
     });
     
@@ -136,7 +135,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     
     // Cleanup when unmounting or props change
     return cleanupResources;
-  }, [visible, text, language, audioBuffer, isChangingSentence, cleanupResources]);
+  }, [visible, text, language, audioSound, isChangingSentence, cleanupResources]);
   
   // Auto play audio when sound is loaded or text/sentence changes
   useEffect(() => {
@@ -182,10 +181,10 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       
       setWordTimestamps(timestamps);
       
-      // Use the provided audio buffer if available
-      if (audioBuffer) {
-        console.log('ReadAlongModal: Processing audio buffer');
-        await processAudioBuffer(audioBuffer);
+      // Use the provided audio sound if available
+      if (audioSound) {
+        console.log('ReadAlongModal: Setting provided audio sound');
+        setSound(audioSound);
       }
       
       // All data is loaded, we can reset the changing state
@@ -199,72 +198,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     }
   };
   
-  const processAudioBuffer = async (buffer: Blob) => {
-    // Clean up previous sound if exists
-    if (sound) {
-      sound.release();
-    }
-    
-    // Clean up previous audio file if exists
-    if (audioPath) {
-      try {
-        await RNFS.unlink(audioPath);
-      } catch (e) {
-        console.log('Error removing previous audio file:', e);
-      }
-    }
-    
-    try {
-      // Create a temporary file path
-      const tempFilePath = `${RNFS.CachesDirectoryPath}/speech_${Date.now()}.mp3`;
-      
-      // Convert blob to base64
-      const reader = new FileReader();
-      reader.readAsDataURL(buffer);
-      
-      return new Promise<void>((resolve, reject) => {
-        reader.onloadend = async () => {
-          try {
-            if (reader.result) {
-              // Extract base64 data (remove the data URL prefix)
-              const base64Data = (reader.result as string).split(',')[1];
-              
-              // Ensure the previous file is deleted if it exists
-              const exists = await RNFS.exists(tempFilePath);
-              if (exists) {
-                await RNFS.unlink(tempFilePath);
-              }
-              
-              // Write the file
-              await RNFS.writeFile(tempFilePath, base64Data, 'base64');
-              console.log('Speech audio saved to:', tempFilePath);
-              
-              // Initialize Sound with the file
-              Sound.setCategory('Playback');
-              const newSound = new Sound(tempFilePath, '', (error) => {
-                if (error) {
-                  console.error('Failed to load sound:', error);
-                  reject(error);
-                } else {
-                  setSound(newSound);
-                  setAudioPath(tempFilePath);
-                  resolve();
-                }
-              });
-            }
-          } catch (error) {
-            console.error('Error saving audio file:', error);
-            reject(error);
-          }
-        };
-        
-        reader.onerror = reject;
-      });
-    } catch (error) {
-      console.error('Error processing audio buffer:', error);
-      throw error;
-    }
-  };
+  // Note: processAudioBuffer has been removed as we're now using the Sound object directly
 
   const playAudio = (autoAdvance = true) => {
     if (!sound) {
@@ -289,28 +223,30 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     // Use a precise synchronization method with audio
     let highlightStarted = false;
     
-    // Start the audio with a completion callback
-    sound.play((success) => {
+    // Create an event listener for when audio finishes
+    sound.setNumberOfLoops(0); // Ensure it only plays once
+    
+    // Event listener for audio completion
+    const handleAudioComplete = (success: boolean) => {
       console.log(`ReadAlongModal: Audio playback finished with success=${success}`);
       
       // Ensure we clean up all resources
       cleanupResources();
       
-      // If auto-advance is enabled and there are more sentences, notify parent
+      // If there are more sentences, move to the next one
       if (success && autoAdvance && contentSentences.length > 0) {
         const nextIndex = currentSentenceIndex + 1;
         if (nextIndex < contentSentences.length) {
           console.log(`ReadAlongModal: Advancing to next sentence #${nextIndex + 1}`);
-          
-          // Important: Delay to allow React state to settle
-          setTimeout(() => {
-            onSentenceComplete(nextIndex);
-          }, 200);
+          onSentenceComplete(nextIndex);
         } else {
           console.log('ReadAlongModal: Reached the end of content');
         }
       }
-    });
+    };
+    
+    // Start the audio with a completion callback
+    sound.play(handleAudioComplete);
     
     // Start word highlighting in a timeout to ensure audio begins first
     setTimeout(() => {
@@ -426,7 +362,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                 </View>
               ) : error ? (
                 <Text style={styles.errorText}>{error}</Text>
-              ) : !sound && audioBuffer ? (
+              ) : !sound && audioSound ? (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="large" color="#007AFF" />
                   <Text style={styles.loadingText}>

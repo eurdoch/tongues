@@ -26,7 +26,9 @@ import {
 import { 
   fetchSpeechAudio, 
   translateText,
-  fetchWordTimestamps 
+  fetchWordTimestamps, 
+  getBlobFromPath,
+  loadFileToBuffer
 } from './components/reader/TranslationService';
 import TranslationModal from './components/reader/TranslationModal';
 import ReadAlongModal from './components/ReadAlongModal';
@@ -151,7 +153,7 @@ function ReaderScreen() {
   const [readAlongVisible, setReadAlongVisible] = useState<boolean>(false);
   const [contentSentences, setContentSentences] = useState<string[]>([]);
   const [currentSentenceIndex, setCurrentSentenceIndex] = useState<number>(0);
-  const [currentAudioBuffer, setCurrentAudioBuffer] = useState<Blob | null>(null);
+  const [currentSound, setCurrentSound] = useState<Sound | null>(null);
   const [timestampData, setTimestampData] = useState<any>(null);
   const [sentenceTranslation, setSentenceTranslation] = useState<string>('');
   
@@ -257,150 +259,25 @@ function ReaderScreen() {
   
   // Function to prepare and show the read-along modal
   const handleReadAlongPress = async () => {
-    try {
-      setIsLoading(true);
-      
-      // Extract sentences from content
-      console.log('[ReaderScreen] Parsing content for sentences...');
-      let sentences = extractSentences();
-      
-      // Start from selected text if available
-      let startIndex = 0;
-      if (selectedOriginalText) {
-        // Look for the selected text in our extracted sentences
-        const selectedSentence = selectedOriginalText.trim();
-        const matchedIndex = sentences.findIndex(s => 
-          s.includes(selectedSentence) || selectedSentence.includes(s)
-        );
-        
-        if (matchedIndex !== -1) {
-          console.log(`[ReaderScreen] Found selected text at index ${matchedIndex}`);
-          startIndex = matchedIndex;
-        } else {
-          // If we can't find an exact match, add it at the beginning
-          console.log('[ReaderScreen] Selected text not found in sentences, adding it');
-          sentences = [selectedOriginalText, ...sentences];
-        }
-      }
-      
-      console.log(`[ReaderScreen] Starting read-along with ${sentences.length} sentences at index ${startIndex}`);
-      
-      // Limit to a reasonable number of sentences to avoid performance issues
-      const maxSentences = 100;
-      if (sentences.length > maxSentences) {
-        console.log(`[ReaderScreen] Limiting to ${maxSentences} sentences`);
-        sentences = sentences.slice(startIndex, startIndex + maxSentences);
-        startIndex = 0;
-      }
-      
-      // Store all content sentences for sequential reading
-      setContentSentences(sentences);
-      setCurrentSentenceIndex(startIndex);
-      
-      // Prepare data for the first sentence
-      const firstSentence = sentences[startIndex];
-      // Make sure the sentence is properly decoded
-      const decodedSentence = decodeHtmlEntities(firstSentence);
-      const language = selectedLanguage || 'Spanish'; // Ensure we have a valid language
-      console.log(`[ReaderScreen] Starting read-along with language: ${language}`);
-      const sentenceData = await prepareSentenceData(decodedSentence, language);
-      
-      // Set initial data
-      setCurrentAudioBuffer(sentenceData.audioBlob);
-      setTimestampData(sentenceData.timestampData);
-      setSentenceTranslation(sentenceData.translation);
-      
-      // Show the modal
-      setReadAlongVisible(true);
-    } catch (error) {
-      console.error('Error in read-along:', error);
-      // Show modal with minimal content
-      const sentence = selectedOriginalText || getSampleSentence();
-      setContentSentences([sentence]);
-      setCurrentSentenceIndex(0);
-      setSentenceTranslation('Translation not available');
-      
-      // Create basic fallback timestamps
-      const fallbackTimestampData = generateFallbackTimestamps(sentence);
-      setTimestampData(fallbackTimestampData);
-      setReadAlongVisible(true);
-    } finally {
-      setIsLoading(false);
-    }
+    setIsLoading(true);
+    
+    // Extract sentences from content
+    console.log('[ReaderScreen] Parsing content for sentences...');
+    let sentences = extractSentences();
+    setContentSentences(sentences);
+    
+    console.log('selectedLanguage: ', selectedLanguage);
+    let translation = await translateText(sentences[0], selectedLanguage);
+    const timestamps = await fetchWordTimestamps(sentences[0], selectedLanguage);
+    let speech = await fetchSpeechAudio(sentences[0], selectedLanguage);
+    setCurrentSentenceIndex(0);
+    setTimestampData(timestamps);
+    setSentenceTranslation(translation);
+    setCurrentSound(speech.sound);
+    setReadAlongVisible(true);
+    setIsLoading(false);
   };
   
-  // Function to handle advancing to the next sentence
-  const handleNextSentence = async (nextIndex) => {
-    if (nextIndex >= contentSentences.length) {
-      console.log('[ReaderScreen] Reached the end of content');
-      return;
-    }
-    
-    console.log(`[ReaderScreen] Advancing to sentence ${nextIndex + 1}/${contentSentences.length}`);
-    
-    try {
-      // Important: First update the index so the modal knows which sentence we're on
-      setCurrentSentenceIndex(nextIndex);
-      
-      // Release all audio resources to ensure clean state
-      if (sound) {
-        console.log('[ReaderScreen] Releasing previous sound resources');
-        sound.stop();
-        sound.release();
-        setSound(null);
-      }
-      
-      // Clear any previous audio data
-      setCurrentAudioBuffer(null);
-      
-      // Get the next sentence and decode HTML entities
-      const nextSentence = contentSentences[nextIndex];
-      const decodedSentence = decodeHtmlEntities(nextSentence);
-      
-      // Make sure we have a valid language
-      const language = selectedLanguage || 'Spanish';
-      console.log(`[ReaderScreen] Preparing sentence ${nextIndex + 1}: "${decodedSentence.substring(0, 30)}..." with language: ${language}`);
-      
-      // Prepare data for the next sentence
-      const sentenceData = await prepareSentenceData(decodedSentence, language);
-      
-      // Log what we received to help with debugging
-      console.log(`[ReaderScreen] Data ready for sentence ${nextIndex + 1}:`, {
-        hasAudio: !!sentenceData.audioBlob,
-        hasTranslation: !!sentenceData.translation,
-        hasTimestamps: !!(sentenceData.timestampData && 
-                     sentenceData.timestampData.marks && 
-                     sentenceData.timestampData.marks.length),
-        timestampCount: sentenceData.timestampData?.marks?.length || 0
-      });
-      
-      // Update state in a single batch to reduce render cycles
-      // Note that we set them in this specific order to ensure the modal gets everything it needs
-      setTimestampData(sentenceData.timestampData);
-      setSentenceTranslation(sentenceData.translation);
-      
-      // Set audio buffer last, as this often triggers audio processing
-      setTimeout(() => {
-        // Log more info about the audio buffer
-        console.log('[ReaderScreen] Setting audio buffer:', {
-          hasAudioBuffer: !!sentenceData.audioBlob,
-          bufferSize: sentenceData.audioBlob ? 
-            `${Math.round(sentenceData.audioBlob.size / 1024)}KB` : 'none'
-        });
-        
-        setCurrentAudioBuffer(sentenceData.audioBlob);
-      }, 200); // Slightly longer delay for more consistent timing
-    } catch (error) {
-      console.error('[ReaderScreen] Error preparing next sentence:', error);
-      
-      // Use fallback data if there's an error
-      const nextSentence = contentSentences[nextIndex];
-      const fallbackTimestampData = generateFallbackTimestamps(nextSentence);
-      setTimestampData(fallbackTimestampData);
-      setSentenceTranslation('Translation not available');
-    }
-  };
-
   // When component is unmounted, refresh the HomeScreen if requested
   useEffect(() => {
     return () => {
@@ -523,6 +400,7 @@ function ReaderScreen() {
     try {
       // Load EPUB content using the refactored function
       const { content: epubContent, tableOfContents: toc } = await loadEpubContent(fileUri);
+      console.log('TOC: ', toc);
       
       // Store table of contents
       setTableOfContents(toc);
@@ -893,10 +771,10 @@ function ReaderScreen() {
         language={selectedLanguage}
         timestampData={timestampData}
         translation={sentenceTranslation}
-        audioBuffer={currentAudioBuffer || undefined}
+        audioSound={currentSound || undefined}
         contentSentences={contentSentences}
         currentSentenceIndex={currentSentenceIndex}
-        onSentenceComplete={handleNextSentence}
+        onSentenceComplete={() => {}}
       />
     </View>
   );
