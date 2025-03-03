@@ -256,8 +256,6 @@ function ReaderScreen() {
   
   // Function to prepare and show the read-along modal
   const handleReadAlongPress = async () => {
-    setIsLoading(true);
-    
     // Extract sentences from content
     console.log('[ReaderScreen] Parsing content for sentences...');
     let sentences = extractSentences();
@@ -271,7 +269,6 @@ function ReaderScreen() {
     setSentenceTranslation(translation);
     setCurrentSound(speech.sound);
     setReadAlongVisible(true);
-    setIsLoading(false);
   };
   
   // When component is unmounted, refresh the HomeScreen if requested
@@ -682,9 +679,18 @@ function ReaderScreen() {
     }
   };
 
-  const handleAudioFinish = (success: boolean) => {
+  const handleAudioFinish = async (success: boolean) => {
     if (success) {
-      setCurrentSentenceIndex(prev => prev + 1);
+      const next = currentSentenceIndex + 1;
+      const translation = await translateText(contentSentences[next], selectedLanguage);
+      const timestamps = await fetchWordTimestamps(contentSentences[next], selectedLanguage);
+      const speech = await fetchSpeechAudio(contentSentences[next], selectedLanguage);
+      setTimestampData(timestamps);
+      setSentenceTranslation(translation);
+      setCurrentSound(speech.sound);
+      setReadAlongVisible(true);
+
+      setCurrentSentenceIndex(next);
     }
   }
 

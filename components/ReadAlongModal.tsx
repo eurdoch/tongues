@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useEffect } from 'react';
 import {
   Modal,
   View,
@@ -49,6 +49,12 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   translation,
   handleAudioFinish,
 }) => {
+
+  useEffect(() => {
+    if (audioSound) {
+      handlePlayAudio();
+    }
+  }, [audioSound]);
 
   const handlePlayAudio = () => {
     audioSound!.play(handleAudioFinish);
