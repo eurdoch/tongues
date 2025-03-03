@@ -5,7 +5,6 @@ import {
   Text,
   TouchableWithoutFeedback,
   StyleSheet,
-  ActivityIndicator,
   TouchableOpacity,
   ScrollView,
 } from 'react-native';
@@ -113,9 +112,6 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
               
               <ScrollView style={styles.contentContainer}>
                 <View style={styles.textSection}>
-                  <Text style={styles.sectionTitle}>
-                    Original Text
-                  </Text>
                   <Text style={styles.originalText}>{text}</Text>
                 </View>
               </ScrollView>
