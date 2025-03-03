@@ -50,9 +50,11 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   handleAudioFinish,
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isHalfSpeed, setIsHalfSpeed] = useState(false);
 
   useEffect(() => {
     if (audioSound) {
+      audioSound.setSpeed(isHalfSpeed ? 0.5 : 1.0);
       audioSound.play(handleAudioFinish);
       setIsPlaying(true);
     }
@@ -81,6 +83,14 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       audioSound.play(handleAudioFinish);
       setIsPlaying(true);
     }
+  };
+  
+  const togglePlaybackSpeed = () => {
+    if (!audioSound) return;
+    
+    const newSpeed = isHalfSpeed ? 1.0 : 0.5;
+    audioSound.setSpeed(newSpeed);
+    setIsHalfSpeed(!isHalfSpeed);
   };
 
   return (
@@ -117,6 +127,15 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                 >
                   <Text style={styles.controlButtonText}>
                     {isPlaying ? 'Pause' : 'Play'}
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  onPress={togglePlaybackSpeed}
+                  style={[styles.controlButton, styles.speedButton]}
+                >
+                  <Text style={styles.controlButtonText}>
+                    {isHalfSpeed ? 'Normal Speed' : 'Slow Speed'}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -249,6 +268,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     minWidth: 100,
     alignItems: 'center',
+  },
+  speedButton: {
+    backgroundColor: 'rgba(255, 193, 7, 0.8)',
   },
   controlButtonText: {
     color: '#FFFFFF',
