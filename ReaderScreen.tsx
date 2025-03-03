@@ -689,7 +689,6 @@ function ReaderScreen() {
       setCurrentSentenceIndex(next);
       setTimestampData(timestamps);
       setSentenceTranslation(translation);
-      setReadAlongVisible(true);
       setCurrentSound(speech.sound);
     }
   }
