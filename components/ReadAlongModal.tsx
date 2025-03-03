@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Modal,
   View,
@@ -49,15 +49,38 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   translation,
   handleAudioFinish,
 }) => {
+  const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
     if (audioSound) {
-      handlePlayAudio();
+      audioSound.play(handleAudioFinish);
+      setIsPlaying(true);
     }
+    return () => {
+      if (audioSound && isPlaying) {
+        audioSound.pause();
+        setIsPlaying(false);
+      }
+    };
   }, [audioSound]);
+  
+  useEffect(() => {
+    if (!visible && audioSound && isPlaying) {
+      audioSound.pause();
+      setIsPlaying(false);
+    }
+  }, [visible]);
 
   const handlePlayAudio = () => {
-    audioSound!.play(handleAudioFinish);
+    if (!audioSound) return;
+    
+    if (isPlaying) {
+      audioSound.pause();
+      setIsPlaying(false);
+    } else {
+      audioSound.play(handleAudioFinish);
+      setIsPlaying(true);
+    }
   };
 
   return (
@@ -74,7 +97,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
               <View style={styles.header}>
                 <Text style={styles.headerText}>Read Along</Text>
                 <TouchableOpacity onPress={handlePlayAudio} style={styles.playButton}>
-                  <Text style={styles.playButtonText}>Play</Text>
+                  <Text style={styles.playButtonText}>{isPlaying ? 'Pause' : 'Play'}</Text>
                 </TouchableOpacity>
               </View>
               
@@ -85,12 +108,18 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                   </Text>
                   <Text style={styles.originalText}>{text}</Text>
                 </View>
-                
-                <View style={styles.textSection}>
-                  <Text style={styles.sectionTitle}>Translation:</Text>
-                  <Text style={styles.translatedText}>{translation}</Text>
-                </View>
               </ScrollView>
+              
+              <View style={styles.controls}>
+                <TouchableOpacity
+                  onPress={handlePlayAudio}
+                  style={styles.controlButton}
+                >
+                  <Text style={styles.controlButtonText}>
+                    {isPlaying ? 'Pause' : 'Play'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </TouchableWithoutFeedback>
         </View>

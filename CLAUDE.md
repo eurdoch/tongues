@@ -4,7 +4,6 @@
 - `yarn start` - Start Metro dev server
 - `yarn ios` - Run on iOS simulator
 - `yarn android` - Run on Android emulator
-- `yarn lint` - Run ESLint on all files
 - `yarn test` - Run all Jest tests
 - `yarn test Component.test.tsx` - Run a specific test
 - `bundle exec pod install` - Install CocoaPods dependencies (iOS)

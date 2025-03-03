@@ -681,16 +681,16 @@ function ReaderScreen() {
 
   const handleAudioFinish = async (success: boolean) => {
     if (success) {
+      console.log('Audio finished');
       const next = currentSentenceIndex + 1;
       const translation = await translateText(contentSentences[next], selectedLanguage);
       const timestamps = await fetchWordTimestamps(contentSentences[next], selectedLanguage);
       const speech = await fetchSpeechAudio(contentSentences[next], selectedLanguage);
+      setCurrentSentenceIndex(next);
       setTimestampData(timestamps);
       setSentenceTranslation(translation);
-      setCurrentSound(speech.sound);
       setReadAlongVisible(true);
-
-      setCurrentSentenceIndex(next);
+      setCurrentSound(speech.sound);
     }
   }
 
