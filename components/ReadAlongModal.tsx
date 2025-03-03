@@ -66,9 +66,11 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   }, [audioSound]);
   
   useEffect(() => {
-    if (!visible && audioSound && isPlaying) {
+    if (!visible && audioSound) {
       audioSound.pause();
+      audioSound.release();
       setIsPlaying(false);
+      setIsHalfSpeed(false);
     }
   }, [visible]);
 
