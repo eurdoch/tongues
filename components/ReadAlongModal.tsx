@@ -72,6 +72,11 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   }, [visible]);
 
   const handleClose = async () => {
+    setWords([]);
+    setIsPlaying(false);
+    setHighlightIndex(0);
+    currentTimestamps.current = [];
+    currentSentenceIndex.current = 0; // TODO hmmm?
     if (soundRef.current) {
       soundRef.current.pause();
       soundRef.current.release();
@@ -150,7 +155,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                   {words.map((word, index) => (
                     <Text 
                       key={index} 
-                      style={(highlightIndex === index) ? [styles.highlightedWord, styles.originalText] : styles.originalText}
+                      style={(highlightIndex === index) ? [styles.originalText, styles.highlightedWord] : styles.originalText}
                     >
                       {word}{' '}
                     </Text>
@@ -270,14 +275,14 @@ const styles = StyleSheet.create({
   },
   originalText: {
     color: '#FFFFFF',
-    fontSize: 18,
-    lineHeight: 28,
+    fontSize: 28,
+    lineHeight: 38,
   },
   word: {
     color: '#FFFFFF',
   },
   highlightedWord: {
-    color: '#FFC107',
+    color: '#00ff00',
     fontWeight: 'bold',
   },
   translatedText: {
