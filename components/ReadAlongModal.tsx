@@ -76,9 +76,6 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   }, [visible]);
 
   const handleClose = async () => {
-    //if (currentInterval.current) {
-    //  clearInterval(currentInterval.current);
-    //}
     if (soundRef.current) {
       soundRef.current.pause();
       soundRef.current.release();
@@ -260,6 +257,8 @@ const styles = StyleSheet.create({
     maxHeight: '70%',
   },
   textSection: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     marginBottom: 20,
   },
   sectionTitle: {
