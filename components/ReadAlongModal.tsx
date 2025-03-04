@@ -38,14 +38,63 @@ interface WordTimestamp {
 
 const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   visible,
-  onClose,
   language,
+  onClose,
   sentences,
 }) => {
   const [text, setText] = useState<string>('');
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const soundRef = useRef<Sound | null>(null);
   const currentSentenceIndex = useRef<number>(0);
+  const currentInterval = useRef<any>(null);
+
+  // Add a debug log at the start of your interval to confirm it's running
+  useEffect(() => {
+    console.log('Setting up interval');
+    
+    const interval = setInterval(() => {
+      console.log('Interval tick'); // Add this to see if interval is firing at all
+      
+      if (soundRef.current) {
+        soundRef.current.getCurrentTime((seconds, isPlaying) => {
+          console.log('Sound time:', seconds);
+          console.log('Sound playing:', isPlaying);
+        });
+      } else {
+        console.log('No sound object available');
+      }
+    }, 100);
+
+    currentInterval.current = interval;
+
+    return () => {
+      console.log('Cleaning up interval');
+      clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
+    console.log('Visible state changed:', visible);
+    
+    if (!visible && soundRef.current) {
+      // Don't call handleClose (which calls onClose)
+      // Just clean up resources directly
+      console.log('Modal hiding, cleaning up resources');
+      clearInterval(currentInterval.current);
+      soundRef.current.pause();
+      soundRef.current.release();
+      soundRef.current = null;
+    }
+  }, [visible]);
+
+  const handleClose = async () => {
+    clearInterval(currentInterval.current);
+    if (soundRef.current) {
+      soundRef.current.pause();
+      soundRef.current.release();
+    }
+    onClose();
+  }
 
   const handleNextSentencePlay = async (currentIndex: number) => {
     const next = currentIndex + 1;
@@ -87,7 +136,6 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         soundRef.current.pause();
         setIsPlaying(false);
       } else {
-        soundRef.current.play();
         soundRef.current.play((success) => {
           if (success) {
             console.log(`Sentence ${currentSentenceIndex.current} finished playing.`);
@@ -104,7 +152,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       transparent
       visible={visible}
       animationType="fade"
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.overlay}>
