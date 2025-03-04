@@ -53,15 +53,11 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     console.log('Setting up interval');
     
     const interval = setInterval(() => {
-      console.log('Interval tick'); // Add this to see if interval is firing at all
-      
       if (soundRef.current) {
         soundRef.current.getCurrentTime((seconds, isPlaying) => {
           console.log('Sound time:', seconds);
           console.log('Sound playing:', isPlaying);
         });
-      } else {
-        console.log('No sound object available');
       }
     }, 100);
 
@@ -69,26 +65,16 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
 
     return () => {
       console.log('Cleaning up interval');
-      clearInterval(interval);
+      if (currentInterval.current) {
+        clearInterval(currentInterval.current);
+      }
     };
   }, []);
 
-  useEffect(() => {
-    console.log('Visible state changed:', visible);
-    
-    if (!visible && soundRef.current) {
-      // Don't call handleClose (which calls onClose)
-      // Just clean up resources directly
-      console.log('Modal hiding, cleaning up resources');
-      clearInterval(currentInterval.current);
-      soundRef.current.pause();
-      soundRef.current.release();
-      soundRef.current = null;
-    }
-  }, [visible]);
-
   const handleClose = async () => {
-    clearInterval(currentInterval.current);
+    if (currentInterval.current) {
+      clearInterval(currentInterval.current);
+    }
     if (soundRef.current) {
       soundRef.current.pause();
       soundRef.current.release();
@@ -100,7 +86,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     const next = currentIndex + 1;
     currentSentenceIndex.current = next;
     //const translation = await translateText(sentences[next], language);
-    //const timestamps = await fetchWordTimestamps(sentences[next], language);
+    const timestamps = await fetchWordTimestamps(sentences[next], language);
     const speech = await fetchSpeechAudio(sentences[next], language);
     setText(sentences[next]);
     soundRef.current = speech.sound;
@@ -116,7 +102,8 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   const handleStart = async (_e: any) => {
     setText(sentences[0]);
     //const translation = await translateText(sentences[0], language);
-    //const timestamps = await fetchWordTimestamps(sentences[0], language);
+    const timestamps = await fetchWordTimestamps(sentences[0], language);
+    console.log('Timestamps: ', timestamps);
     const speech = await fetchSpeechAudio(sentences[0], language);
     soundRef.current = speech.sound;
 
@@ -154,7 +141,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       animationType="fade"
       onRequestClose={handleClose}
     >
-      <TouchableWithoutFeedback onPress={onClose}>
+      <TouchableWithoutFeedback onPress={handleClose}>
         <View style={styles.overlay}>
           <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
             <View style={styles.container}>
