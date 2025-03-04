@@ -47,13 +47,9 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     if (visible) {
       const interval = setInterval(() => {
         if (soundRef.current) {
-          soundRef.current.getCurrentTime((seconds, isPlaying) => {
+          soundRef.current.getCurrentTime((seconds, _isPlaying) => {
             const milliseconds = seconds * 1000;
-            // TODO this could be improved, using highlightIndex
-            for (let index = 1; index < currentTimestamps.current.length; index++) {
-              console.log('timestamp: ', currentTimestamps.current[index]);
-              console.log('current audio time: ', milliseconds);
-              console.log('current word time boundary: ', currentTimestamps.current[index].time);
+            for (let index = highlightIndex; index < currentTimestamps.current.length; index++) {
               if (currentTimestamps.current.length === index + 1) {
                 setHighlightIndex(index);
                 break;
