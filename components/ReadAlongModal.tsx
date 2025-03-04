@@ -9,6 +9,7 @@ import {
   ScrollView,
 } from 'react-native';
 import Sound from 'react-native-sound';
+import { fetchSpeechAudio, fetchWordTimestamps, translateText } from './reader/TranslationService';
 
 interface TimestampMark {
   time: number;
@@ -25,12 +26,8 @@ interface TimestampData {
 interface ReadAlongModalProps {
   visible: boolean;
   onClose: () => void;
-  text: string;
-  language?: string;
-  audioSound?: Sound;
-  timestampData: TimestampData;
-  translation: string;
-  handleAudioFinish: (success: boolean) => void;
+  language: string;
+  sentences: string[];
 }
 
 interface WordTimestamp {
@@ -42,58 +39,30 @@ interface WordTimestamp {
 const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   visible,
   onClose,
-  text,
-  audioSound,
-  timestampData,
-  translation,
-  handleAudioFinish,
+  language,
+  sentences,
 }) => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isHalfSpeed, setIsHalfSpeed] = useState(false);
+  const [text, setText] = useState<string>('');
 
-  useEffect(() => {
-    if (audioSound) {
-      audioSound.setSpeed(isHalfSpeed ? 0.5 : 1.0);
-      audioSound.play(handleAudioFinish);
-      setIsPlaying(true);
+  const handleAudioFinish = async (success: boolean) => {
+    if (success) {
+      console.log('Audio finished');
     }
-    return () => {
-      if (audioSound && isPlaying) {
-        audioSound.pause();
-        setIsPlaying(false);
-      }
-    };
-  }, [audioSound]);
-  
-  useEffect(() => {
-    if (!visible && audioSound) {
-      audioSound.pause();
-      audioSound.release();
-      setIsPlaying(false);
-      setIsHalfSpeed(false);
-    }
-  }, [visible]);
+  }
+
+  const handleStart = async (_e: any) => {
+    setText(sentences[0]);
+    const translation = await translateText(sentences[0], language);
+    const timestamps = await fetchWordTimestamps(sentences[0], language);
+    const speech = await fetchSpeechAudio(sentences[0], language);
+
+    speech.sound.play(handleAudioFinish);
+  }
 
   const handlePlayAudio = () => {
-    if (!audioSound) return;
-    
-    if (isPlaying) {
-      audioSound.pause();
-      setIsPlaying(false);
-    } else {
-      audioSound.play(handleAudioFinish);
-      setIsPlaying(true);
-    }
-  };
+    console.log('handlePlayAudio');
+  }
   
-  const togglePlaybackSpeed = () => {
-    if (!audioSound) return;
-    
-    const newSpeed = isHalfSpeed ? 1.0 : 0.5;
-    audioSound.setSpeed(newSpeed);
-    setIsHalfSpeed(!isHalfSpeed);
-  };
-
   return (
     <Modal
       transparent
@@ -105,13 +74,6 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         <View style={styles.overlay}>
           <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
             <View style={styles.container}>
-              <View style={styles.header}>
-                <Text style={styles.headerText}>Read Along</Text>
-                <TouchableOpacity onPress={handlePlayAudio} style={styles.playButton}>
-                  <Text style={styles.playButtonText}>{isPlaying ? 'Pause' : 'Play'}</Text>
-                </TouchableOpacity>
-              </View>
-              
               <ScrollView style={styles.contentContainer}>
                 <View style={styles.textSection}>
                   <Text style={styles.originalText}>{text}</Text>
@@ -124,18 +86,18 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                   style={styles.controlButton}
                 >
                   <Text style={styles.controlButtonText}>
-                    {isPlaying ? 'Pause' : 'Play'}
+                    {'Play'}
                   </Text>
                 </TouchableOpacity>
-                
                 <TouchableOpacity
-                  onPress={togglePlaybackSpeed}
-                  style={[styles.controlButton, styles.speedButton]}
+                  onPress={handleStart}
+                  style={styles.controlButton}
                 >
                   <Text style={styles.controlButtonText}>
-                    {isHalfSpeed ? 'Normal Speed' : 'Slow Speed'}
+                    {'Start'}
                   </Text>
                 </TouchableOpacity>
+
               </View>
             </View>
           </TouchableWithoutFeedback>

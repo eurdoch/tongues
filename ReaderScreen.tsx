@@ -254,20 +254,11 @@ function ReaderScreen() {
     return result;
   };
   
-  // Function to prepare and show the read-along modal
   const handleReadAlongPress = async () => {
-    // Extract sentences from content
     console.log('[ReaderScreen] Parsing content for sentences...');
     let sentences = extractSentences();
     setContentSentences(sentences);
     
-    let translation = await translateText(sentences[0], selectedLanguage);
-    const timestamps = await fetchWordTimestamps(sentences[0], selectedLanguage);
-    let speech = await fetchSpeechAudio(sentences[0], selectedLanguage);
-    setCurrentSentenceIndex(0);
-    setTimestampData(timestamps);
-    setSentenceTranslation(translation);
-    setCurrentSound(speech.sound);
     setReadAlongVisible(true);
   };
   
@@ -679,20 +670,6 @@ function ReaderScreen() {
     }
   };
 
-  const handleAudioFinish = async (success: boolean) => {
-    if (success) {
-      console.log('Audio finished');
-      const next = currentSentenceIndex + 1;
-      const translation = await translateText(contentSentences[next], selectedLanguage);
-      const timestamps = await fetchWordTimestamps(contentSentences[next], selectedLanguage);
-      const speech = await fetchSpeechAudio(contentSentences[next], selectedLanguage);
-      setCurrentSentenceIndex(next);
-      setTimestampData(timestamps);
-      setSentenceTranslation(translation);
-      setCurrentSound(speech.sound);
-    }
-  }
-
   // Render item for FlatList
   const renderItemForFlatList = ({ item, index }: { item: ElementNode; index: number }) => {
     return (
@@ -768,12 +745,8 @@ function ReaderScreen() {
       <ReadAlongModal
         visible={readAlongVisible}
         onClose={() => setReadAlongVisible(false)}
-        text={contentSentences[currentSentenceIndex] || ''}
         language={selectedLanguage}
-        timestampData={timestampData}
-        translation={sentenceTranslation}
-        audioSound={currentSound || undefined}
-        handleAudioFinish={handleAudioFinish}
+        sentences={contentSentences}
       />
     </View>
   );
