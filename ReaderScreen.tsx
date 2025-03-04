@@ -30,6 +30,7 @@ import {
 } from './components/reader/TranslationService';
 import TranslationModal from './components/reader/TranslationModal';
 import ReadAlongModal from './components/ReadAlongModal';
+import LanguageSelectorModal from './components/LanguageSelectorModal';
 import { ElementNode } from './components/reader/types';
 import { Text } from 'react-native-gesture-handler';
 
@@ -55,12 +56,8 @@ function ReaderScreen() {
   const [sound, setSound] = useState<Sound | null>(null);
   const [readAlongVisible, setReadAlongVisible] = useState<boolean>(false);
   const [contentSentences, setContentSentences] = useState<string[]>([]);
-  const [currentSentenceIndex, setCurrentSentenceIndex] = useState<number>(0);
-  const [currentSound, setCurrentSound] = useState<Sound | null>(null);
-  const [timestampData, setTimestampData] = useState<any>(null);
-  const [sentenceTranslation, setSentenceTranslation] = useState<string>('');
+  const [languageSelectorVisible, setLanguageSelectorVisible] = useState<boolean>(false);
 
-  // Function to extract all readable sentences from content
   const extractSentences = () => {
     if (!content) return ['Hello, welcome to Read Along mode'];
     
@@ -198,6 +195,7 @@ function ReaderScreen() {
   };
 
   // Function to prepare data for a single sentence
+  // TODO FLAGGED for removal
   const prepareSentenceData = async (sentence, language = 'Spanish') => {
     // Ensure we have a valid language
     if (!language || typeof language !== 'string' || language.trim() === '') {
@@ -365,6 +363,14 @@ function ReaderScreen() {
     }
   }, [isLoading, navigation, fileUri, handleReadAlongPress]);
 
+  // Handler for language selection from the modal
+  const handleLanguageSelect = (language: string) => {
+    console.log('[ReaderScreen] User selected language:', language);
+    setSelectedLanguage(language);
+    setLanguageSelectorVisible(false);
+    setIsLoading(false);
+  };
+
   // Define loadEpub with useCallback
   const loadEpub = useCallback(async () => {
     if (!fileUri) {
@@ -389,13 +395,18 @@ function ReaderScreen() {
         const contentSample = extractContentSample(epubContent);
         const detectedLanguage = await detectLanguage(contentSample, supportedLanguages);
         setSelectedLanguage(detectedLanguage);
+        setIsLoading(false);
       } catch (langError) {
         console.error('[ReaderScreen] Error detecting language:', langError);
-        setSelectedLanguage('French'); // Default
+        // Instead of defaulting to French, show the language selector modal
+        console.log('[ReaderScreen] Showing language selector modal due to detection error');
+        // Set loading to false so the main UI renders and can show the modal
+        setIsLoading(false);
+        // Now show the language selection modal
+        setLanguageSelectorVisible(true);
       }
       
       console.log('[ReaderScreen] EPUB loaded successfully');
-      setIsLoading(false);
     } catch (error) {
       console.error('[ReaderScreen] Error loading epub:', error);
       setError('Failed to load the book');
@@ -747,6 +758,19 @@ function ReaderScreen() {
         onClose={() => setReadAlongVisible(false)}
         language={selectedLanguage}
         sentences={contentSentences}
+      />
+
+      {/* Language Selector Modal */}
+      <LanguageSelectorModal
+        visible={languageSelectorVisible}
+        supportedLanguages={supportedLanguages}
+        onClose={() => {
+          // If user closes without selecting, default to French
+          setSelectedLanguage('French');
+          setLanguageSelectorVisible(false);
+          setIsLoading(false);
+        }}
+        onSelectLanguage={handleLanguageSelect}
       />
     </View>
   );
