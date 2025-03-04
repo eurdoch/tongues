@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Modal,
   View,
@@ -8,8 +8,8 @@ import {
   TouchableOpacity,
   ScrollView,
 } from 'react-native';
-import Sound from 'react-native-sound';
 import { fetchSpeechAudio, fetchWordTimestamps, translateText } from './reader/TranslationService';
+import Sound from 'react-native-sound';
 
 interface TimestampMark {
   time: number;
@@ -43,26 +43,62 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   sentences,
 }) => {
   const [text, setText] = useState<string>('');
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const soundRef = useRef<Sound | null>(null);
+  const currentSentenceIndex = useRef<number>(0);
 
-  const handleAudioFinish = async (success: boolean) => {
-    if (success) {
-      console.log('Audio finished');
-    }
+  const handleNextSentencePlay = async (currentIndex: number) => {
+    const next = currentIndex + 1;
+    currentSentenceIndex.current = next;
+    //const translation = await translateText(sentences[next], language);
+    //const timestamps = await fetchWordTimestamps(sentences[next], language);
+    const speech = await fetchSpeechAudio(sentences[next], language);
+    setText(sentences[next]);
+    soundRef.current = speech.sound;
+
+    soundRef.current.play((success) => {
+      if (success) {
+        console.log(`Sentence ${next} finished playing.`);
+        handleNextSentencePlay(next);
+      }
+    });
   }
 
   const handleStart = async (_e: any) => {
     setText(sentences[0]);
-    const translation = await translateText(sentences[0], language);
-    const timestamps = await fetchWordTimestamps(sentences[0], language);
+    //const translation = await translateText(sentences[0], language);
+    //const timestamps = await fetchWordTimestamps(sentences[0], language);
     const speech = await fetchSpeechAudio(sentences[0], language);
+    soundRef.current = speech.sound;
 
-    speech.sound.play(handleAudioFinish);
+    setIsPlaying(true);
+    // TODO handle errors where soundRef.current is null ?
+    soundRef.current.play((success) => {
+      if (success) {
+        console.log(`Sentence 0 finished playing.`);
+        handleNextSentencePlay(0);
+      }
+    });
   }
 
-  const handlePlayAudio = () => {
-    console.log('handlePlayAudio');
+  const handleTogglePlay = (_e: any) => {
+    if (soundRef.current) {
+      if (isPlaying) {
+        soundRef.current.pause();
+        setIsPlaying(false);
+      } else {
+        soundRef.current.play();
+        soundRef.current.play((success) => {
+          if (success) {
+            console.log(`Sentence ${currentSentenceIndex.current} finished playing.`);
+            handleNextSentencePlay(currentSentenceIndex.current);
+          }
+        });
+        setIsPlaying(true);
+      }
+    }
   }
-  
+
   return (
     <Modal
       transparent
@@ -82,14 +118,6 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
               
               <View style={styles.controls}>
                 <TouchableOpacity
-                  onPress={handlePlayAudio}
-                  style={styles.controlButton}
-                >
-                  <Text style={styles.controlButtonText}>
-                    {'Play'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
                   onPress={handleStart}
                   style={styles.controlButton}
                 >
@@ -97,7 +125,14 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                     {'Start'}
                   </Text>
                 </TouchableOpacity>
-
+                <TouchableOpacity
+                  onPress={handleTogglePlay}
+                  style={styles.controlButton}
+                >
+                  <Text style={styles.controlButtonText}>
+                    {isPlaying ? 'Pause' : 'Play'}
+                  </Text>
+                </TouchableOpacity>
               </View>
             </View>
           </TouchableWithoutFeedback>
