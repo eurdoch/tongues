@@ -19,21 +19,11 @@ interface TimestampMark {
   value: string;
 }
 
-interface TimestampData {
-  marks: TimestampMark[];
-}
-
 interface ReadAlongModalProps {
   visible: boolean;
   onClose: () => void;
   language: string;
   sentences: string[];
-}
-
-interface WordTimestamp {
-  word: string;
-  start: number;
-  end: number;
 }
 
 const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
@@ -42,39 +32,53 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   onClose,
   sentences,
 }) => {
-  const [text, setText] = useState<string>('');
+  const [words, setWords] = useState<string[]>([]);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [highlightIndex, setHighlightIndex] = useState<number>(0);
   const soundRef = useRef<Sound | null>(null);
   const currentSentenceIndex = useRef<number>(0);
   const currentInterval = useRef<any>(null);
+  const currentTimestamps = useRef<TimestampMark[]>([]);
 
   // Add a debug log at the start of your interval to confirm it's running
   useEffect(() => {
     console.log('Setting up interval');
     
-    const interval = setInterval(() => {
-      if (soundRef.current) {
-        soundRef.current.getCurrentTime((seconds, isPlaying) => {
-          console.log('Sound time:', seconds);
-          console.log('Sound playing:', isPlaying);
-        });
-      }
-    }, 100);
+    if (visible) {
+      const interval = setInterval(() => {
+        if (soundRef.current) {
+          soundRef.current.getCurrentTime((seconds, isPlaying) => {
+            const milliseconds = seconds * 1000;
+            // TODO this could be improved, using highlightIndex
+            for (let index = 1; index < currentTimestamps.current.length; index++) {
+              console.log('timestamp: ', currentTimestamps.current[index]);
+              console.log('current audio time: ', milliseconds);
+              console.log('current word time boundary: ', currentTimestamps.current[index].time);
+              if (currentTimestamps.current.length === index + 1) {
+                setHighlightIndex(index);
+                break;
+              } else if (currentTimestamps.current[index].time > milliseconds) {
+                setHighlightIndex(index-1);
+                break;
+              }
+            }
+          });
+        }
+      }, 100);
 
-    currentInterval.current = interval;
-
-    return () => {
+      currentInterval.current = interval;
+    } else {
       console.log('Cleaning up interval');
       if (currentInterval.current) {
         clearInterval(currentInterval.current);
       }
-    };
-  }, []);
+    }
+  }, [visible]);
 
   const handleClose = async () => {
-    if (currentInterval.current) {
-      clearInterval(currentInterval.current);
-    }
+    //if (currentInterval.current) {
+    //  clearInterval(currentInterval.current);
+    //}
     if (soundRef.current) {
       soundRef.current.pause();
       soundRef.current.release();
@@ -87,8 +91,9 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     currentSentenceIndex.current = next;
     //const translation = await translateText(sentences[next], language);
     const timestamps = await fetchWordTimestamps(sentences[next], language);
+    currentTimestamps.current = timestamps;
     const speech = await fetchSpeechAudio(sentences[next], language);
-    setText(sentences[next]);
+    setWords(sentences[next].split(' '));
     soundRef.current = speech.sound;
 
     soundRef.current.play((success) => {
@@ -100,9 +105,11 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   }
 
   const handleStart = async (_e: any) => {
-    setText(sentences[0]);
+    setWords(sentences[0].split(' '));
+    setHighlightIndex(0);
     //const translation = await translateText(sentences[0], language);
-    const timestamps = await fetchWordTimestamps(sentences[0], language);
+    const timestamps: TimestampMark[] = await fetchWordTimestamps(sentences[0], language);
+    currentTimestamps.current = timestamps;
     console.log('Timestamps: ', timestamps);
     const speech = await fetchSpeechAudio(sentences[0], language);
     soundRef.current = speech.sound;
@@ -147,7 +154,14 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
             <View style={styles.container}>
               <ScrollView style={styles.contentContainer}>
                 <View style={styles.textSection}>
-                  <Text style={styles.originalText}>{text}</Text>
+                  {words.map((word, index) => (
+                    <Text 
+                      key={index} 
+                      style={(highlightIndex === index) ? [styles.highlightedWord, styles.originalText] : styles.originalText}
+                    >
+                      {word}{' '}
+                    </Text>
+                  ))}
                 </View>
               </ScrollView>
               
