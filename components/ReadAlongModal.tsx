@@ -7,6 +7,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { fetchSpeechAudio, fetchWordTimestamps, translateText } from './reader/TranslationService';
 import Sound from 'react-native-sound';
@@ -35,6 +36,8 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   const [words, setWords] = useState<string[]>([]);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [highlightIndex, setHighlightIndex] = useState<number>(0);
+  const [selectedWordTranslation, setSelectedWordTranslation] = useState<string>('');
+  const [isTranslating, setIsTranslating] = useState<boolean>(false);
   const soundRef = useRef<Sound | null>(null);
   const currentSentenceIndex = useRef<number>(0);
   const currentInterval = useRef<any>(null);
@@ -75,6 +78,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     setWords([]);
     setIsPlaying(false);
     setHighlightIndex(0);
+    setSelectedWordTranslation('');
     currentTimestamps.current = [];
     currentSentenceIndex.current = 0; // TODO hmmm?
     if (soundRef.current) {
@@ -105,6 +109,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   const handleStart = async (_e: any) => {
     setWords(sentences[0].split(' '));
     setHighlightIndex(0);
+    setSelectedWordTranslation('');
     //const translation = await translateText(sentences[0], language);
     const timestamps: TimestampMark[] = await fetchWordTimestamps(sentences[0], language);
     currentTimestamps.current = timestamps;
@@ -139,6 +144,29 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     }
   }
 
+  const handleWordClick = async (word: string, index: number) => {
+    // Pause the audio
+    if (soundRef.current && isPlaying) {
+      soundRef.current.pause();
+      setIsPlaying(false);
+    }
+    
+    // Set the highlight to the clicked word
+    setHighlightIndex(index);
+    
+    // Get translation for the word
+    setIsTranslating(true);
+    try {
+      const translation = await translateText(word, language);
+      setSelectedWordTranslation(translation);
+    } catch (error) {
+      console.error('Error translating word:', error);
+      setSelectedWordTranslation('Translation error');
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
   return (
     <Modal
       transparent
@@ -153,12 +181,16 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
               <ScrollView style={styles.contentContainer}>
                 <View style={styles.textSection}>
                   {words.map((word, index) => (
-                    <Text 
+                    <TouchableOpacity 
                       key={index} 
-                      style={(highlightIndex === index) ? [styles.originalText, styles.highlightedWord] : styles.originalText}
+                      onPress={() => handleWordClick(word, index)}
                     >
-                      {word}{' '}
-                    </Text>
+                      <Text 
+                        style={(highlightIndex === index) ? [styles.originalText, styles.highlightedWord] : styles.originalText}
+                      >
+                        {word}{' '}
+                      </Text>
+                    </TouchableOpacity>
                   ))}
                 </View>
               </ScrollView>
@@ -181,6 +213,18 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                   </Text>
                 </TouchableOpacity>
               </View>
+              
+              {(isTranslating || selectedWordTranslation) && (
+                <View style={styles.translationContainer}>
+                  {isTranslating ? (
+                    <ActivityIndicator size="small" color="#007AFF" />
+                  ) : (
+                    <Text style={styles.translatedText}>
+                      {selectedWordTranslation}
+                    </Text>
+                  )}
+                </View>
+              )}
             </View>
           </TouchableWithoutFeedback>
         </View>
@@ -285,13 +329,21 @@ const styles = StyleSheet.create({
     color: '#00ff00',
     fontWeight: 'bold',
   },
+  translationContainer: {
+    padding: 15,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+  },
   translatedText: {
     color: '#E0E0E0',
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 18,
+    fontWeight: '500',
+    textAlign: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.2)',
     padding: 10,
     borderRadius: 8,
+    width: '100%',
   },
   controls: {
     flexDirection: 'row',
