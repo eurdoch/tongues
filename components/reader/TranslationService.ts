@@ -2,6 +2,61 @@ import RNFS from 'react-native-fs';
 import Sound from 'react-native-sound';
 
 /**
+ * Get an explanation of a word using Anthropic's Haiku model
+ */
+export const explainWord = async (
+  word: string,
+  language: string
+): Promise<string> => {
+  // Validate inputs
+  if (!word || typeof word !== 'string' || word.trim().length === 0) {
+    console.error('Invalid word provided to explainWord:', word);
+    throw new Error('Invalid word provided');
+  }
+  
+  if (!language || typeof language !== 'string') {
+    console.error('Invalid language provided to explainWord:', language);
+    throw new Error('Invalid language provided');
+  }
+  
+  // Make sure first letter is capitalized for consistency
+  const normalizedLanguage = language.charAt(0).toUpperCase() + language.slice(1).toLowerCase();
+  
+  console.log('Explaining word:', { word, language: normalizedLanguage });
+  
+  try {
+    const response = await fetch('https://tongues.directto.link/explain', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        word: word,
+        language: normalizedLanguage,
+      }),
+    });
+    
+    console.log('Explanation API response status:', response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'No error details');
+      console.error('Explanation API error:', errorText);
+      throw new Error(`Explanation request failed with status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    if (!data.explanation) {
+      throw new Error('Explanation API did not return an explanation');
+    }
+    
+    return data.explanation;
+  } catch (error) {
+    console.error('Error in explainWord:', error);
+    throw error;
+  }
+};
+
+/**
  * Fetch translation from the API
  */
 export const translateText = async (

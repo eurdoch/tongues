@@ -9,7 +9,7 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import { fetchSpeechAudio, fetchWordTimestamps, translateText } from './reader/TranslationService';
+import { fetchSpeechAudio, fetchWordTimestamps, translateText, explainWord } from './reader/TranslationService';
 import Sound from 'react-native-sound';
 
 interface TimestampMark {
@@ -43,7 +43,9 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [highlightIndex, setHighlightIndex] = useState<number>(0);
   const [selectedWordTranslation, setSelectedWordTranslation] = useState<string>('');
+  const [selectedWordExplanation, setSelectedWordExplanation] = useState<string>('');
   const [isTranslating, setIsTranslating] = useState<boolean>(false);
+  const [isExplaining, setIsExplaining] = useState<boolean>(false);
   const soundRef = useRef<Sound | null>(null);
   const currentSentenceIndex = useRef<number>(0);
   const currentInterval = useRef<any>(null);
@@ -87,6 +89,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     setIsPlaying(false);
     setHighlightIndex(0);
     setSelectedWordTranslation('');
+    setSelectedWordExplanation('');
     currentTimestamps.current = [];
     currentSentenceIndex.current = 0;
     
@@ -205,6 +208,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     setWords(sentences[0].split(' '));
     setHighlightIndex(0);
     setSelectedWordTranslation('');
+    setSelectedWordExplanation('');
     //const translation = await translateText(sentences[0], language);
     const timestamps: TimestampMark[] = await fetchWordTimestamps(sentences[0], language);
     currentTimestamps.current = timestamps;
@@ -260,14 +264,25 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     // Set the highlight to the clicked word
     setHighlightIndex(index);
     
+    // Clear previous explanation and translation
+    setSelectedWordExplanation('');
+    setSelectedWordTranslation('');
+    
     // Get translation for the word
     setIsTranslating(true);
     try {
-      const translation = await translateText(word, language);
+      // Fetch translation and explanation in parallel
+      const [translation, explanation] = await Promise.all([
+        translateText(word, language),
+        explainWord(word, language)
+      ]);
+      
       setSelectedWordTranslation(translation);
+      setSelectedWordExplanation(explanation);
     } catch (error) {
-      console.error('Error translating word:', error);
+      console.error('Error processing word:', error);
       setSelectedWordTranslation('Translation error');
+      setSelectedWordExplanation('Explanation not available');
     } finally {
       setIsTranslating(false);
     }
@@ -320,14 +335,30 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                 </TouchableOpacity>
               </View>
               
-              {(isTranslating || selectedWordTranslation) && (
+              {(isTranslating || selectedWordTranslation || selectedWordExplanation) && (
                 <View style={styles.translationContainer}>
                   {isTranslating ? (
                     <ActivityIndicator size="small" color="#007AFF" />
                   ) : (
-                    <Text style={styles.translatedText}>
-                      {selectedWordTranslation}
-                    </Text>
+                    <ScrollView style={styles.translationScrollView}>
+                      {selectedWordTranslation && (
+                        <View style={styles.translationSection}>
+                          <Text style={styles.sectionTitle}>Translation</Text>
+                          <Text style={styles.translatedText}>
+                            {selectedWordTranslation}
+                          </Text>
+                        </View>
+                      )}
+                      
+                      {selectedWordExplanation && (
+                        <View style={styles.translationSection}>
+                          <Text style={styles.sectionTitle}>Explanation</Text>
+                          <Text style={styles.explanationText}>
+                            {selectedWordExplanation}
+                          </Text>
+                        </View>
+                      )}
+                    </ScrollView>
                   )}
                 </View>
               )}
@@ -440,12 +471,29 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.1)',
     alignItems: 'center',
+    maxHeight: 200,
+  },
+  translationScrollView: {
+    width: '100%',
+  },
+  translationSection: {
+    marginBottom: 10,
+    width: '100%',
   },
   translatedText: {
     color: '#E0E0E0',
     fontSize: 18,
     fontWeight: '500',
     textAlign: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    padding: 10,
+    borderRadius: 8,
+    width: '100%',
+  },
+  explanationText: {
+    color: '#E0E0E0',
+    fontSize: 16,
+    lineHeight: 22,
     backgroundColor: 'rgba(0, 0, 0, 0.2)',
     padding: 10,
     borderRadius: 8,
