@@ -20,6 +20,12 @@ interface TimestampMark {
   value: string;
 }
 
+interface SentenceData {
+  sound: Sound;
+  timestamps: TimestampMark[];
+  words: string[];
+}
+
 interface ReadAlongModalProps {
   visible: boolean;
   onClose: () => void;
@@ -42,6 +48,8 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   const currentSentenceIndex = useRef<number>(0);
   const currentInterval = useRef<any>(null);
   const currentTimestamps = useRef<TimestampMark[]>([]);
+  const nextSentenceData = useRef<SentenceData | null>(null);
+  const isPreloading = useRef<boolean>(false);
 
   // Add a debug log at the start of your interval to confirm it's running
   useEffect(() => {
@@ -80,30 +88,117 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     setHighlightIndex(0);
     setSelectedWordTranslation('');
     currentTimestamps.current = [];
-    currentSentenceIndex.current = 0; // TODO hmmm?
+    currentSentenceIndex.current = 0;
+    
+    // Clean up current sound
     if (soundRef.current) {
       soundRef.current.pause();
       soundRef.current.release();
     }
+    
+    // Clean up next sound if it exists
+    if (nextSentenceData.current?.sound) {
+      nextSentenceData.current.sound.release();
+      nextSentenceData.current = null;
+    }
+    
     onClose();
   }
 
+  // Function to preload the next sentence data
+  const preloadNextSentence = async (nextIndex: number): Promise<void> => {
+    // Don't preload if we're already preloading or if there's no next sentence
+    if (isPreloading.current || nextIndex >= sentences.length) {
+      return;
+    }
+    
+    isPreloading.current = true;
+    console.log(`Preloading sentence ${nextIndex}`);
+    
+    try {
+      const timestamps = await fetchWordTimestamps(sentences[nextIndex], language);
+      const speech = await fetchSpeechAudio(sentences[nextIndex], language);
+      const words = sentences[nextIndex].split(' ');
+      
+      nextSentenceData.current = {
+        sound: speech.sound,
+        timestamps,
+        words
+      };
+      
+      console.log(`Preloaded sentence ${nextIndex} successfully`);
+    } catch (error) {
+      console.error(`Error preloading sentence ${nextIndex}:`, error);
+      nextSentenceData.current = null;
+    } finally {
+      isPreloading.current = false;
+    }
+  };
+
   const handleNextSentencePlay = async (currentIndex: number) => {
     const next = currentIndex + 1;
+    
+    // Check if we've reached the end of sentences
+    if (next >= sentences.length) {
+      console.log('Reached the end of all sentences');
+      return;
+    }
+    
     currentSentenceIndex.current = next;
-    //const translation = await translateText(sentences[next], language);
-    const timestamps = await fetchWordTimestamps(sentences[next], language);
-    currentTimestamps.current = timestamps;
-    const speech = await fetchSpeechAudio(sentences[next], language);
-    setWords(sentences[next].split(' '));
-    soundRef.current = speech.sound;
-
-    soundRef.current.play((success) => {
-      if (success) {
-        console.log(`Sentence ${next} finished playing.`);
-        handleNextSentencePlay(next);
+    setHighlightIndex(0);
+    
+    // If we have preloaded data for the next sentence, use it
+    if (nextSentenceData.current) {
+      console.log(`Using preloaded data for sentence ${next}`);
+      currentTimestamps.current = nextSentenceData.current.timestamps;
+      setWords(nextSentenceData.current.words);
+      
+      // Clean up previous sound if it exists
+      if (soundRef.current) {
+        soundRef.current.release();
       }
-    });
+      
+      soundRef.current = nextSentenceData.current.sound;
+      nextSentenceData.current = null;
+      
+      // Start preloading the sentence after this one
+      if (next + 1 < sentences.length) {
+        preloadNextSentence(next + 1);
+      }
+      
+      soundRef.current.play((success) => {
+        if (success) {
+          console.log(`Sentence ${next} finished playing.`);
+          handleNextSentencePlay(next);
+        }
+      });
+    } else {
+      // If we don't have preloaded data, load it now
+      console.log(`Loading sentence ${next} data on demand`);
+      const timestamps = await fetchWordTimestamps(sentences[next], language);
+      currentTimestamps.current = timestamps;
+      const speech = await fetchSpeechAudio(sentences[next], language);
+      setWords(sentences[next].split(' '));
+      
+      // Clean up previous sound if it exists
+      if (soundRef.current) {
+        soundRef.current.release();
+      }
+      
+      soundRef.current = speech.sound;
+      
+      // Start preloading the sentence after this one
+      if (next + 1 < sentences.length) {
+        preloadNextSentence(next + 1);
+      }
+      
+      soundRef.current.play((success) => {
+        if (success) {
+          console.log(`Sentence ${next} finished playing.`);
+          handleNextSentencePlay(next);
+        }
+      });
+    }
   }
 
   const handleStart = async (_e: any) => {
@@ -116,6 +211,11 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     console.log('Timestamps: ', timestamps);
     const speech = await fetchSpeechAudio(sentences[0], language);
     soundRef.current = speech.sound;
+    
+    // Preload the next sentence while the first one is playing
+    if (sentences.length > 1) {
+      preloadNextSentence(1);
+    }
 
     setIsPlaying(true);
     // TODO handle errors where soundRef.current is null ?
@@ -140,6 +240,12 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
           }
         });
         setIsPlaying(true);
+        
+        // If we're resuming and don't have the next sentence preloaded, start preloading
+        const nextIndex = currentSentenceIndex.current + 1;
+        if (nextIndex < sentences.length && !nextSentenceData.current && !isPreloading.current) {
+          preloadNextSentence(nextIndex);
+        }
       }
     }
   }
