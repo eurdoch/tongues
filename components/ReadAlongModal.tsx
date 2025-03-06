@@ -42,6 +42,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   const [words, setWords] = useState<string[]>([]);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [highlightIndex, setHighlightIndex] = useState<number>(0);
+  const [selectedWord, setSelectedWord] = useState<string>('');
   const [selectedWordTranslation, setSelectedWordTranslation] = useState<string>('');
   const [selectedWordExplanation, setSelectedWordExplanation] = useState<string>('');
   const [isTranslating, setIsTranslating] = useState<boolean>(false);
@@ -88,6 +89,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     setWords([]);
     setIsPlaying(false);
     setHighlightIndex(0);
+    setSelectedWord('');
     setSelectedWordTranslation('');
     setSelectedWordExplanation('');
     currentTimestamps.current = [];
@@ -207,6 +209,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   const handleStart = async (_e: any) => {
     setWords(sentences[0].split(' '));
     setHighlightIndex(0);
+    setSelectedWord('');
     setSelectedWordTranslation('');
     setSelectedWordExplanation('');
     //const translation = await translateText(sentences[0], language);
@@ -261,8 +264,9 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       setIsPlaying(false);
     }
     
-    // Set the highlight to the clicked word
+    // Set the highlight to the clicked word and store the word itself
     setHighlightIndex(index);
+    setSelectedWord(word);
     
     // Clear previous explanation and translation
     setSelectedWordExplanation('');
@@ -271,20 +275,35 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     // Get translation for the word
     setIsTranslating(true);
     try {
-      // Fetch translation and explanation in parallel
-      const [translation, explanation] = await Promise.all([
-        translateText(word, language),
-        explainWord(word, language)
-      ]);
-      
+      // Fetch only the translation initially
+      const translation = await translateText(word, language);
       setSelectedWordTranslation(translation);
-      setSelectedWordExplanation(explanation);
     } catch (error) {
-      console.error('Error processing word:', error);
+      console.error('Error translating word:', error);
       setSelectedWordTranslation('Translation error');
-      setSelectedWordExplanation('Explanation not available');
     } finally {
       setIsTranslating(false);
+    }
+  };
+  
+  const handleExplainWord = async () => {
+    // Don't do anything if no word is selected
+    if (!selectedWord) {
+      return;
+    }
+    
+    // Show loading state
+    setIsExplaining(true);
+    
+    try {
+      // Fetch explanation using the stored selected word
+      const explanation = await explainWord(selectedWord, language);
+      setSelectedWordExplanation(explanation);
+    } catch (error) {
+      console.error('Error explaining word:', error);
+      setSelectedWordExplanation('Explanation not available');
+    } finally {
+      setIsExplaining(false);
     }
   };
 
@@ -343,10 +362,32 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                     <ScrollView style={styles.translationScrollView}>
                       {selectedWordTranslation && (
                         <View style={styles.translationSection}>
-                          <Text style={styles.sectionTitle}>Translation</Text>
+                          <View style={styles.sectionHeaderRow}>
+                            <Text style={styles.sectionTitle}>Translation</Text>
+                            {!selectedWordExplanation && !isExplaining && highlightIndex >= 0 && (
+                              <TouchableOpacity
+                                onPress={handleExplainWord}
+                                style={styles.explainButton}
+                              >
+                                <Text style={styles.explainButtonText}>
+                                  Explain
+                                </Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
                           <Text style={styles.translatedText}>
                             {selectedWordTranslation}
                           </Text>
+                        </View>
+                      )}
+                      
+                      {isExplaining && (
+                        <View style={styles.translationSection}>
+                          <Text style={styles.sectionTitle}>Explanation</Text>
+                          <View style={styles.loadingContainer}>
+                            <ActivityIndicator size="small" color="#007AFF" />
+                            <Text style={styles.loadingText}>Loading explanation...</Text>
+                          </View>
                         </View>
                       )}
                       
@@ -479,6 +520,24 @@ const styles = StyleSheet.create({
   translationSection: {
     marginBottom: 10,
     width: '100%',
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 5,
+    width: '100%',
+  },
+  explainButton: {
+    backgroundColor: 'rgba(0, 122, 255, 0.6)',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+  },
+  explainButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '500',
   },
   translatedText: {
     color: '#E0E0E0',
