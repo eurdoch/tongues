@@ -355,11 +355,20 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
               </View>
               
               {(isTranslating || selectedWordTranslation || selectedWordExplanation) && (
-                <View style={styles.translationContainer}>
+                <View style={styles.translationOuterContainer}>
                   {isTranslating ? (
-                    <ActivityIndicator size="small" color="#007AFF" />
+                    <View style={styles.loadingContainer}>
+                      <ActivityIndicator size="small" color="#007AFF" />
+                      <Text style={styles.loadingText}>Loading translation...</Text>
+                    </View>
                   ) : (
-                    <ScrollView style={styles.translationScrollView}>
+                    <ScrollView 
+                      style={styles.translationScrollView}
+                      contentContainerStyle={styles.translationScrollContent}
+                      showsVerticalScrollIndicator={true}
+                      bounces={false}
+                      nestedScrollEnabled={true}
+                    >
                       {selectedWordTranslation && (
                         <View style={styles.translationSection}>
                           <View style={styles.sectionHeaderRow}>
@@ -461,13 +470,15 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   loadingContainer: {
-    padding: 40,
+    padding: 20,
     alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
   },
   loadingText: {
     color: '#FFFFFF',
-    marginTop: 15,
-    fontSize: 16,
+    marginTop: 10,
+    fontSize: 14,
   },
   errorText: {
     color: '#FF6B6B',
@@ -507,18 +518,22 @@ const styles = StyleSheet.create({
     color: '#00ff00',
     fontWeight: 'bold',
   },
-  translationContainer: {
-    padding: 15,
+  translationOuterContainer: {
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.1)',
-    alignItems: 'center',
     maxHeight: 200,
-  },
-  translationScrollView: {
     width: '100%',
   },
+  translationScrollView: {
+    flex: 1,
+    width: '100%',
+  },
+  translationScrollContent: {
+    padding: 15,
+    paddingBottom: 20,
+  },
   translationSection: {
-    marginBottom: 10,
+    marginBottom: 15,
     width: '100%',
   },
   sectionHeaderRow: {
@@ -545,18 +560,20 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.2)',
-    padding: 10,
+    padding: 12,
     borderRadius: 8,
     width: '100%',
+    flexWrap: 'wrap',
   },
   explanationText: {
     color: '#E0E0E0',
     fontSize: 16,
     lineHeight: 22,
     backgroundColor: 'rgba(0, 0, 0, 0.2)',
-    padding: 10,
+    padding: 12,
     borderRadius: 8,
     width: '100%',
+    flexWrap: 'wrap',
   },
   controls: {
     flexDirection: 'row',
