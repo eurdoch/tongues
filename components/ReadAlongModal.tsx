@@ -362,53 +362,52 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                       <Text style={styles.loadingText}>Loading translation...</Text>
                     </View>
                   ) : (
-                    <ScrollView 
-                      style={styles.translationScrollView}
-                      contentContainerStyle={styles.translationScrollContent}
-                      showsVerticalScrollIndicator={true}
-                      bounces={false}
-                      nestedScrollEnabled={true}
-                    >
+                    <>
                       {selectedWordTranslation && (
                         <View style={styles.translationSection}>
-                          <View style={styles.sectionHeaderRow}>
-                            <Text style={styles.sectionTitle}>Translation</Text>
-                            {!selectedWordExplanation && !isExplaining && highlightIndex >= 0 && (
-                              <TouchableOpacity
-                                onPress={handleExplainWord}
-                                style={styles.explainButton}
-                              >
-                                <Text style={styles.explainButtonText}>
-                                  Explain
-                                </Text>
-                              </TouchableOpacity>
-                            )}
-                          </View>
                           <Text style={styles.translatedText}>
                             {selectedWordTranslation}
                           </Text>
+                          {!selectedWordExplanation && !isExplaining && highlightIndex >= 0 && (
+                            <TouchableOpacity
+                              onPress={handleExplainWord}
+                              style={styles.explainButton}
+                            >
+                              <Text style={{color: '#FFFFFF', fontSize: 14}}>✨</Text>
+                            </TouchableOpacity>
+                          )}
                         </View>
                       )}
                       
-                      {isExplaining && (
-                        <View style={styles.translationSection}>
-                          <Text style={styles.sectionTitle}>Explanation</Text>
-                          <View style={styles.loadingContainer}>
-                            <ActivityIndicator size="small" color="#007AFF" />
-                            <Text style={styles.loadingText}>Loading explanation...</Text>
-                          </View>
-                        </View>
+                      {(isExplaining || selectedWordExplanation) && (
+                        <ScrollView 
+                          style={styles.translationScrollView}
+                          contentContainerStyle={styles.translationScrollContent}
+                          showsVerticalScrollIndicator={true}
+                          bounces={false}
+                          nestedScrollEnabled={true}
+                        >
+                          {isExplaining && (
+                            <View style={styles.translationSection}>
+                              <Text style={styles.sectionTitle}>Explanation</Text>
+                              <View style={styles.loadingContainer}>
+                                <ActivityIndicator size="small" color="#007AFF" />
+                                <Text style={styles.loadingText}>Loading explanation...</Text>
+                              </View>
+                            </View>
+                          )}
+                          
+                          {selectedWordExplanation && (
+                            <View style={styles.translationSection}>
+                              <Text style={styles.sectionTitle}>Explanation</Text>
+                              <Text style={styles.explanationText}>
+                                {selectedWordExplanation}
+                              </Text>
+                            </View>
+                          )}
+                        </ScrollView>
                       )}
-                      
-                      {selectedWordExplanation && (
-                        <View style={styles.translationSection}>
-                          <Text style={styles.sectionTitle}>Explanation</Text>
-                          <Text style={styles.explanationText}>
-                            {selectedWordExplanation}
-                          </Text>
-                        </View>
-                      )}
-                    </ScrollView>
+                    </>
                   )}
                 </View>
               )}
@@ -433,7 +432,7 @@ const styles = StyleSheet.create({
     maxHeight: '80%',
     backgroundColor: '#2A2A2A',
     borderRadius: 20,
-    overflow: 'hidden',
+    overflow: 'visible',
     elevation: 5,
     shadowColor: '#000',
     shadowOffset: {
@@ -522,7 +521,9 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.1)',
     maxHeight: 200,
+    minHeight: 100,
     width: '100%',
+    display: 'flex',
   },
   translationScrollView: {
     flex: 1,
@@ -535,24 +536,23 @@ const styles = StyleSheet.create({
   translationSection: {
     marginBottom: 15,
     width: '100%',
+    padding: 10,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     alignItems: 'center',
     marginBottom: 5,
     width: '100%',
   },
   explainButton: {
     backgroundColor: 'rgba(0, 122, 255, 0.6)',
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-  },
-  explainButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '500',
+    padding: 8,
+    borderRadius: 20,
+    position: 'absolute',
+    right: 15,
+    top: 50,
+    zIndex: 10,
   },
   translatedText: {
     color: '#E0E0E0',
@@ -561,6 +561,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.2)',
     padding: 12,
+    paddingRight: 40,
     borderRadius: 8,
     width: '100%',
     flexWrap: 'wrap',
