@@ -9,6 +9,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Dimensions,
+  Animated,
 } from 'react-native';
 import { fetchSpeechAudio, fetchWordTimestamps, translateText, explainWord } from './reader/TranslationService';
 import Sound from 'react-native-sound';
@@ -264,9 +265,8 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   }
 
   const handleWordClick = async (word: string, index: number, event: any) => {
-    // Get position of tap for the popup
-    const { pageX, pageY } = event.nativeEvent;
-    setTouchPosition({ x: pageX, y: pageY - 150 }); // Position popup above the tapped word
+    // We no longer need tap position as popup has fixed position now
+    setTouchPosition({ x: 0, y: 0 }); // Using fixed positioning instead
     
     // Pause the audio
     if (soundRef.current && isPlaying) {
@@ -402,6 +402,30 @@ const TranslationPopup: React.FC<any> = ({
   selectedWordExplanation,
   handleExplainWord
 }) => {
+  const [slideAnim] = useState({ translateX: new Animated.Value(0), translateY: new Animated.Value(0) });
+  
+  useEffect(() => {
+    if (visible) {
+      // Reset animation first
+      slideAnim.translateX.setValue(0);
+      slideAnim.translateY.setValue(0);
+      
+      // Start animation
+      Animated.parallel([
+        Animated.timing(slideAnim.translateX, {
+          toValue: 10,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim.translateY, {
+          toValue: 10,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [visible]);
+  
   if (!visible) return null;
   
   return (
@@ -412,53 +436,65 @@ const TranslationPopup: React.FC<any> = ({
       onRequestClose={onClose}
     >
         <TouchableWithoutFeedback onPress={onClose}>
-        <View style={styles.popupOverlay}>
+        <View style={styles.overlay}>
           <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
-            <View 
+            <Animated.View 
               style={[
-                styles.translationPopup, 
+                styles.container,
                 {
-                  top: touchPosition.y, 
-                  left: Math.max(20, Math.min(touchPosition.x - 100, Dimensions.get('window').width - 220))
+                  transform: [
+                    { translateX: slideAnim.translateX },
+                    { translateY: slideAnim.translateY }
+                  ]
                 }
-              ]}
-            >
-              <View style={{padding: 5}}>
-                <Text style={styles.popupWord}>{selectedWord}</Text>
-                
-                {isTranslating ? (
-                  <View style={styles.popupLoadingContainer}>
-                    <ActivityIndicator size="small" color="#007AFF" />
-                  </View>
-                ) : (
-                  <View>
-                    <Text style={styles.popupTranslation}>{selectedWordTranslation}</Text>
-                    
-                    {!selectedWordExplanation && !isExplaining && (
-                      <TouchableOpacity
-                        onPress={handleExplainWord}
-                        style={styles.popupExplainButton}
-                      >
-                        <Text style={{color: '#FFFFFF', fontSize: 14}}>✨ Explain</Text>
-                      </TouchableOpacity>
-                    )}
-                    
-                    {isExplaining && (
-                      <View style={styles.popupLoadingContainer}>
-                        <ActivityIndicator size="small" color="#007AFF" />
-                        <Text style={styles.loadingText}>Explaining...</Text>
-                      </View>
-                    )}
-                    
-                    {selectedWordExplanation && (
-                      <ScrollView style={styles.explanationScroll}>
-                        <Text style={styles.popupExplanation}>{selectedWordExplanation}</Text>
-                      </ScrollView>
-                    )}
-                  </View>
-                )}
+              ]}>
+              <View style={styles.sentenceContainer}>
+                <View style={styles.textSection}>
+                  <Text style={styles.originalText}>{selectedWord}</Text>
+                  
+                  {isTranslating ? (
+                    <View style={styles.loadingContainer}>
+                      <ActivityIndicator size="small" color="#007AFF" />
+                    </View>
+                  ) : (
+                    <View>
+                      <Text style={styles.originalText}>{selectedWordTranslation}</Text>
+                      
+                      {!selectedWordExplanation && !isExplaining && (
+                        <TouchableOpacity
+                          onPress={handleExplainWord}
+                          style={styles.controlButton}
+                        >
+                          <Text style={styles.controlButtonText}>✨ Explain</Text>
+                        </TouchableOpacity>
+                      )}
+                      
+                      {isExplaining && (
+                        <View style={styles.loadingContainer}>
+                          <ActivityIndicator size="small" color="#007AFF" />
+                          <Text style={styles.loadingText}>Explaining...</Text>
+                        </View>
+                      )}
+                      
+                      {selectedWordExplanation && (
+                        <ScrollView>
+                          <Text style={styles.originalText}>{selectedWordExplanation}</Text>
+                        </ScrollView>
+                      )}
+                    </View>
+                  )}
+                </View>
               </View>
-            </View>
+              
+              <View style={styles.controls}>
+                <TouchableOpacity
+                  onPress={onClose}
+                  style={styles.controlButton}
+                >
+                  <Text style={styles.controlButtonText}>Close</Text>
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
           </TouchableWithoutFeedback>
         </View>
       </TouchableWithoutFeedback>
@@ -679,62 +715,11 @@ const styles = StyleSheet.create({
   },
   
   // Translation popup styles
-  popupOverlay: {
-    flex: 1,
-    backgroundColor: 'transparent',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  translationPopup: {
-    position: 'absolute',
-    width: 200,
-    minHeight: 100,
-    backgroundColor: '#2A2A2A',
-    borderRadius: 15,
-    padding: 15,
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 5,
-    },
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
-  },
   popupLoadingContainer: {
     padding: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  popupWord: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  popupTranslation: {
-    color: '#E0E0E0',
-    fontSize: 16,
-    marginBottom: 15,
-    textAlign: 'center',
-  },
-  popupExplainButton: {
-    backgroundColor: 'rgba(0, 122, 255, 0.6)',
-    padding: 8,
-    borderRadius: 20,
-    alignItems: 'center',
-    marginTop: 5,
-  },
-  explanationScroll: {
-    maxHeight: 150,
-    marginTop: 10,
-  },
-  popupExplanation: {
-    color: '#E0E0E0',
-    fontSize: 14,
-    lineHeight: 20,
-  }
 });
 
 export default ReadAlongModal;
