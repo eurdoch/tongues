@@ -442,49 +442,51 @@ const TranslationPopup: React.FC<any> = ({
               style={[
                 styles.container,
                 {
+                  height: 600,
                   transform: [
                     { translateX: slideAnim.translateX },
                     { translateY: slideAnim.translateY }
                   ]
                 }
               ]}>
-              <View style={styles.sentenceContainer}>
-                <View style={styles.textSection}>
-                  <Text style={styles.originalText}>{selectedWord}</Text>
-                  
-                  {isTranslating ? (
-                    <View style={styles.loadingContainer}>
-                      <ActivityIndicator size="small" color="#007AFF" />
-                    </View>
-                  ) : (
-                    <View>
-                      <Text style={styles.originalText}>{selectedWordTranslation}</Text>
-                      
-                      {!selectedWordExplanation && !isExplaining && (
-                        <TouchableOpacity
-                          onPress={handleExplainWord}
-                          style={styles.controlButton}
-                        >
-                          <Text style={styles.controlButtonText}>✨ Explain</Text>
-                        </TouchableOpacity>
-                      )}
-                      
-                      {isExplaining && (
-                        <View style={styles.loadingContainer}>
-                          <ActivityIndicator size="small" color="#007AFF" />
-                          <Text style={styles.loadingText}>Explaining...</Text>
-                        </View>
-                      )}
-                      
-                      {selectedWordExplanation && (
-                        <ScrollView>
-                          <Text style={styles.originalText}>{selectedWordExplanation}</Text>
-                        </ScrollView>
-                      )}
-                    </View>
-                  )}
+              <ScrollView style={styles.contentScroll}>
+                <View style={styles.sentenceContainer}>
+                  <View style={styles.textSection}>
+                    {isTranslating ? (
+                      <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="small" color="#007AFF" />
+                      </View>
+                    ) : (
+                      <View style={styles.popupContentContainer}>
+                        <Text style={styles.popupOriginalText}>{selectedWord}</Text>
+                        <Text style={styles.popupTranslation}>{selectedWordTranslation}</Text>
+                        
+                        {!selectedWordExplanation && !isExplaining && (
+                          <TouchableOpacity
+                            onPress={handleExplainWord}
+                            style={styles.popupExplainButton}
+                          >
+                            <Text style={styles.controlButtonText}>✨ Explain</Text>
+                          </TouchableOpacity>
+                        )}
+                        
+                        {isExplaining && (
+                          <View style={styles.loadingContainer}>
+                            <ActivityIndicator size="small" color="#007AFF" />
+                            <Text style={styles.loadingText}>Explaining...</Text>
+                          </View>
+                        )}
+                        
+                        {selectedWordExplanation && (
+                          <View style={styles.explanationContainer}>
+                            <Text style={styles.popupExplanation}>{selectedWordExplanation}</Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
+                  </View>
                 </View>
-              </View>
+              </ScrollView>
               
               <View style={styles.controls}>
                 <TouchableOpacity
@@ -715,10 +717,48 @@ const styles = StyleSheet.create({
   },
   
   // Translation popup styles
+  contentScroll: {
+    flex: 1,
+    width: '100%',
+  },
   popupLoadingContainer: {
     padding: 10,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  popupContentContainer: {
+    width: '100%',
+    padding: 5,
+  },
+  popupOriginalText: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    marginBottom: 10,
+    textAlign: 'left',
+    width: '100%',
+  },
+  popupTranslation: {
+    color: '#E0E0E0',
+    fontSize: 26,
+    fontWeight: 'bold',
+    marginBottom: 15,
+    textAlign: 'left',
+    width: '100%',
+  },
+  popupExplainButton: {
+    backgroundColor: 'rgba(0, 122, 255, 0.6)',
+    padding: 8,
+    borderRadius: 20,
+    alignItems: 'center',
+    marginTop: 10,
+    marginBottom: 10,
+    alignSelf: 'center',
+  },
+  popupExplanation: {
+    color: '#E0E0E0',
+    fontSize: 18,
+    lineHeight: 26,
+    padding: 5,
   },
 });
 
