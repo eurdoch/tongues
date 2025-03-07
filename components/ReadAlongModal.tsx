@@ -318,7 +318,8 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         <View style={styles.overlay}>
           <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
             <View style={styles.container}>
-              <ScrollView style={styles.contentContainer}>
+              {/* Current sentence section */}
+              <View style={styles.sentenceContainer}>
                 <View style={styles.textSection}>
                   {words.map((word, index) => (
                     <TouchableOpacity 
@@ -333,8 +334,9 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                     </TouchableOpacity>
                   ))}
                 </View>
-              </ScrollView>
+              </View>
               
+              {/* Playback controls */}
               <View style={styles.controls}>
                 <TouchableOpacity
                   onPress={handleStart}
@@ -354,61 +356,57 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                 </TouchableOpacity>
               </View>
               
-              {(isTranslating || selectedWordTranslation || selectedWordExplanation) && (
-                <View style={styles.translationOuterContainer}>
+              {/* Translation section */}
+              {(isTranslating || selectedWordTranslation) && (
+                <View style={styles.translationContainer}>
                   {isTranslating ? (
                     <View style={styles.loadingContainer}>
                       <ActivityIndicator size="small" color="#007AFF" />
                       <Text style={styles.loadingText}>Loading translation...</Text>
                     </View>
                   ) : (
-                    <>
-                      {selectedWordTranslation && (
-                        <View style={styles.translationSection}>
-                          <Text style={styles.translatedText}>
-                            {selectedWordTranslation}
-                          </Text>
-                          {!selectedWordExplanation && !isExplaining && highlightIndex >= 0 && (
-                            <TouchableOpacity
-                              onPress={handleExplainWord}
-                              style={styles.explainButton}
-                            >
-                              <Text style={{color: '#FFFFFF', fontSize: 14}}>✨</Text>
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                      )}
-                      
-                      {(isExplaining || selectedWordExplanation) && (
-                        <ScrollView 
-                          style={styles.translationScrollView}
-                          contentContainerStyle={styles.translationScrollContent}
-                          showsVerticalScrollIndicator={true}
-                          bounces={false}
-                          nestedScrollEnabled={true}
-                        >
-                          {isExplaining && (
-                            <View style={styles.translationSection}>
-                              <Text style={styles.sectionTitle}>Explanation</Text>
-                              <View style={styles.loadingContainer}>
-                                <ActivityIndicator size="small" color="#007AFF" />
-                                <Text style={styles.loadingText}>Loading explanation...</Text>
-                              </View>
-                            </View>
-                          )}
-                          
-                          {selectedWordExplanation && (
-                            <View style={styles.translationSection}>
-                              <Text style={styles.sectionTitle}>Explanation</Text>
-                              <Text style={styles.explanationText}>
-                                {selectedWordExplanation}
-                              </Text>
-                            </View>
-                          )}
-                        </ScrollView>
-                      )}
-                    </>
+                    selectedWordTranslation && (
+                      <View style={styles.translationSection}>
+                        <Text style={styles.translatedText}>
+                          {selectedWordTranslation}
+                        </Text>
+                        {!selectedWordExplanation && !isExplaining && highlightIndex >= 0 && (
+                          <TouchableOpacity
+                            onPress={handleExplainWord}
+                            style={styles.explainButton}
+                          >
+                            <Text style={{color: '#FFFFFF', fontSize: 14}}>✨</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    )
                   )}
+                </View>
+              )}
+              
+              {/* Explanation section */}
+              {(isExplaining || selectedWordExplanation) && (
+                <View style={styles.explanationOuterContainer}>
+                  <ScrollView style={styles.explanationContainer}>
+                    {isExplaining && (
+                      <View style={styles.translationSection}>
+                        <Text style={styles.sectionTitle}>Explanation</Text>
+                        <View style={styles.loadingContainer}>
+                          <ActivityIndicator size="small" color="#007AFF" />
+                          <Text style={styles.loadingText}>Loading explanation...</Text>
+                        </View>
+                      </View>
+                    )}
+                    
+                    {selectedWordExplanation && (
+                      <View style={styles.translationSection}>
+                        <Text style={styles.sectionTitle}>Explanation</Text>
+                        <Text style={styles.explanationText}>
+                          {selectedWordExplanation}
+                        </Text>
+                      </View>
+                    )}
+                  </ScrollView>
                 </View>
               )}
             </View>
@@ -429,10 +427,9 @@ const styles = StyleSheet.create({
   },
   container: {
     width: '90%',
-    maxHeight: '80%',
     backgroundColor: '#2A2A2A',
     borderRadius: 20,
-    overflow: 'visible',
+    overflow: 'hidden',
     elevation: 5,
     shadowColor: '#000',
     shadowOffset: {
@@ -485,14 +482,16 @@ const styles = StyleSheet.create({
     padding: 30,
     fontSize: 16,
   },
-  contentContainer: {
+  sentenceContainer: {
     padding: 20,
-    maxHeight: '70%',
+    flex: 0,
+    flexGrow: 1,
   },
   textSection: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: 20,
+    marginBottom: 10,
+    width: '100%',
   },
   sectionTitle: {
     color: '#007AFF',
@@ -517,21 +516,22 @@ const styles = StyleSheet.create({
     color: '#00ff00',
     fontWeight: 'bold',
   },
-  translationOuterContainer: {
+  translationContainer: {
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.1)',
-    maxHeight: 200,
-    minHeight: 100,
-    width: '100%',
-    display: 'flex',
-  },
-  translationScrollView: {
-    flex: 1,
-    width: '100%',
-  },
-  translationScrollContent: {
     padding: 15,
-    paddingBottom: 20,
+    width: '100%',
+  },
+  explanationOuterContainer: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    width: '100%',
+  },
+  explanationContainer: {
+    padding: 10,
+    width: '100%',
+    maxHeight: 150,
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
   },
   translationSection: {
     marginBottom: 15,
