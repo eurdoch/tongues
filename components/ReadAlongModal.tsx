@@ -317,7 +317,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       <TouchableWithoutFeedback onPress={handleClose}>
         <View style={styles.overlay}>
           <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
-            <View style={styles.container}>
+            <View style={styles.container} testID="readAlongContainer">
               {/* Current sentence section */}
               <View style={styles.sentenceContainer}>
                 <View style={styles.textSection}>
@@ -427,6 +427,7 @@ const styles = StyleSheet.create({
   },
   container: {
     width: '90%',
+    maxHeight: '80%',
     backgroundColor: '#2A2A2A',
     borderRadius: 20,
     overflow: 'hidden',
@@ -438,6 +439,8 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
+    display: 'flex',
+    flexDirection: 'column',
   },
   header: {
     backgroundColor: 'rgba(0, 122, 255, 0.95)',
@@ -485,7 +488,6 @@ const styles = StyleSheet.create({
   sentenceContainer: {
     padding: 20,
     flex: 0,
-    flexGrow: 1,
   },
   textSection: {
     flexDirection: 'row',
@@ -521,16 +523,19 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(255, 255, 255, 0.1)',
     padding: 15,
     width: '100%',
+    flex: 0,
   },
   explanationOuterContainer: {
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.1)',
     width: '100%',
+    minHeight: 150,
+    maxHeight: 200,
   },
   explanationContainer: {
     padding: 10,
     width: '100%',
-    maxHeight: 150,
+    height: '100%',
     backgroundColor: 'rgba(0, 0, 0, 0.2)',
   },
   translationSection: {
