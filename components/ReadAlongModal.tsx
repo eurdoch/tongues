@@ -423,39 +423,41 @@ const TranslationPopup: React.FC<any> = ({
                 }
               ]}
             >
-              {isTranslating ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="small" color="#007AFF" />
-                  <Text style={styles.loadingText}>Loading translation...</Text>
-                </View>
-              ) : (
-                <View>
-                  <Text style={styles.popupWord}>{selectedWord}</Text>
-                  <Text style={styles.popupTranslation}>{selectedWordTranslation}</Text>
-                  
-                  {!selectedWordExplanation && !isExplaining && (
-                    <TouchableOpacity
-                      onPress={handleExplainWord}
-                      style={styles.popupExplainButton}
-                    >
-                      <Text style={{color: '#FFFFFF', fontSize: 14}}>✨ Explain</Text>
-                    </TouchableOpacity>
-                  )}
-                  
-                  {isExplaining && (
-                    <View style={styles.loadingContainer}>
-                      <ActivityIndicator size="small" color="#007AFF" />
-                      <Text style={styles.loadingText}>Loading explanation...</Text>
-                    </View>
-                  )}
-                  
-                  {selectedWordExplanation && (
-                    <ScrollView style={styles.explanationScroll}>
-                      <Text style={styles.popupExplanation}>{selectedWordExplanation}</Text>
-                    </ScrollView>
-                  )}
-                </View>
-              )}
+              <View style={{padding: 5}}>
+                <Text style={styles.popupWord}>{selectedWord}</Text>
+                
+                {isTranslating ? (
+                  <View style={styles.popupLoadingContainer}>
+                    <ActivityIndicator size="small" color="#007AFF" />
+                  </View>
+                ) : (
+                  <View>
+                    <Text style={styles.popupTranslation}>{selectedWordTranslation}</Text>
+                    
+                    {!selectedWordExplanation && !isExplaining && (
+                      <TouchableOpacity
+                        onPress={handleExplainWord}
+                        style={styles.popupExplainButton}
+                      >
+                        <Text style={{color: '#FFFFFF', fontSize: 14}}>✨ Explain</Text>
+                      </TouchableOpacity>
+                    )}
+                    
+                    {isExplaining && (
+                      <View style={styles.popupLoadingContainer}>
+                        <ActivityIndicator size="small" color="#007AFF" />
+                        <Text style={styles.loadingText}>Explaining...</Text>
+                      </View>
+                    )}
+                    
+                    {selectedWordExplanation && (
+                      <ScrollView style={styles.explanationScroll}>
+                        <Text style={styles.popupExplanation}>{selectedWordExplanation}</Text>
+                      </ScrollView>
+                    )}
+                  </View>
+                )}
+              </View>
             </View>
           </TouchableWithoutFeedback>
         </View>
@@ -686,7 +688,7 @@ const styles = StyleSheet.create({
   translationPopup: {
     position: 'absolute',
     width: 200,
-    minHeight: 150,
+    minHeight: 100,
     backgroundColor: '#2A2A2A',
     borderRadius: 15,
     padding: 15,
@@ -698,6 +700,11 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.5,
     shadowRadius: 8,
+  },
+  popupLoadingContainer: {
+    padding: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   popupWord: {
     color: '#FFFFFF',
