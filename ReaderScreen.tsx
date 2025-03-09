@@ -49,7 +49,6 @@ function ReaderScreen() {
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
   const [tableOfContents, setTableOfContents] = useState<TOCItem[]>([]);
   const [sections, setSections] = useState<TOCSection[]>([]);
-  const [parsedContent, setParsedContent] = useState<ElementNode[]>([]);
   const [selectedOriginalText, setSelectedOriginalText] = useState<string | null>(null);
   const [translatedText, setTranslatedText] = useState<string | null>(null);
   const [audioPath, setAudioPath] = useState<string | null>(null);
@@ -572,16 +571,8 @@ function ReaderScreen() {
       });
   }, [fileUri, checkForDuplicates, navigation, loadEpub]);
 
-  // Parse HTML content when it changes
-  useEffect(() => {
-    try {
-      const parsed = parseHtml(content);
-      setParsedContent(parsed);
-    } catch (error) {
-      console.error('Error parsing HTML:', error);
-      setParsedContent([{ type: 'text', children: ['Error parsing content'] }]);
-    }
-  }, [content]);
+  // We no longer need to parse the entire content at once
+  // as we're parsing each section individually in renderSection
 
   // Play the audio file
   const playAudio = () => {
@@ -750,14 +741,7 @@ function ReaderScreen() {
     }
   };
 
-  // Render item for FlatList (when using parsedContent)
-  const renderItemForFlatList = ({ item, index }: { item: ElementNode; index: number }) => {
-    return (
-      <View key={index}>
-        {renderNode(item, handleTextSelection)}
-      </View>
-    );
-  };
+  // We no longer use this rendering method as we're using sections only
 
   // Loading state
   if (isLoading) {
@@ -790,45 +774,23 @@ function ReaderScreen() {
 
   return (
     <View style={styles.container}>
-      {sections && sections.length > 0 ? (
-        // Render using sections for better organization
-        <FlatList
-          data={sections}
-          renderItem={({ item, index }) => renderSection(item, index)}
-          keyExtractor={(_, index) => `section-${index}`}
-          style={styles.scrollView}
-          initialNumToRender={20}
-          maxToRenderPerBatch={10}
-          windowSize={5}
-          removeClippedSubviews={false}
-          scrollEventThrottle={16}
-          onScrollBeginDrag={() => {
-            // Clear selections when scrolling
-            if (selectedOriginalText || translatedText) {
-              clearSelection();
-            }
-          }}
-        />
-      ) : (
-        // Fallback to original rendering method if sections not available
-        <FlatList
-          data={parsedContent}
-          renderItem={renderItemForFlatList}
-          keyExtractor={(_, index) => index.toString()}
-          style={styles.scrollView}
-          initialNumToRender={20}
-          maxToRenderPerBatch={10}
-          windowSize={5}
-          removeClippedSubviews={false}
-          scrollEventThrottle={16}
-          onScrollBeginDrag={() => {
-            // Clear selections when scrolling
-            if (selectedOriginalText || translatedText) {
-              clearSelection();
-            }
-          }}
-        />
-      )}
+      <FlatList
+        data={sections}
+        renderItem={({ item, index }) => renderSection(item, index)}
+        keyExtractor={(_, index) => `section-${index}`}
+        style={styles.scrollView}
+        initialNumToRender={20}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        removeClippedSubviews={false}
+        scrollEventThrottle={16}
+        onScrollBeginDrag={() => {
+          // Clear selections when scrolling
+          if (selectedOriginalText || translatedText) {
+            clearSelection();
+          }
+        }}
+      />
       
       {/* Translation result popup */}
       <TranslationModal
