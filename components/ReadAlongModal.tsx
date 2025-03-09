@@ -488,14 +488,6 @@ const TranslationPopup: React.FC<any> = ({
                 </View>
               </ScrollView>
               
-              <View style={styles.controls}>
-                <TouchableOpacity
-                  onPress={onClose}
-                  style={styles.controlButton}
-                >
-                  <Text style={styles.controlButtonText}>Close</Text>
-                </TouchableOpacity>
-              </View>
             </Animated.View>
           </TouchableWithoutFeedback>
         </View>
