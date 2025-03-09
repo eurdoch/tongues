@@ -11,6 +11,7 @@ import {
   Dimensions,
   Animated,
 } from 'react-native';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { fetchSpeechAudio, fetchWordTimestamps, translateText, explainWord } from './reader/TranslationService';
 import Sound from 'react-native-sound';
 
@@ -53,6 +54,8 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   const [isExplaining, setIsExplaining] = useState<boolean>(false);
   const [showTranslationPopup, setShowTranslationPopup] = useState<boolean>(false);
   const [touchPosition, setTouchPosition] = useState<{x: number, y: number}>({x: 0, y: 0});
+  const [selectionMode, setSelectionMode] = useState<boolean>(false);
+  const [selectedWords, setSelectedWords] = useState<{word: string, index: number}[]>([]);
   const soundRef = useRef<Sound | null>(null);
   const currentSentenceIndex = useRef<number>(0);
   const currentInterval = useRef<any>(null);
@@ -99,6 +102,8 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     setSelectedWordTranslation('');
     setSelectedWordExplanation('');
     setShowTranslationPopup(false);
+    setSelectionMode(false);
+    setSelectedWords([]);
     currentTimestamps.current = [];
     currentSentenceIndex.current = 0;
     
@@ -265,6 +270,23 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   }
 
   const handleWordClick = async (word: string, index: number, event: any) => {
+    // If in selection mode, add/remove word from selection
+    if (selectionMode) {
+      // Check if word already selected
+      const existingIndex = selectedWords.findIndex(item => item.index === index);
+      
+      if (existingIndex >= 0) {
+        // Remove from selection
+        setSelectedWords(selectedWords.filter(item => item.index !== index));
+      } else {
+        // Add to selection
+        setSelectedWords([...selectedWords, { word, index }]);
+      }
+      
+      setHighlightIndex(index);
+      return;
+    }
+    
     // We no longer need tap position as popup has fixed position now
     setTouchPosition({ x: 0, y: 0 }); // Using fixed positioning instead
     
@@ -318,7 +340,62 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       setIsExplaining(false);
     }
   };
+  
+  // Handle long press on a word
+  const handleWordLongPress = (word: string, index: number) => {
+    // Pause the audio if playing
+    if (soundRef.current && isPlaying) {
+      soundRef.current.pause();
+      setIsPlaying(false);
+    }
+    
+    // Enter selection mode
+    setSelectionMode(true);
+    
+    // Add the long-pressed word to selection
+    setSelectedWords([{ word, index }]);
+    
+    // Set highlight
+    setHighlightIndex(index);
+  };
+  
+  // Translate selected words
+  const handleTranslateSelected = async () => {
+    if (selectedWords.length === 0) return;
+    
+    // Join selected words, sort by index to maintain sentence structure
+    const sortedWords = [...selectedWords].sort((a, b) => a.index - b.index);
+    const wordText = sortedWords.map(item => item.word).join(' ');
+    
+    // Set the primary selected word
+    setSelectedWord(wordText);
+    
+    // Clear previous translations and explanations
+    setSelectedWordTranslation('');
+    setSelectedWordExplanation('');
+    
+    // Get translation for the phrase
+    setIsTranslating(true);
+    try {
+      const translation = await translateText(wordText, language);
+      setSelectedWordTranslation(translation);
+      setShowTranslationPopup(true);
+    } catch (error) {
+      console.error('Error translating phrase:', error);
+      setSelectedWordTranslation('Translation error');
+      setShowTranslationPopup(true);
+    } finally {
+      setIsTranslating(false);
+    }
+  };
 
+  // Create long press gesture for each word
+  const longPressGesture = Gesture.LongPress()
+    .minDuration(500) // 500ms for long press
+    .onStart(({ x, y }) => {
+      // This is handled in the component directly
+    });
+    
   return (
     <>
       <Modal
@@ -334,40 +411,79 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                 {/* Current sentence section */}
                 <View style={styles.sentenceContainer}>
                   <View style={styles.textSection}>
-                    {words.map((word, index) => (
-                      <TouchableOpacity 
-                        key={index} 
-                        onPress={(event) => handleWordClick(word, index, event)}
-                      >
-                        <Text 
-                          style={(highlightIndex === index) ? [styles.originalText, styles.highlightedWord] : styles.originalText}
+                    {words.map((word, index) => {
+                      // Check if word is in selected words
+                      const isSelected = selectedWords.some(item => item.index === index);
+                      const textStyle = [
+                        styles.originalText,
+                        (highlightIndex === index) && styles.highlightedWord,
+                        isSelected && styles.selectedWord
+                      ];
+                      
+                      return (
+                        <GestureDetector 
+                          key={index}
+                          gesture={longPressGesture}
                         >
-                          {word}{' '}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+                          <TouchableOpacity 
+                            onPress={(event) => handleWordClick(word, index, event)}
+                            onLongPress={() => handleWordLongPress(word, index)}
+                            delayLongPress={500}
+                          >
+                            <Text style={textStyle}>
+                              {word}{' '}
+                            </Text>
+                          </TouchableOpacity>
+                        </GestureDetector>
+                      );
+                    })}
                   </View>
                 </View>
                 
+                {/* Selection mode controls */}
+                {selectionMode && (
+                  <View style={styles.selectionControls}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setSelectionMode(false);
+                        setSelectedWords([]);
+                      }}
+                      style={[styles.controlButton, styles.cancelButton]}
+                    >
+                      <Text style={styles.controlButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity
+                      onPress={handleTranslateSelected}
+                      style={styles.controlButton}
+                      disabled={selectedWords.length === 0}
+                    >
+                      <Text style={styles.controlButtonText}>Translate Selected</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+                
                 {/* Playback controls */}
-                <View style={styles.controls}>
-                  <TouchableOpacity
-                    onPress={handleStart}
-                    style={styles.controlButton}
-                  >
-                    <Text style={styles.controlButtonText}>
-                      {'Start'}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={handleTogglePlay}
-                    style={styles.controlButton}
-                  >
-                    <Text style={styles.controlButtonText}>
-                      {isPlaying ? 'Pause' : 'Play'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
+                {!selectionMode && (
+                  <View style={styles.controls}>
+                    <TouchableOpacity
+                      onPress={handleStart}
+                      style={styles.controlButton}
+                    >
+                      <Text style={styles.controlButtonText}>
+                        {'Start'}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={handleTogglePlay}
+                      style={styles.controlButton}
+                    >
+                      <Text style={styles.controlButtonText}>
+                        {isPlaying ? 'Pause' : 'Play'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             </TouchableWithoutFeedback>
           </View>
@@ -377,7 +493,11 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       {/* Add the translation popup */}
       <TranslationPopup
         visible={showTranslationPopup}
-        onClose={() => setShowTranslationPopup(false)}
+        onClose={() => {
+          setShowTranslationPopup(false);
+          setSelectionMode(false);
+          setSelectedWords([]);
+        }}
         isTranslating={isTranslating}
         selectedWord={selectedWord}
         selectedWordTranslation={selectedWordTranslation}
@@ -519,6 +639,21 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     display: 'flex',
     flexDirection: 'column',
+  },
+  selectionControls: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    padding: 15,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  cancelButton: {
+    backgroundColor: 'rgba(255, 59, 48, 0.8)',
+  },
+  selectedWord: {
+    backgroundColor: 'rgba(0, 122, 255, 0.3)',
+    borderRadius: 4,
   },
   header: {
     backgroundColor: 'rgba(0, 122, 255, 0.95)',

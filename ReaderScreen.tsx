@@ -371,7 +371,6 @@ function ReaderScreen() {
     setIsLoading(false);
   };
 
-  // Define loadEpub with useCallback
   const loadEpub = useCallback(async () => {
     if (!fileUri) {
       setError('No file selected');
@@ -384,7 +383,6 @@ function ReaderScreen() {
     try {
       // Load EPUB content using the refactored function
       const { content: epubContent, tableOfContents: toc } = await loadEpubContent(fileUri);
-      console.log('TOC: ', toc);
       
       // Store table of contents
       setTableOfContents(toc);
