@@ -719,7 +719,38 @@ function ReaderScreen() {
     }
   };
 
-  // Render item for FlatList
+  // Render a section for the content
+  const renderSection = (section: TOCSection, index: number) => {
+    try {
+      const parsedSection = parseHtml(section.content);
+      return (
+        <View key={index} style={styles.sectionContainer}>
+          <GestureText 
+            style={styles.sectionTitle}
+            selectable={false}
+          >
+            {section.title}
+          </GestureText>
+          
+          {parsedSection.map((node, nodeIndex) => (
+            <View key={`node-${index}-${nodeIndex}`}>
+              {renderNode(node, handleTextSelection)}
+            </View>
+          ))}
+        </View>
+      );
+    } catch (error) {
+      console.error(`Error parsing section ${index}:`, error);
+      return (
+        <View key={index} style={styles.sectionContainer}>
+          <GestureText style={styles.sectionTitle}>{section.title}</GestureText>
+          <GestureText style={styles.errorText}>Error rendering content</GestureText>
+        </View>
+      );
+    }
+  };
+
+  // Render item for FlatList (when using parsedContent)
   const renderItemForFlatList = ({ item, index }: { item: ElementNode; index: number }) => {
     return (
       <View key={index}>
@@ -759,23 +790,45 @@ function ReaderScreen() {
 
   return (
     <View style={styles.container}>
-      <FlatList
-        data={parsedContent}
-        renderItem={renderItemForFlatList}
-        keyExtractor={(_, index) => index.toString()}
-        style={styles.scrollView}
-        initialNumToRender={20}
-        maxToRenderPerBatch={10}
-        windowSize={5}
-        removeClippedSubviews={false}
-        scrollEventThrottle={16}
-        onScrollBeginDrag={() => {
-          // Clear selections when scrolling
-          if (selectedOriginalText || translatedText) {
-            clearSelection();
-          }
-        }}
-      />
+      {sections && sections.length > 0 ? (
+        // Render using sections for better organization
+        <FlatList
+          data={sections}
+          renderItem={({ item, index }) => renderSection(item, index)}
+          keyExtractor={(_, index) => `section-${index}`}
+          style={styles.scrollView}
+          initialNumToRender={20}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={false}
+          scrollEventThrottle={16}
+          onScrollBeginDrag={() => {
+            // Clear selections when scrolling
+            if (selectedOriginalText || translatedText) {
+              clearSelection();
+            }
+          }}
+        />
+      ) : (
+        // Fallback to original rendering method if sections not available
+        <FlatList
+          data={parsedContent}
+          renderItem={renderItemForFlatList}
+          keyExtractor={(_, index) => index.toString()}
+          style={styles.scrollView}
+          initialNumToRender={20}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={false}
+          scrollEventThrottle={16}
+          onScrollBeginDrag={() => {
+            // Clear selections when scrolling
+            if (selectedOriginalText || translatedText) {
+              clearSelection();
+            }
+          }}
+        />
+      )}
       
       {/* Translation result popup */}
       <TranslationModal
@@ -826,6 +879,21 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
     padding: 20,
+  },
+  sectionContainer: {
+    marginBottom: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
+    paddingBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
   },
   loadingText: {
     marginTop: 16,
