@@ -710,19 +710,12 @@ function ReaderScreen() {
     }
   };
 
-  // Render a section for the content
+  // Render a section for the content (without title)
   const renderSection = (section: TOCSection, index: number) => {
     try {
       const parsedSection = parseHtml(section.content);
       return (
         <View key={index} style={styles.sectionContainer}>
-          <GestureText 
-            style={styles.sectionTitle}
-            selectable={false}
-          >
-            {section.title}
-          </GestureText>
-          
           {parsedSection.map((node, nodeIndex) => (
             <View key={`node-${index}-${nodeIndex}`}>
               {renderNode(node, handleTextSelection)}
@@ -734,7 +727,6 @@ function ReaderScreen() {
       console.error(`Error parsing section ${index}:`, error);
       return (
         <View key={index} style={styles.sectionContainer}>
-          <GestureText style={styles.sectionTitle}>{section.title}</GestureText>
           <GestureText style={styles.errorText}>Error rendering content</GestureText>
         </View>
       );
