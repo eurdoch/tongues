@@ -3,3 +3,10 @@ export default interface TOCItem {
   href: string;
   path: string;
 }
+
+export interface TOCSection {
+  title: string;
+  content: string;
+  path: string;
+  href: string;
+}

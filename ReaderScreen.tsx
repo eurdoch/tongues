@@ -13,7 +13,7 @@ import RNFS from 'react-native-fs';
 import GestureText from './GestureText';
 import { getSelectedText, clearTextSelection } from './TextSelection';
 import Sound from 'react-native-sound';
-import TOCItem from './types/TOCItem';
+import TOCItem, { TOCSection } from './types/TOCItem';
 
 // Import refactored components
 import { parseHtml } from './components/reader/EpubContentParser';
@@ -48,6 +48,7 @@ function ReaderScreen() {
   const [error, setError] = useState<string | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
   const [tableOfContents, setTableOfContents] = useState<TOCItem[]>([]);
+  const [sections, setSections] = useState<TOCSection[]>([]);
   const [parsedContent, setParsedContent] = useState<ElementNode[]>([]);
   const [selectedOriginalText, setSelectedOriginalText] = useState<string | null>(null);
   const [translatedText, setTranslatedText] = useState<string | null>(null);
@@ -62,7 +63,6 @@ function ReaderScreen() {
     if (!content) return ['Hello, welcome to Read Along mode'];
     
     try {
-      // First, strip HTML tags and decode entities to get clean text content
       const stripHtml = (html: string) => {
         // Simple regex-based HTML tag removal for React Native
         const noTags = html
@@ -74,9 +74,48 @@ function ReaderScreen() {
         return decodeHtmlEntities(noTags);
       };
       
+      // Process sections if available
+      if (sections && sections.length > 0) {
+        console.log('[ReaderScreen] Processing content from sections');
+        
+        // Process each section to extract sentences
+        let allSentences: string[] = [];
+        
+        sections.forEach(section => {
+          if (!section.content || section.content.trim().length === 0) return;
+          
+          // Clean the section content of HTML tags
+          const cleanedSectionContent = stripHtml(section.content);
+          
+          // Break the content into paragraphs
+          const paragraphs = cleanedSectionContent.split(/\n+/).filter(p => p.trim().length > 0);
+          
+          // Process each paragraph to extract sentences
+          paragraphs.forEach(paragraph => {
+            // Match sentences ending with ., !, or ? followed by a space or end of string
+            const sentencesInParagraph: string[] = paragraph.match(/[^.!?]+[.!?]+(\s|$)/g) || [];
+            
+            // Clean up each sentence
+            const cleanSentences = sentencesInParagraph
+              .map(s => s.trim())
+              // Keep sentences of reasonable length (between 15 and 150 characters)
+              .filter(s => s.length >= 15 && s.length <= 150)
+              // Remove sentences with XML/HTML remnants
+              .filter(s => !s.includes('<') && !s.includes('>'));
+            
+            allSentences = [...allSentences, ...cleanSentences];
+          });
+        });
+        
+        if (allSentences.length > 0) {
+          return allSentences;
+        }
+      }
+      
+      // Fallback to processing content as a whole if sections are empty or failed
       // Clean the content of HTML tags
       const cleanedContent = stripHtml(content);
-      console.log('[ReaderScreen] Content length after HTML cleaning:', cleanedContent.length);
+      console.log('[ReaderScreen] Fallback: Content length after HTML cleaning:', cleanedContent.length);
       
       // Break the content into paragraphs first
       const paragraphs = cleanedContent.split(/\n+/).filter(p => p.trim().length > 0);
@@ -382,10 +421,11 @@ function ReaderScreen() {
     
     try {
       // Load EPUB content using the refactored function
-      const { content: epubContent, tableOfContents: toc } = await loadEpubContent(fileUri);
+      const { content: epubContent, tableOfContents: toc, sections: contentSections } = await loadEpubContent(fileUri);
       
-      // Store table of contents
+      // Store table of contents and sections
       setTableOfContents(toc);
+      setSections(contentSections);
       setContent(epubContent);
       
       // Detect language from content sample

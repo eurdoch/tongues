@@ -1,6 +1,6 @@
 import RNFS from 'react-native-fs';
 import { parseEpub } from '../../utils';
-import TOCItem from '../../types/TOCItem';
+import TOCItem, { TOCSection } from '../../types/TOCItem';
 
 /**
  * Extracts a sample of content for language detection
@@ -58,7 +58,7 @@ export const detectLanguage = async (text: string, supportedLanguages: string[])
  */
 export const loadEpubContent = async (
   fileUri: string
-): Promise<{ content: string; tableOfContents: TOCItem[] }> => {
+): Promise<{ content: string; tableOfContents: TOCItem[]; sections: TOCSection[] }> => {
   console.log('[EpubLoader] Loading EPUB from:', fileUri);
   
   // Parse the epub file
@@ -78,25 +78,41 @@ export const loadEpubContent = async (
     return !isCover;
   });
   
-  // Read content from all files
+  // Read content from all files and create section objects
   console.log('[EpubLoader] Reading content from EPUB files');
-  const allContentPromises = tocItems.map(async (item) => {
+  const sectionPromises = filteredTOC.map(async (item) => {
     try {
       const fileContent = await RNFS.readFile(item.path, 'utf8');
-      return fileContent;
+      return {
+        title: item.label,
+        content: fileContent,
+        path: item.path,
+        href: item.href
+      } as TOCSection;
     } catch (error) {
       console.error(`[EpubLoader] Error reading file ${item.path}:`, error);
-      return '';
+      return {
+        title: item.label,
+        content: '',
+        path: item.path,
+        href: item.href
+      } as TOCSection;
     }
   });
   
-  const allContents = await Promise.all(allContentPromises);
-  const fullText = allContents.join('\n\n');
+  const sections = await Promise.all(sectionPromises);
   
-  console.log('[EpubLoader] Successfully read', allContents.length, 'content files');
+  // Filter out sections with empty content
+  const validSections = sections.filter(section => section.content.trim().length > 0);
+  
+  // For backward compatibility, also create the full text content
+  const fullText = validSections.map(section => section.content).join('\n\n');
+  
+  console.log('[EpubLoader] Successfully created', validSections.length, 'content sections');
   
   return {
     content: fullText,
-    tableOfContents: filteredTOC
+    tableOfContents: filteredTOC,
+    sections: validSections
   };
 };
