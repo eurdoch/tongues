@@ -80,10 +80,14 @@ export const loadEpubContent = async (
   
   // Read content from all files and create section objects
   console.log('[EpubLoader] Reading content from EPUB files');
-  const sectionPromises = filteredTOC.map(async (item) => {
+  const sectionPromises = filteredTOC.map(async (item, index) => {
     try {
       const fileContent = await RNFS.readFile(item.path, 'utf8');
+      // Generate a unique ID for the section based on index, filename, and a timestamp
+      const sectionId = `section-${index}-${item.href.replace(/[^a-zA-Z0-9]/g, '')}-${Date.now()}`;
+      
       return {
+        id: sectionId,
         title: item.label,
         content: fileContent,
         path: item.path,
@@ -91,7 +95,9 @@ export const loadEpubContent = async (
       } as TOCSection;
     } catch (error) {
       console.error(`[EpubLoader] Error reading file ${item.path}:`, error);
+      // Even for error cases, provide a unique ID
       return {
+        id: `section-error-${index}-${Date.now()}`,
         title: item.label,
         content: '',
         path: item.path,

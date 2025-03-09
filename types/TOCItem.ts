@@ -5,8 +5,9 @@ export default interface TOCItem {
 }
 
 export interface TOCSection {
-  title: string;
-  content: string;
-  path: string;
-  href: string;
+  id: string;     // Unique identifier for the section
+  title: string;  // Section title
+  content: string; // Section content
+  path: string;    // File path to the section
+  href: string;    // Original href from the TOC
 }

@@ -422,7 +422,7 @@ function ReaderScreen() {
       // Load EPUB content using the refactored function
       const { content: epubContent, tableOfContents: toc, sections: contentSections } = await loadEpubContent(fileUri);
       
-      // Store table of contents and sections
+      console.log(contentSections);
       setTableOfContents(toc);
       setSections(contentSections);
       setContent(epubContent);
@@ -769,7 +769,7 @@ function ReaderScreen() {
       <FlatList
         data={sections}
         renderItem={({ item, index }) => renderSection(item, index)}
-        keyExtractor={(_, index) => `section-${index}`}
+        keyExtractor={(item) => item.id}
         style={styles.scrollView}
         initialNumToRender={20}
         maxToRenderPerBatch={10}
