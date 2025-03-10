@@ -10,6 +10,7 @@ export interface BookMetadata {
   lastModified: number;     // Last modification time of the file
   fileSize: number;    // Size of the file in bytes
   lastRead: number;    // Last time the book was opened
+  firstChapterId?: string; // ID of the section identified as the first chapter
 }
 
 const METADATA_STORAGE_KEY = 'TONGUES_BOOK_METADATA';
