@@ -297,15 +297,66 @@ function ReaderScreen() {
   };
   
   const handleReadAlongPress = async () => {
-    console.log('[ReaderScreen] Parsing content for sentences from main content...');
-    let sentences = extractSentences();
+    console.log('[ReaderScreen] Preparing content for read-along from main content...');
+    
+    // Create an array to store all sentences from main content onwards
+    const allReadingContent: string[] = [];
+    
+    // Check if we have a firstChapterId
+    if (firstChapterId && sections.length > 0) {
+      // Find the index of the section with the firstChapterId
+      const firstChapterIndex = sections.findIndex(section => section.id === firstChapterId);
+      
+      if (firstChapterIndex !== -1) {
+        // Get only sections from main content onwards
+        const mainContentSections = sections.slice(firstChapterIndex);
+        console.log(`[ReaderScreen] Found main content at index ${firstChapterIndex}, using ${mainContentSections.length} sections`);
+        
+        // Process each section to extract clean text
+        mainContentSections.forEach(section => {
+          if (!section.content || section.content.trim().length === 0) return;
+          
+          // Clean the content of HTML tags
+          const cleanContent = section.content
+            .replace(/<[^>]*>?/gm, ' ')  // Remove HTML tags
+            .replace(/\s+/g, ' ')        // Normalize whitespace
+            .trim();                     // Trim whitespace
+          
+          // Decode HTML entities
+          const decodedContent = decodeHtmlEntities(cleanContent);
+          
+          // Find sentences - match anything ending with ., !, or ? followed by space or end of string
+          const sentencesMatch = decodedContent.match(/[^.!?]+[.!?]+(\s|$)/g) || [];
+          
+          // Clean up each sentence
+          const cleanSentences = sentencesMatch
+            .map(s => s.trim())
+            // Keep sentences of reasonable length
+            .filter(s => s.length >= 15 && s.length <= 200)
+            // Remove any with HTML remnants
+            .filter(s => !s.includes('<') && !s.includes('>'));
+          
+          // Add these sentences to our collection
+          allReadingContent.push(...cleanSentences);
+        });
+      } else {
+        console.log('[ReaderScreen] Could not find main content section, falling back to all content');
+        allReadingContent.push(...extractSentences());
+      }
+    } else {
+      // If no firstChapterId or no sections, fall back to extracting from all content
+      console.log('[ReaderScreen] No main content marker found, using all content');
+      allReadingContent.push(...extractSentences());
+    }
     
     // Limit to a reasonable number of sentences for better performance
+    let sentences = allReadingContent;
     if (sentences.length > 100) {
       console.log(`[ReaderScreen] Limiting sentences from ${sentences.length} to 100 for better performance`);
       sentences = sentences.slice(0, 100);
     }
     
+    console.log(`[ReaderScreen] Ready for read-along with ${sentences.length} sentences`);
     setContentSentences(sentences);
     setReadAlongVisible(true);
   };
