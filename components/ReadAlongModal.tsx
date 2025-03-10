@@ -82,14 +82,24 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
               console.log(`[ReadAlongModal] Restored reading position: sentence ${savedIndex}`);
               currentSentenceIndex.current = savedIndex;
               
-              // We'll start from the saved position instead of the beginning
+              // Set the words for the current sentence to display
+              setWords(sentences[savedIndex].split(' '));
             } else {
               console.log(`[ReadAlongModal] Saved position out of range, starting from beginning`);
               currentSentenceIndex.current = 0;
+              
+              // Set words for the first sentence
+              setWords(sentences[0].split(' '));
             }
+          } else {
+            // No saved position, start from the beginning
+            currentSentenceIndex.current = 0;
+            setWords(sentences[0].split(' '));
           }
         } catch (error) {
           console.error('[ReadAlongModal] Error loading saved position:', error);
+          // In case of error, at least display the first sentence
+          setWords(sentences[0].split(' '));
         }
       }
     };
@@ -302,26 +312,62 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     });
   }
 
-  const handleTogglePlay = (_e: any) => {
+  const handleTogglePlay = async (_e: any) => {
+    // If already playing, just pause
+    if (isPlaying && soundRef.current) {
+      soundRef.current.pause();
+      setIsPlaying(false);
+      return;
+    }
+    
+    // If we have a sound loaded, resume playing
     if (soundRef.current) {
-      if (isPlaying) {
-        soundRef.current.pause();
-        setIsPlaying(false);
-      } else {
-        soundRef.current.play((success) => {
-          if (success) {
-            console.log(`Sentence ${currentSentenceIndex.current} finished playing.`);
-            handleNextSentencePlay(currentSentenceIndex.current);
-          }
-        });
-        setIsPlaying(true);
-        
-        // If we're resuming and don't have the next sentence preloaded, start preloading
-        const nextIndex = currentSentenceIndex.current + 1;
-        if (nextIndex < sentences.length && !nextSentenceData.current && !isPreloading.current) {
-          preloadNextSentence(nextIndex);
+      soundRef.current.play((success) => {
+        if (success) {
+          console.log(`Sentence ${currentSentenceIndex.current} finished playing.`);
+          handleNextSentencePlay(currentSentenceIndex.current);
         }
+      });
+      setIsPlaying(true);
+      
+      // If we're resuming and don't have the next sentence preloaded, start preloading
+      const nextIndex = currentSentenceIndex.current + 1;
+      if (nextIndex < sentences.length && !nextSentenceData.current && !isPreloading.current) {
+        preloadNextSentence(nextIndex);
       }
+    } else {
+      // No sound loaded yet, so we need to start from the saved position or beginning
+      // This is the same as the handleStart function
+      const startIndex = currentSentenceIndex.current;
+      console.log(`[ReadAlongModal] Starting from sentence ${startIndex}`);
+      
+      setWords(sentences[startIndex].split(' '));
+      setHighlightIndex(0);
+      setSelectedWord('');
+      setSelectedWordTranslation('');
+      setSelectedWordExplanation('');
+      
+      const timestamps: TimestampMark[] = await fetchWordTimestamps(sentences[startIndex], language);
+      currentTimestamps.current = timestamps;
+      console.log('Timestamps: ', timestamps);
+      const speech = await fetchSpeechAudio(sentences[startIndex], language);
+      soundRef.current = speech.sound;
+      
+      // Save the starting position
+      saveReadingPosition(startIndex);
+      
+      // Preload the next sentence while the first one is playing
+      if (sentences.length > startIndex + 1) {
+        preloadNextSentence(startIndex + 1);
+      }
+
+      setIsPlaying(true);
+      soundRef.current.play((success) => {
+        if (success) {
+          console.log(`Sentence ${startIndex} finished playing.`);
+          handleNextSentencePlay(startIndex);
+        }
+      });
     }
   }
 
@@ -522,14 +568,6 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                 {/* Playback controls */}
                 {!selectionMode && (
                   <View style={styles.controls}>
-                    <TouchableOpacity
-                      onPress={handleStart}
-                      style={styles.controlButton}
-                    >
-                      <Text style={styles.controlButtonText}>
-                        {'Start'}
-                      </Text>
-                    </TouchableOpacity>
                     <TouchableOpacity
                       onPress={handleTogglePlay}
                       style={styles.controlButton}
