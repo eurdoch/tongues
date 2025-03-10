@@ -28,9 +28,9 @@ export const extractContentSample = (text: string): string => {
 };
 
 /**
- * Identifies if a section is the first chapter using the Tongues API
+ * Identifies if a section is main book content (not front matter)
  */
-export const identifyFirstChapter = async (sectionId: string, content: string): Promise<boolean> => {
+export const identifyMainContent = async (sectionId: string, content: string): Promise<boolean> => {
   try {
     // Clean the content to get just text
     const cleanContent = content
@@ -42,13 +42,17 @@ export const identifyFirstChapter = async (sectionId: string, content: string): 
     const sampleText = cleanContent.substring(0, 1000);
     
     // Prepare the prompt for analysis
-    const prompt = `You are analyzing a section of an ebook to determine if it is the first chapter of the book. 
-Based solely on the content provided, respond with "YES" if you believe this is the first chapter of the book, or "NO" if it appears to be something else (like a preface, introduction, table of contents, copyright page, etc.).
+    const prompt = `You are analyzing a section of an ebook to determine if this is main book content or front/back matter.
 
-Here's the content:
+Analyze this content and determine whether it appears to be:
+- Main story/content of the book (narrative text, main body)
+OR
+- Supplementary material (copyright page, dedication, acknowledgments, table of contents, preface, foreword, introduction, appendix)
+
+Here's the content to analyze:
 ${sampleText}
 
-Is this the first chapter of the book? Respond with only YES or NO.`;
+Is this MAIN CONTENT of the book or supplementary material? Respond with ONLY "MAIN" or "SUPPLEMENTARY".`;
 
     // Make API call to the Tongues API endpoint
     const response = await fetch('https://tongues.directto.link/query', {
@@ -67,11 +71,12 @@ Is this the first chapter of the book? Respond with only YES or NO.`;
     const result = await response.json();
     const answer = result.answer.trim().toUpperCase();
     
-    console.log(`[EpubLoader] API identified section ${sectionId} as first chapter: ${answer === 'YES'}`);
-    return answer === 'YES';
+    const isMainContent = answer === 'MAIN';
+    console.log(`[EpubLoader] API identified section ${sectionId} as main content: ${isMainContent}`);
+    return isMainContent;
     
   } catch (error) {
-    console.error('[EpubLoader] Error identifying first chapter:', error);
+    console.error('[EpubLoader] Error identifying main content:', error);
     return false;
   }
 };
@@ -172,38 +177,38 @@ export const loadEpubContent = async (
   
   console.log('[EpubLoader] Successfully created', validSections.length, 'content sections');
   
-  // Analyze sections to find first chapter
+  // Analyze sections to find main content
   if (!bookMetadata?.firstChapterId) {
-    console.log('[EpubLoader] Identifying first chapter using API...');
-    let firstChapterId = null;
+    console.log('[EpubLoader] Identifying main content using API...');
+    let mainContentId = null;
     
-    // Loop through sections to find the first chapter
+    // Loop through sections to find the first instance of main content
     for (const section of validSections) {
       // Skip sections with very little content
       if (section.content.length < 200) continue;
       
-      const isFirstChapter = await identifyFirstChapter(section.id, section.content);
+      const isMainContent = await identifyMainContent(section.id, section.content);
       
-      if (isFirstChapter) {
-        console.log(`[EpubLoader] Found first chapter: ${section.title} (ID: ${section.id})`);
-        firstChapterId = section.id;
-        break; // Stop after finding the first chapter
+      if (isMainContent) {
+        console.log(`[EpubLoader] Found main content: ${section.title} (ID: ${section.id})`);
+        mainContentId = section.id;
+        break; // Stop after finding the first main content section
       }
     }
     
-    // If we found a first chapter, update or create metadata
-    if (firstChapterId) {
+    // If we found main content, update or create metadata
+    if (mainContentId) {
       try {
-        // Process the book file with the first chapter information
-        // This will either update existing metadata or create new metadata with the first chapter ID
-        await processBookFile(fileUri, firstChapterId);
-        console.log('[EpubLoader] Successfully processed book file with first chapter ID');
+        // Process the book file with the main content section ID
+        // This will either update existing metadata or create new metadata with the ID
+        await processBookFile(fileUri, mainContentId);
+        console.log('[EpubLoader] Successfully processed book file with main content ID');
       } catch (error) {
-        console.error('[EpubLoader] Error processing book with first chapter:', error);
+        console.error('[EpubLoader] Error processing book with main content ID:', error);
       }
     }
   } else {
-    console.log(`[EpubLoader] First chapter already identified: ${bookMetadata.firstChapterId}`);
+    console.log(`[EpubLoader] Main content already identified: ${bookMetadata.firstChapterId}`);
   }
   
   return {

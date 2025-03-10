@@ -809,21 +809,21 @@ function ReaderScreen() {
     );
   }
 
-  // Filter sections to only include from first chapter onwards
+  // Filter sections to only include main content (from identified main content onwards)
   const getDisplaySections = () => {
     if (!firstChapterId || sections.length === 0) {
-      return sections; // If no first chapter identified, show all sections
+      return sections; // If no main content identified, show all sections
     }
     
-    // Find the index of the first chapter
-    const firstChapterIndex = sections.findIndex(section => section.id === firstChapterId);
+    // Find the index of the main content section
+    const mainContentIndex = sections.findIndex(section => section.id === firstChapterId);
     
-    if (firstChapterIndex === -1) {
-      return sections; // If first chapter not found in sections, show all
+    if (mainContentIndex === -1) {
+      return sections; // If main content not found in sections, show all
     }
     
-    // Return only sections from first chapter onwards
-    return sections.slice(firstChapterIndex);
+    // Return only sections from main content onwards
+    return sections.slice(mainContentIndex);
   };
   
   // Get the filtered sections to display
