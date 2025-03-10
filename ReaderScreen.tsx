@@ -57,6 +57,9 @@ function ReaderScreen() {
   const [readAlongVisible, setReadAlongVisible] = useState<boolean>(false);
   const [contentSentences, setContentSentences] = useState<string[]>([]);
   const [languageSelectorVisible, setLanguageSelectorVisible] = useState<boolean>(false);
+  const [bookTitle, setBookTitle] = useState<string>('');
+  const [bookAuthor, setBookAuthor] = useState<string>('');
+  const [firstChapterId, setFirstChapterId] = useState<string | null>(null);
 
   const extractSentences = () => {
     if (!content) return ['Hello, welcome to Read Along mode'];
@@ -422,6 +425,32 @@ function ReaderScreen() {
       // Load EPUB content using the refactored function
       const { content: epubContent, tableOfContents: toc, sections: contentSections } = await loadEpubContent(fileUri);
       
+      // Get book metadata to find the first chapter ID
+      const bookId = fileUri.split('/').pop()?.replace(/[^a-zA-Z0-9]/g, '') || '';
+      const { getBookMetadata } = await import('./BookMetadataStore');
+      const metadata = await getBookMetadata(bookId);
+      
+      // Set book information
+      setBookTitle(metadata?.title || toc[0]?.label || 'Book');
+      // Try to find author information in the first few sections
+      let author = '';
+      for (const section of contentSections.slice(0, 3)) {
+        if (section.content.includes('author') || section.title.toLowerCase().includes('copyright')) {
+          const authorMatch = section.content.match(/author[:\s]+([^<\n]+)/i);
+          if (authorMatch && authorMatch[1]) {
+            author = authorMatch[1].trim();
+            break;
+          }
+        }
+      }
+      setBookAuthor(author);
+      
+      // Store the first chapter ID if available
+      if (metadata?.firstChapterId) {
+        setFirstChapterId(metadata.firstChapterId);
+      }
+      
+      // Store table of contents and all sections
       console.log(contentSections);
       setTableOfContents(toc);
       setSections(contentSections);
@@ -710,6 +739,22 @@ function ReaderScreen() {
     }
   };
 
+  // Render the book header with title and author
+  const renderBookHeader = () => {
+    return (
+      <View style={styles.bookHeaderContainer}>
+        <GestureText style={styles.bookTitle} selectable={false}>
+          {bookTitle}
+        </GestureText>
+        {bookAuthor && (
+          <GestureText style={styles.bookAuthor} selectable={false}>
+            by {bookAuthor}
+          </GestureText>
+        )}
+      </View>
+    );
+  };
+  
   // Render a section for the content (without title)
   const renderSection = (section: TOCSection, index: number) => {
     try {
@@ -764,10 +809,30 @@ function ReaderScreen() {
     );
   }
 
+  // Filter sections to only include from first chapter onwards
+  const getDisplaySections = () => {
+    if (!firstChapterId || sections.length === 0) {
+      return sections; // If no first chapter identified, show all sections
+    }
+    
+    // Find the index of the first chapter
+    const firstChapterIndex = sections.findIndex(section => section.id === firstChapterId);
+    
+    if (firstChapterIndex === -1) {
+      return sections; // If first chapter not found in sections, show all
+    }
+    
+    // Return only sections from first chapter onwards
+    return sections.slice(firstChapterIndex);
+  };
+  
+  // Get the filtered sections to display
+  const displaySections = getDisplaySections();
+  
   return (
     <View style={styles.container}>
       <FlatList
-        data={sections}
+        data={displaySections}
         renderItem={({ item, index }) => renderSection(item, index)}
         keyExtractor={(item) => item.id}
         style={styles.scrollView}
@@ -775,6 +840,7 @@ function ReaderScreen() {
         maxToRenderPerBatch={10}
         windowSize={5}
         removeClippedSubviews={false}
+        ListHeaderComponent={renderBookHeader}
         scrollEventThrottle={16}
         onScrollBeginDrag={() => {
           // Clear selections when scrolling
@@ -833,6 +899,26 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
     padding: 20,
+  },
+  bookHeaderContainer: {
+    marginBottom: 40,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
+    alignItems: 'center',
+  },
+  bookTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  bookAuthor: {
+    fontSize: 18,
+    color: '#666',
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
   sectionContainer: {
     marginBottom: 24,
