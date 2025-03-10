@@ -14,6 +14,7 @@ import {
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { fetchSpeechAudio, fetchWordTimestamps, translateText, explainWord } from './reader/TranslationService';
 import Sound from 'react-native-sound';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface TimestampMark {
   time: number;
@@ -34,6 +35,7 @@ interface ReadAlongModalProps {
   onClose: () => void;
   language: string;
   sentences: string[];
+  bookId: string; // Add bookId to identify which book we're reading
 }
 
 const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
@@ -41,6 +43,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   language,
   onClose,
   sentences,
+  bookId,
 }) => {
   // Add TranslationPopup component reference
   const translationPopupRef = useRef(null);
@@ -62,6 +65,50 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   const currentTimestamps = useRef<TimestampMark[]>([]);
   const nextSentenceData = useRef<SentenceData | null>(null);
   const isPreloading = useRef<boolean>(false);
+
+  // Load the saved reading position when the modal becomes visible
+  useEffect(() => {
+    const loadSavedPosition = async () => {
+      if (visible && bookId && sentences.length > 0) {
+        try {
+          const key = `readAlong_${bookId}`;
+          const savedPosition = await AsyncStorage.getItem(key);
+          
+          if (savedPosition !== null) {
+            const savedIndex = parseInt(savedPosition, 10);
+            
+            // Validate the saved index is within the current sentences array bounds
+            if (!isNaN(savedIndex) && savedIndex >= 0 && savedIndex < sentences.length) {
+              console.log(`[ReadAlongModal] Restored reading position: sentence ${savedIndex}`);
+              currentSentenceIndex.current = savedIndex;
+              
+              // We'll start from the saved position instead of the beginning
+            } else {
+              console.log(`[ReadAlongModal] Saved position out of range, starting from beginning`);
+              currentSentenceIndex.current = 0;
+            }
+          }
+        } catch (error) {
+          console.error('[ReadAlongModal] Error loading saved position:', error);
+        }
+      }
+    };
+    
+    loadSavedPosition();
+  }, [visible, bookId, sentences]);
+  
+  // Save the current reading position whenever it changes
+  const saveReadingPosition = async (index: number) => {
+    if (bookId) {
+      try {
+        const key = `readAlong_${bookId}`;
+        await AsyncStorage.setItem(key, index.toString());
+        console.log(`[ReadAlongModal] Saved reading position: sentence ${index}`);
+      } catch (error) {
+        console.error('[ReadAlongModal] Error saving reading position:', error);
+      }
+    }
+  };
 
   // Add a debug log at the start of your interval to confirm it's running
   useEffect(() => {
@@ -162,6 +209,8 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     }
     
     currentSentenceIndex.current = next;
+    // Save the new sentence position
+    saveReadingPosition(next);
     setHighlightIndex(0);
     
     // If we have preloaded data for the next sentence, use it
@@ -219,29 +268,36 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   }
 
   const handleStart = async (_e: any) => {
-    setWords(sentences[0].split(' '));
+    // Use the saved position or start from the beginning
+    const startIndex = currentSentenceIndex.current;
+    console.log(`[ReadAlongModal] Starting from sentence ${startIndex}`);
+    
+    setWords(sentences[startIndex].split(' '));
     setHighlightIndex(0);
     setSelectedWord('');
     setSelectedWordTranslation('');
     setSelectedWordExplanation('');
-    //const translation = await translateText(sentences[0], language);
-    const timestamps: TimestampMark[] = await fetchWordTimestamps(sentences[0], language);
+    
+    const timestamps: TimestampMark[] = await fetchWordTimestamps(sentences[startIndex], language);
     currentTimestamps.current = timestamps;
     console.log('Timestamps: ', timestamps);
-    const speech = await fetchSpeechAudio(sentences[0], language);
+    const speech = await fetchSpeechAudio(sentences[startIndex], language);
     soundRef.current = speech.sound;
     
+    // Save the starting position
+    saveReadingPosition(startIndex);
+    
     // Preload the next sentence while the first one is playing
-    if (sentences.length > 1) {
-      preloadNextSentence(1);
+    if (sentences.length > startIndex + 1) {
+      preloadNextSentence(startIndex + 1);
     }
 
     setIsPlaying(true);
     // TODO handle errors where soundRef.current is null ?
     soundRef.current.play((success) => {
       if (success) {
-        console.log(`Sentence 0 finished playing.`);
-        handleNextSentencePlay(0);
+        console.log(`Sentence ${startIndex} finished playing.`);
+        handleNextSentencePlay(startIndex);
       }
     });
   }

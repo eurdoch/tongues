@@ -929,6 +929,7 @@ function ReaderScreen() {
         onClose={() => setReadAlongVisible(false)}
         language={selectedLanguage}
         sentences={contentSentences}
+        bookId={fileUri?.split('/').pop()?.replace(/[^a-zA-Z0-9]/g, '') || ''}
       />
 
       {/* Language Selector Modal */}
