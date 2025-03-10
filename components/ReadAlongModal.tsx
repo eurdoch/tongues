@@ -161,6 +161,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     setShowTranslationPopup(false);
     setSelectionMode(false);
     setSelectedWords([]);
+    pausedByUser.current = false;
     currentTimestamps.current = [];
     currentSentenceIndex.current = 0;
     
@@ -210,6 +211,12 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   };
 
   const handleNextSentencePlay = async (currentIndex: number) => {
+    // Don't proceed to next sentence if user manually paused
+    if (pausedByUser.current) {
+      console.log('[ReadAlongModal] User paused - not advancing to next sentence');
+      return;
+    }
+    
     const next = currentIndex + 1;
     
     // Check if we've reached the end of sentences
@@ -243,7 +250,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       }
       
       soundRef.current.play((success) => {
-        if (success) {
+        if (success && !pausedByUser.current) {
           console.log(`Sentence ${next} finished playing.`);
           handleNextSentencePlay(next);
         }
@@ -269,7 +276,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       }
       
       soundRef.current.play((success) => {
-        if (success) {
+        if (success && !pausedByUser.current) {
           console.log(`Sentence ${next} finished playing.`);
           handleNextSentencePlay(next);
         }
@@ -312,18 +319,25 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     });
   }
 
+  // Track if playback is paused by user - this helps prevent auto-advancing
+  const pausedByUser = useRef<boolean>(false);
+
   const handleTogglePlay = async (_e: any) => {
     // If already playing, just pause
     if (isPlaying && soundRef.current) {
       soundRef.current.pause();
       setIsPlaying(false);
+      pausedByUser.current = true; // Set flag to indicate user manually paused
       return;
     }
     
     // If we have a sound loaded, resume playing
     if (soundRef.current) {
+      pausedByUser.current = false; // Reset pause flag when manually playing
       soundRef.current.play((success) => {
-        if (success) {
+        // Only proceed to next sentence if playback completed successfully AND 
+        // user didn't manually pause (to prevent auto-advancing after pause)
+        if (success && !pausedByUser.current) {
           console.log(`Sentence ${currentSentenceIndex.current} finished playing.`);
           handleNextSentencePlay(currentSentenceIndex.current);
         }
@@ -362,8 +376,11 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       }
 
       setIsPlaying(true);
+      pausedByUser.current = false; // Reset pause flag
       soundRef.current.play((success) => {
-        if (success) {
+        // Only proceed to next sentence if playback completed successfully AND
+        // user didn't manually pause (to prevent auto-advancing after pause)
+        if (success && !pausedByUser.current) {
           console.log(`Sentence ${startIndex} finished playing.`);
           handleNextSentencePlay(startIndex);
         }
