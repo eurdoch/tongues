@@ -1,7 +1,7 @@
 import RNFS from 'react-native-fs';
 import { parseEpub } from '../../utils';
 import TOCItem, { TOCSection } from '../../types/TOCItem';
-import { BookMetadata, getBookMetadata, saveBookMetadata } from '../../BookMetadataStore';
+import { BookMetadata, getBookMetadata, saveBookMetadata, processBookFile } from '../../BookMetadataStore';
 
 /**
  * Extracts a sample of content for language detection
@@ -172,9 +172,10 @@ export const loadEpubContent = async (
   
   console.log('[EpubLoader] Successfully created', validSections.length, 'content sections');
   
-  // Analyze sections to find first chapter if not already identified
+  // Analyze sections to find first chapter
   if (!bookMetadata?.firstChapterId) {
-    console.log('[EpubLoader] Identifying first chapter with Anthropic Haiku...');
+    console.log('[EpubLoader] Identifying first chapter using API...');
+    let firstChapterId = null;
     
     // Loop through sections to find the first chapter
     for (const section of validSections) {
@@ -185,18 +186,20 @@ export const loadEpubContent = async (
       
       if (isFirstChapter) {
         console.log(`[EpubLoader] Found first chapter: ${section.title} (ID: ${section.id})`);
-        
-        // Save this information to metadata
-        if (bookMetadata) {
-          // Update existing metadata
-          bookMetadata.firstChapterId = section.id;
-          await saveBookMetadata(bookMetadata);
-        } else {
-          // If for some reason we don't have metadata yet, just log this
-          console.log('[EpubLoader] Book metadata not found, first chapter ID will not be saved');
-        }
-        
+        firstChapterId = section.id;
         break; // Stop after finding the first chapter
+      }
+    }
+    
+    // If we found a first chapter, update or create metadata
+    if (firstChapterId) {
+      try {
+        // Process the book file with the first chapter information
+        // This will either update existing metadata or create new metadata with the first chapter ID
+        await processBookFile(fileUri, firstChapterId);
+        console.log('[EpubLoader] Successfully processed book file with first chapter ID');
+      } catch (error) {
+        console.error('[EpubLoader] Error processing book with first chapter:', error);
       }
     }
   } else {

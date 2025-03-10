@@ -112,7 +112,7 @@ export const checkIfBookExists = async (filePath: string): Promise<boolean> => {
 };
 
 // Create or update metadata for a book file
-export const processBookFile = async (filePath: string): Promise<BookMetadata | null> => {
+export const processBookFile = async (filePath: string, firstChapterId?: string): Promise<BookMetadata | null> => {
   try {
     // Check if file exists
     const exists = await RNFS.exists(filePath);
@@ -135,10 +135,12 @@ export const processBookFile = async (filePath: string): Promise<BookMetadata | 
         const existingFilename = book.filePath.split('/').pop()?.toLowerCase() || '';
         
         if (existingFilename === filename) {
-          // Update the last read time
+          // Update the last read time and potentially the first chapter ID
           const updatedBook = {
             ...book,
-            lastRead: Date.now()
+            lastRead: Date.now(),
+            // Only update firstChapterId if provided and not already set
+            ...(firstChapterId && !book.firstChapterId ? { firstChapterId } : {})
           };
           await saveBookMetadata(updatedBook);
           return updatedBook;
@@ -169,6 +171,7 @@ export const processBookFile = async (filePath: string): Promise<BookMetadata | 
         lastModified: stats.mtime?.getTime() || Date.now(),
         fileSize: stats.size,
         lastRead: Date.now(),
+        ...(firstChapterId ? { firstChapterId } : {})
       };
       
       await saveBookMetadata(metadata);
@@ -184,6 +187,7 @@ export const processBookFile = async (filePath: string): Promise<BookMetadata | 
       lastModified: stats.mtime?.getTime() || Date.now(),
       fileSize: stats.size,
       lastRead: Date.now(),
+      ...(firstChapterId ? { firstChapterId } : {})
     };
     
     // Save metadata
