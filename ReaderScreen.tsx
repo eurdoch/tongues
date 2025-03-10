@@ -80,10 +80,13 @@ function ReaderScreen() {
       if (sections && sections.length > 0) {
         console.log('[ReaderScreen] Processing content from sections');
         
+        // Get the sections to use - either from first chapter onwards or all sections
+        const sectionsToUse = getDisplaySections();
+        
         // Process each section to extract sentences
         let allSentences: string[] = [];
         
-        sections.forEach(section => {
+        sectionsToUse.forEach(section => {
           if (!section.content || section.content.trim().length === 0) return;
           
           // Clean the section content of HTML tags
@@ -294,10 +297,16 @@ function ReaderScreen() {
   };
   
   const handleReadAlongPress = async () => {
-    console.log('[ReaderScreen] Parsing content for sentences...');
+    console.log('[ReaderScreen] Parsing content for sentences from main content...');
     let sentences = extractSentences();
-    setContentSentences(sentences);
     
+    // Limit to a reasonable number of sentences for better performance
+    if (sentences.length > 100) {
+      console.log(`[ReaderScreen] Limiting sentences from ${sentences.length} to 100 for better performance`);
+      sentences = sentences.slice(0, 100);
+    }
+    
+    setContentSentences(sentences);
     setReadAlongVisible(true);
   };
   
