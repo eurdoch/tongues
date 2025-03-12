@@ -8,10 +8,9 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  Dimensions,
   Animated,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/fontawesome';
+import Icon from 'react-native-vector-icons/FontAwesome';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { fetchSpeechAudio, fetchWordTimestamps, translateText, explainWord } from './reader/TranslationService';
 import Sound from 'react-native-sound';
@@ -590,15 +589,12 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                       onPress={handleTogglePlay}
                       style={styles.controlButton}
                     >
-                      <FontAwesome6 
+                      <Icon
                         name={isPlaying ? 'pause' : 'play'} 
                         color="#FFFFFF"
                         size={18} 
                         style={{marginRight: 6}}
                       />
-                      <Text style={styles.controlButtonText}>
-                        {isPlaying ? 'Pause' : 'Play'}
-                      </Text>
                     </TouchableOpacity>
                   </View>
                 )}
