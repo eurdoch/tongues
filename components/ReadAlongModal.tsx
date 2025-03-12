@@ -242,6 +242,8 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       }
       
       soundRef.current = nextSentenceData.current.sound;
+      // Apply current playback speed
+      soundRef.current.setSpeed(playbackSpeed);
       nextSentenceData.current = null;
       
       // Start preloading the sentence after this one
@@ -269,6 +271,8 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       }
       
       soundRef.current = speech.sound;
+      // Apply current playback speed
+      soundRef.current.setSpeed(playbackSpeed);
       
       // Start preloading the sentence after this one
       if (next + 1 < sentences.length) {
@@ -301,6 +305,9 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     const speech = await fetchSpeechAudio(sentences[startIndex], language);
     soundRef.current = speech.sound;
     
+    // Apply current playback speed
+    soundRef.current.setSpeed(playbackSpeed);
+    
     // Save the starting position
     saveReadingPosition(startIndex);
     
@@ -322,6 +329,19 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   // Track if playback is paused by user - this helps prevent auto-advancing
   const pausedByUser = useRef<boolean>(false);
 
+  // Track playback speed
+  const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
+  
+  const handleSlowDown = () => {
+    if (soundRef.current) {
+      // Don't go below 0.5x speed
+      const newSpeed = Math.max(0.5, playbackSpeed - 0.5);
+      setPlaybackSpeed(newSpeed);
+      soundRef.current.setSpeed(newSpeed);
+      console.log(`[ReadAlongModal] Playback speed set to ${newSpeed}x`);
+    }
+  };
+  
   const handleTogglePlay = async (_e: any) => {
     // If already playing, just pause
     if (isPlaying && soundRef.current) {
@@ -334,6 +354,8 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     // If we have a sound loaded, resume playing
     if (soundRef.current) {
       pausedByUser.current = false; // Reset pause flag when manually playing
+      // Apply current playback speed
+      soundRef.current.setSpeed(playbackSpeed);
       soundRef.current.play((success) => {
         // Only proceed to next sentence if playback completed successfully AND 
         // user didn't manually pause (to prevent auto-advancing after pause)
@@ -595,6 +617,24 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                         size={18} 
                         style={{marginRight: 6}}
                       />
+                      <Text style={styles.controlButtonText}>
+                        {isPlaying ? 'Pause' : 'Play'}
+                      </Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity
+                      onPress={handleSlowDown}
+                      style={[styles.controlButton, styles.speedButton]}
+                    >
+                      <Icon
+                        name="backward" 
+                        color="#FFFFFF"
+                        size={18} 
+                        style={{marginRight: 6}}
+                      />
+                      <Text style={styles.controlButtonText}>
+                        Slow Down ({playbackSpeed}x)
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 )}
