@@ -128,5 +128,10 @@ function decodeHtmlEntities(text: string): string {
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
-    .replace(/&#x2F;/g, '/');
+    .replace(/&#x2F;/g, '/')
+    .replace(/&rsquo;/g, "'")
+    .replace(/&ldquo;/g, '"')
+    .replace(/&rdquo;/g, '"')
+    .replace(/&ndash;/g, '–')
+    .replace(/&mdash;/g, '—');
 }
