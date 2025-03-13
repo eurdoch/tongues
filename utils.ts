@@ -367,27 +367,6 @@ const readContentOpf = async (opfPath: string) => {
   }
 };
 
-export const parseEpub = async (uri: string) => {
-    try {
-        console.log('[utils] ParseEpub called with URI:', uri);
-        const extractedPath = await extractEpub(uri);
-        console.log('[utils] EPUB extracted to path:', extractedPath);
-        
-        const opfPath = await findOpfFile(extractedPath);
-        if (opfPath) {
-            console.log('[utils] OPF file found at:', opfPath);
-            const content = await readContentOpf(opfPath);
-            return content;
-        } else {
-            console.error('[utils] No OPF file found in EPUB');
-            return null;
-        }
-    } catch (error) {
-        console.error('[utils] Error in parseEpub:', error);
-        return null;
-    }
-}
-
 /**
  * Find a file by name recursively in a directory
  */
