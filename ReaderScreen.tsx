@@ -8,9 +8,11 @@ import {
 import GestureText from './GestureText';
 import Sound from 'react-native-sound';
 import LanguageSelectorModal from './components/LanguageSelectorModal';
-import { useRoute } from '@react-navigation/native';
+import { RouteProp, useRoute } from '@react-navigation/native';
 import RNFS from 'react-native-fs';
 import { parseEpub } from './components/reader/EpubLoader';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from './App';
 
 const supportedLanguages = [
   'French',
@@ -20,7 +22,15 @@ const supportedLanguages = [
   'Dutch',
 ];
 
-function ReaderScreen() {
+type ProfileScreenRouteProp = RouteProp<RootStackParamList, 'Reader'>;
+//type ProfileScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Reader'>;
+
+type ProfileProps = {
+  route: ProfileScreenRouteProp;
+  //navigation: ProfileScreenNavigationProp;
+};
+
+function ReaderScreen({ route }: any) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
@@ -29,7 +39,6 @@ function ReaderScreen() {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [sound, setSound] = useState<Sound | null>(null);
   const [languageSelectorVisible, setLanguageSelectorVisible] = useState<boolean>(false);
-  const route = useRoute();
 
   useEffect(() => {
     console.log('[ReaderScreen] MOUNTED - component mounted');
@@ -41,9 +50,7 @@ function ReaderScreen() {
   
   useEffect(() => {
     console.log(route.params.fileUri);
-    parseEpub(route.params.fileUri).then(book => {
-      console.log(book);
-    });
+      parseEpub(route.params.fileUri).then(result => console.log("Result: ", result));
   }, [route.params.fileUri]);
   
   // Helper function to decode HTML entities
