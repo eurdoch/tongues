@@ -22,7 +22,6 @@ export async function parseEpub(fileUri: string) {
       const tocContents = await RNFS.readFile(tocPath, 'utf8');
       const parsedToc = new DOMParser().parseFromString(tocContents);
       navMapObj = findNavMap(parsedToc);
-      console.log('navMap found');
     }
     
     return {

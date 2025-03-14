@@ -1,14 +1,16 @@
-import { Text, View, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
-import { parseEpub } from "./utils";
+import { Text, View, StyleSheet, TouchableOpacity, ActivityIndicator, Platform } from "react-native";
 import { useNavigation, DrawerActions } from "@react-navigation/native";
 import { pick } from "@react-native-documents/picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useState } from "react";
 import RNFS from "react-native-fs";
+import { parseEpub } from "./components/reader/EpubLoader";
+import TableOfContents from "./components/TableOfContents";
 
 function CustomDrawerContent() {
     const navigation = useNavigation();
-    const [isLoading, setIsLoading] = useState(false);
+    const [navMap, setNavMap] = useState<any>(null);
+    const [isLoading, setIsLoading] = useState<boolean>(false);
   
     const selectAndReadEpub = async () => {
       try {
@@ -25,17 +27,13 @@ function CustomDrawerContent() {
         
         console.log("Selected file:", file);
         
-        // First check the file size
         let fileSize = 0;
-        
         try {
-          // Get file stats to check size
           const stats = await RNFS.stat(file.uri);
           fileSize = stats.size;
           console.log(`Selected file size: ${fileSize} bytes`);
         } catch (statError) {
           console.log('Error getting file stats:', statError);
-          // Continue even if we can't get the size
         }
         
         // Look for existing files with the same size first
@@ -44,11 +42,19 @@ function CustomDrawerContent() {
           console.log(`Found ${existingFiles.length} potential matches by size`);
           
           // Use the first one - this is likely to be the same file
+          // TODO this is terrible change to ensure sameness
           const existingPath = existingFiles[0].path;
           console.log(`Using existing file: ${existingPath}`);
+          const result = await parseEpub(existingPath);
+          console.log('Result: ', result);
           
+          if (result.navMap) {
+            setNavMap(result.navMap);
+            setIsLoading(false);
+          }
+
           navigation.navigate('Reader', { 
-            fileUri: existingPath,
+            content: "",
             shouldRefreshHomeAfterClose: false // Don't need to refresh as we're using an existing file
           });
           return;
@@ -57,17 +63,27 @@ function CustomDrawerContent() {
         // Copy the file to app storage for persistence
         const savedFilePath = await copyFileToAppStorage(file.uri);
         
-        // Navigate to Reader screen with the file URI
-        // If we successfully saved it, use the saved path, otherwise use the original URI
-        navigation.navigate('Reader', { 
-          fileUri: savedFilePath || file.uri,
-          shouldRefreshHomeAfterClose: true // Flag to refresh HomeScreen when done
-        });
-        
+        if (savedFilePath) {
+          const result = await parseEpub(savedFilePath);
+
+          if (result.navMap) {
+            console.log('navMap: ', result.navMap);
+            setNavMap(result.navMap);
+            setIsLoading(false);
+
+            navigation.navigate('Reader', { 
+              content: "",
+              shouldRefreshHomeAfterClose: true // Flag to refresh HomeScreen when done
+            });
+          } else {
+            throw new Error("Could not parse epub.");
+          }
+        } else {
+          throw new Error("Could not save file.");
+        }
       } catch (e: any) {
         console.log('pick failed: ', e);
       } finally {
-        // Hide loading indicator
         setIsLoading(false);
       }
     };
@@ -197,7 +213,6 @@ function CustomDrawerContent() {
         
         // Generate a unique target filename with timestamp to avoid conflicts
         const timestamp = Date.now();
-        const randomSuffix = Math.floor(Math.random() * 10000);
         
         // Try to extract original filename from URI if possible
         let fileName;
@@ -291,9 +306,6 @@ function CustomDrawerContent() {
     
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Tongues</Text>
-        </View>
         <View style={styles.content}>
           <TouchableOpacity 
             style={styles.navButton}
@@ -313,7 +325,12 @@ function CustomDrawerContent() {
               <Text style={styles.buttonText}>Open Book</Text>
             )}
           </TouchableOpacity>
+          
         </View>
+        { 
+          navMap && 
+            <TableOfContents navMap={navMap} onNavigate={() => {console.log('navigate clicked')}} />
+        }
       </SafeAreaView>
     );
   }

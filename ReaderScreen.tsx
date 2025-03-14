@@ -4,17 +4,12 @@ import {
   StyleSheet, 
   FlatList,
   ActivityIndicator, 
+  Text
 } from 'react-native';
 import GestureText from './GestureText';
 import Sound from 'react-native-sound';
-import LanguageSelectorModal from './components/LanguageSelectorModal';
-import { RouteProp, useRoute } from '@react-navigation/native';
-import RNFS from 'react-native-fs';
-import { parseEpub } from './components/reader/EpubLoader';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from './App';
-import { walk } from 'epubjs/types/utils/core';
-import TableOfContents from './components/TableOfContents';
 
 const supportedLanguages = [
   'French',
@@ -25,11 +20,9 @@ const supportedLanguages = [
 ];
 
 type ProfileScreenRouteProp = RouteProp<RootStackParamList, 'Reader'>;
-//type ProfileScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Reader'>;
 
 type ProfileProps = {
   route: ProfileScreenRouteProp;
-  //navigation: ProfileScreenNavigationProp;
 };
 
 function ReaderScreen({ route }: any) {
@@ -41,7 +34,7 @@ function ReaderScreen({ route }: any) {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [sound, setSound] = useState<Sound | null>(null);
   const [languageSelectorVisible, setLanguageSelectorVisible] = useState<boolean>(false);
-  const [navMap, setNavMap] = useState<any>(null);
+  const [content, setContent] = useState<string>("");
 
   useEffect(() => {
     console.log('[ReaderScreen] MOUNTED - component mounted');
@@ -50,23 +43,10 @@ function ReaderScreen({ route }: any) {
       console.log('[ReaderScreen] UNMOUNTED - component will unmount');
     };
   }, []);
-  
+
   useEffect(() => {
-    async function loadEpub() {
-      try {
-        const result = await parseEpub(route.params.fileUri);
-        
-        if (result.navMap) {
-          setNavMap(result.navMap);
-          setIsLoading(false);
-        }
-      } catch (err: any) {
-        setError('Failed to load ebook: ' + err.message);
-      }
-    }
-    
-    loadEpub();
-  }, [route.params.fileUri]);
+    setContent(route.params.content);
+  }, [route.params.content]);
   
   // Helper function to decode HTML entities
   const decodeHtmlEntities = (text: string) => {
@@ -85,13 +65,6 @@ function ReaderScreen({ route }: any) {
       .replace(/&nbsp;/g, ' ')
       .replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec))
       .replace(/&#x([0-9A-F]+);/gi, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
-  };
-
-  const handleLanguageSelect = (language: string) => {
-    console.log('[ReaderScreen] User selected language:', language);
-    setSelectedLanguage(language);
-    setLanguageSelectorVisible(false);
-    setIsLoading(false);
   };
 
   // Play the audio file
@@ -146,7 +119,7 @@ function ReaderScreen({ route }: any) {
 
   return (
     <View style={styles.container}>
-      { navMap && <TableOfContents navMap={navMap} onNavigate={() => {console.log('navigate clicked')}} />}
+      <Text>{content}</Text>
       <FlatList
         data={[{'id': 'helo'}]}
         renderItem={({ item, index }) => <View>Hello</View>}
@@ -189,7 +162,7 @@ function ReaderScreen({ route }: any) {
       /> */}
 
 
-      {/* Language Selector Modal */}
+      {/* Language Selector Modal 
       <LanguageSelectorModal
         visible={languageSelectorVisible}
         supportedLanguages={supportedLanguages}
@@ -200,7 +173,7 @@ function ReaderScreen({ route }: any) {
           setIsLoading(false);
         }}
         onSelectLanguage={handleLanguageSelect}
-      />
+      />*/}
     </View>
   );
 }
