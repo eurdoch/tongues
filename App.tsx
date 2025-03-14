@@ -1,15 +1,14 @@
 import React, { useEffect, useRef } from 'react';
 import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import { createDrawerNavigator } from '@react-navigation/drawer';
-import { NativeEventEmitter, NativeModules, Platform, EmitterSubscription, Alert, AppState } from 'react-native';
+import { NativeModules, Platform, EmitterSubscription, Alert, AppState } from 'react-native';
 import HomeScreen from './HomeScreen';
 import ReaderScreen from './ReaderScreen';
 import CustomDrawerContent from './CustomDrawerContent';
 
 const Drawer = createDrawerNavigator();
 
-// Type definition for the navigation ref
-type RootStackParamList = {
+export type RootStackParamList = {
   Home: undefined;
   Reader: { fileUri: string };
 };
@@ -51,7 +50,7 @@ function App() {
       console.log('[App] Setting up openEpubFile event listener with DeviceEventEmitter');
       
       // Add a listener for the openEpubFile event
-      eventListener = DeviceEventEmitter.addListener('openEpubFile', (event) => {
+      eventListener = DeviceEventEmitter.addListener('openEpubFile', (event: any) => {
         console.log('[App] Received openEpubFile event:', event);
         
         const { uri } = event;
