@@ -18,6 +18,7 @@ import { BookMetadata, getAllBookMetadata, processBookFile, updateLastRead, remo
 import { parseEpub } from "./components/reader/EpubLoader";
 import { RootStackParamList } from "./App";
 import { findFirstContentTag, readTextFile } from "./utils";
+import { useNavigationContext } from "./NavigationContext";
 
 interface EpubFile {
     id: string;
@@ -42,7 +43,8 @@ function HomeScreen({ route }: HomeProps): React.JSX.Element {
     const [isSelectMode, setIsSelectMode] = useState<boolean>(false);
     const [selectedBooks, setSelectedBooks] = useState<Set<string>>(new Set());
     const navigation = useNavigation();
-    
+    const { navMap, setNavMap } = useNavigationContext();
+
     // Handle select all books
     const handleSelectAll = () => {
         const allBookIds = new Set(epubFiles.map(book => book.id));
@@ -902,11 +904,7 @@ function HomeScreen({ route }: HomeProps): React.JSX.Element {
             const firstContentElem = findFirstContentTag(result.navMap);
             const firstContentPath = result.basePath + '/' + firstContentElem.getAttribute('src');
             const firstContents = await readTextFile(firstContentPath);
-            console.log(firstContents);
-            // TODO BUG this route.params only exists when I navigate to Home from drawer, otherwise null
-            if (result.navMap) {
-              route.params!.setNavMap(result.navMap);
-            }
+            setNavMap(result.navMap);
 
             // Navigate to reader screen
             navigation.navigate('Reader', { content: firstContents });

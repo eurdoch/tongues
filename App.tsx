@@ -5,6 +5,7 @@ import { NativeModules, Platform, EmitterSubscription, Alert, AppState } from 'r
 import HomeScreen from './HomeScreen';
 import ReaderScreen from './ReaderScreen';
 import CustomDrawerContent from './CustomDrawerContent';
+import { NavigationProvider } from './NavigationContext';
 
 const Drawer = createDrawerNavigator();
 
@@ -90,6 +91,7 @@ function App() {
               if (navigationRef.current && navigationRef.current.isReady()) {
                 console.log(`[App] Navigation ready after delay, navigating to Reader`);
                 navigationRef.current.navigate('Reader', {
+                  // TODO change to content
                   fileUri: uri,
                   shouldRefreshHomeAfterClose: true,
                   openedExternally: true,
@@ -132,24 +134,26 @@ function App() {
   
   
   return (
-    <NavigationContainer ref={navigationRef}>
-      <Drawer.Navigator
-        initialRouteName='Home'
-        drawerContent={() => <CustomDrawerContent />}
-        screenOptions={{
-          drawerStyle: {
-            width: 240,
-          },
-        }}
-      >
-        <Drawer.Screen name="Home" component={HomeScreen} />
-        <Drawer.Screen 
-          name="Reader" 
-          component={ReaderScreen}
-          options={{ unmountOnBlur: false }} // Ensure component doesn't unmount between navigations
-        />
-      </Drawer.Navigator>
-    </NavigationContainer>
+    <NavigationProvider>
+      <NavigationContainer ref={navigationRef}>
+        <Drawer.Navigator
+          initialRouteName='Home'
+          drawerContent={() => <CustomDrawerContent />}
+          screenOptions={{
+            drawerStyle: {
+              width: 240,
+            },
+          }}
+        >
+          <Drawer.Screen name="Home" component={HomeScreen} />
+          <Drawer.Screen 
+            name="Reader" 
+            component={ReaderScreen}
+            options={{ unmountOnBlur: false }} // Ensure component doesn't unmount between navigations
+          />
+        </Drawer.Navigator>
+      </NavigationContainer>
+    </NavigationProvider>
   );
 }
 

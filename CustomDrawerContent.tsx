@@ -2,15 +2,29 @@ import { Text, View, StyleSheet, TouchableOpacity, ActivityIndicator, Platform }
 import { useNavigation, DrawerActions } from "@react-navigation/native";
 import { pick } from "@react-native-documents/picker";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import RNFS from "react-native-fs";
 import { parseEpub } from "./components/reader/EpubLoader";
 import TableOfContents from "./components/TableOfContents";
+import { useNavigationContext } from "./NavigationContext";
 
 function CustomDrawerContent() {
     const navigation = useNavigation();
-    const [navMap, setNavMap] = useState<any>(null);
     const [isLoading, setIsLoading] = useState<boolean>(false);
+    const { navMap, setNavMap } = useNavigationContext();
+
+    useEffect(() => {
+      // Example: Initialize or update navMap if needed
+      console.log('[CustomDrawerContent] Component mounted, current navMap:', navMap);
+      
+      // If you need to set initial navMap data:
+      // setNavMap(initialData);
+      
+      // Clean up if necessary
+      return () => {
+        console.log('[CustomDrawerContent] Component unmounting');
+      };
+    }, []);
   
     const selectAndReadEpub = async () => {
       try {
