@@ -19,7 +19,8 @@ export async function parseEpub(fileUri: string) {
     if (tocPath) {
       const tocContents = await RNFS.readFile(tocPath, 'utf8');
       const parsedToc = new DOMParser().parseFromString(tocContents);
-      console.log(parsedToc);
+      const navMap = findNavMap(parsedToc);
+      console.log('navMap: ', navMap);
     }
     
     return {
@@ -45,6 +46,25 @@ async function findFileRecursively(dir: string, fileName: string): Promise<strin
       }
     }
   }
+  return null;
+}
+
+function findNavMap(parsedXml: any): any {
+  if (parsedXml.tagName === 'navMap') {
+    return parsedXml;
+  }
+
+  const childNodes = parsedXml.childNodes;
+  if (childNodes) {
+    for (const key in childNodes) {
+      const foundNavMap = findNavMap(childNodes[key]);
+      if (foundNavMap) {
+        return foundNavMap;
+      }
+    }
+
+  }
+
   return null;
 }
 
