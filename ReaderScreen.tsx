@@ -50,7 +50,7 @@ function ReaderScreen({ route }: any) {
   
   useEffect(() => {
     console.log(route.params.fileUri);
-      parseEpub(route.params.fileUri).then(result => console.log("Result: ", result));
+      parseEpub(route.params.fileUri).then(result => console.log(result.toc));
   }, [route.params.fileUri]);
   
   // Helper function to decode HTML entities
