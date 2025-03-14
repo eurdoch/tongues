@@ -53,18 +53,17 @@ export async function parseEpub(fileUri: string) {
           // Only query the API if there's meaningful content to analyze
           if (textContent.length > 50) {
             // Create a prompt to determine if this is the first chapter
-            const prompt = `The following text is from an ebook. Is this the first chapter of the book? If yes, explain why. If no, explain what this seems to be instead (e.g., table of contents, copyright page, dedication, preface, etc.). Text: ${textContent.substring(0, 1500)}`;
+            const prompt = `The following text is from an ebook. Is this the first chapter of the book? Analyze the content and respond with ONLY "yes" or "no". Do not include any explanation or additional text in your answer, just the single word "yes" or "no".
+
+Text: ${textContent.substring(0, 1500)}`;
             
             try {
               // Query the API to determine if this is the first chapter
               const response = await queryAI(prompt);
               console.log(`AI response for ${item.id}:`, response);
               
-              // Check if the response indicates this is the first chapter
-              if (response.toLowerCase().includes('yes') && 
-                  (response.toLowerCase().includes('first chapter') || 
-                   response.toLowerCase().includes('chapter 1') || 
-                   response.toLowerCase().includes('chapter one'))) {
+              // Check if the response is "yes"
+              if (response.toLowerCase().trim() === "yes") {
                 console.log(`FOUND FIRST CHAPTER: ${item.id} - ${item.href}`);
                 firstChapterFound = true;
               }
