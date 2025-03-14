@@ -302,6 +302,16 @@ const styles = StyleSheet.create({
 });
 
 /**
+ * Adapter function to use renderNode as a FlatList renderItem function
+ * 
+ * @param item - The {item, index} object from FlatList
+ * @returns React Native component
+ */
+export const renderNodeForFlatList: ListRenderItem<ElementNode> = ({ item, index }) => {
+  return renderNode(item, index);
+};
+
+/**
  * Main component that renders HTML content from ElementNode[] using FlatList
  */
 export const EpubHtmlRenderer: React.FC<{

@@ -10,7 +10,7 @@ import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from './App';
 import { parseHtml } from './components/reader/EpubContentParser';
 import { ElementNode } from './components/reader/types';
-import { renderNode } from './ElementRenderer';
+import { EpubHtmlRenderer } from './ElementRenderer';
 
 const supportedLanguages = [
   'French',
@@ -97,11 +97,7 @@ function ReaderScreen({ route }: ReaderProps) {
 
   return (
     <View style={styles.container}>
-      { 
-        renderNode && content && content.map((node, index) => {
-          return renderNode(node, index);
-        })
-      }
+      <EpubHtmlRenderer content={content} />
       
       {/* Translation result popup */}
       {/* <TranslationModal
