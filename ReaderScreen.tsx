@@ -20,18 +20,6 @@ const supportedLanguages = [
   'Dutch',
 ];
 
-const readTextFile = async (filePath: string) => {
-  try {
-    // Read the file content
-    const fileContent = await RNFS.readFile(filePath, 'utf8');
-    console.log('File content:', fileContent);
-    return fileContent;
-  } catch (error) {
-    console.error('Error reading file:', error);
-    throw error;
-  }
-};
-
 function ReaderScreen() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +33,6 @@ function ReaderScreen() {
 
   useEffect(() => {
     console.log('[ReaderScreen] MOUNTED - component mounted');
-    console.log(route);
 
     return () => {
       console.log('[ReaderScreen] UNMOUNTED - component will unmount');
@@ -55,8 +42,7 @@ function ReaderScreen() {
   useEffect(() => {
     console.log(route.params.fileUri);
     parseEpub(route.params.fileUri).then(book => {
-      console.log('Book;:: ', book);
-      console.log('Title: ', book.package.metadata.title);
+      console.log(book);
     });
   }, [route.params.fileUri]);
   
