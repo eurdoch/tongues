@@ -9,8 +9,12 @@ import CustomDrawerContent from './CustomDrawerContent';
 const Drawer = createDrawerNavigator();
 
 export type RootStackParamList = {
-  Home: undefined;
-  Reader: { fileUri: string };
+  Home: {
+    setNavMap: any;
+  };
+  Reader: { 
+    fileUri: string 
+  };
 };
 
 function App() {

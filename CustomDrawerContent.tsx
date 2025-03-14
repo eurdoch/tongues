@@ -45,9 +45,8 @@ function CustomDrawerContent() {
           // TODO this is terrible change to ensure sameness
           const existingPath = existingFiles[0].path;
           console.log(`Using existing file: ${existingPath}`);
+
           const result = await parseEpub(existingPath);
-          console.log('Result: ', result);
-          
           if (result.navMap) {
             setNavMap(result.navMap);
             setIsLoading(false);
@@ -300,7 +299,9 @@ function CustomDrawerContent() {
     };
 
     const goToHome = () => {
-      navigation.navigate('Home');
+      navigation.navigate('Home', {
+        setNavMap: setNavMap,
+      });
       navigation.dispatch(DrawerActions.closeDrawer());
     };
     

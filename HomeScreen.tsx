@@ -12,10 +12,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import RNFS from "react-native-fs";
-import { useNavigation, useRoute } from "@react-navigation/native";
-import { DrawerNavigationProp } from '@react-navigation/drawer';
+import { RouteProp, useNavigation } from "@react-navigation/native";
 import * as ZipArchive from 'react-native-zip-archive';
 import { BookMetadata, getAllBookMetadata, processBookFile, updateLastRead, removeBookMetadata } from './BookMetadataStore';
+import { parseEpub } from "./components/reader/EpubLoader";
+import { RootStackParamList } from "./App";
 
 interface EpubFile {
     id: string;
@@ -27,15 +28,19 @@ interface EpubFile {
     lastModified?: number;
 }
 
+type HomeScreenRouteProp = RouteProp<RootStackParamList, 'Home'>;
 
-function HomeScreen(): React.JSX.Element {
+type HomeProps = {
+  route: HomeScreenRouteProp
+};
+
+function HomeScreen({ route }: HomeProps): React.JSX.Element {
     const [epubFiles, setEpubFiles] = useState<EpubFile[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [isSelectMode, setIsSelectMode] = useState<boolean>(false);
     const [selectedBooks, setSelectedBooks] = useState<Set<string>>(new Set());
     const navigation = useNavigation();
-    const route = useRoute();
     
     // Handle select all books
     const handleSelectAll = () => {
@@ -817,12 +822,6 @@ function HomeScreen(): React.JSX.Element {
         }
     };
     
-    // Kept for compatibility, now delegates to extractEpubMetadata
-    const extractCoverImage = async (epubUri: string): Promise<string | null> => {
-        const { coverUri } = await extractEpubMetadata(epubUri);
-        return coverUri;
-    };
-
     // Function to find a file by name recursively in a directory
     const findFileByName = async (directoryPath: string, fileName: string, maxDepth = 3): Promise<string | null> => {
         try {
@@ -897,8 +896,13 @@ function HomeScreen(): React.JSX.Element {
             // Update last read time in metadata
             await updateLastRead(item.id);
             
+            const result = await parseEpub(item.uri);
+            if (result.navMap) {
+              route.params!.setNavMap(result.navMap);
+            }
+
             // Navigate to reader screen
-            navigation.navigate('Reader', { fileUri: item.uri });
+            navigation.navigate('Reader', { content: "" });
         }
     };
     
