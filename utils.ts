@@ -52,172 +52,6 @@ const findOpfFile = async (directoryPath: string): Promise<string | null> => {
   }
 };
 
-const extractEpub = async (fileUri: string) => {
-  try {
-    console.log('[utils] Extracting EPUB from URI:', fileUri);
-    
-    // For content:// URIs or document URIs on Android, we need to copy the file to app's cache directory first
-    let sourcePath = fileUri;
-    
-    if (Platform.OS === 'android') {
-      // Check if it's a content:// URI or a document:// URI
-      if (fileUri.startsWith('content://') || fileUri.startsWith('document:') || fileUri.includes('document%3A')) {
-        // Create a temporary file path in cache directory
-        const tempFilePath = `${RNFS.CachesDirectoryPath}/temp_epub_${Date.now()}.epub`;
-        console.log('[utils] Copying URI to temp file:', tempFilePath);
-        
-        try {
-          // Handle URL encoded paths
-          const decodedUri = decodeURIComponent(fileUri);
-          console.log('[utils] Decoded URI:', decodedUri);
-          
-          // Special handling for document: URIs
-          if (decodedUri.startsWith('document:') || fileUri.includes('document%3A')) {
-            console.log('[utils] Handling document: URI scheme');
-            
-            try {
-              // Use RNFS.readFile with base64 encoding and then write the file
-              const base64Data = await RNFS.readFile(decodedUri, 'base64');
-              await RNFS.writeFile(tempFilePath, base64Data, 'base64');
-              console.log('[utils] Successfully copied document: URI using read/write approach');
-              sourcePath = tempFilePath;
-            } catch (documentReadError) {
-              console.error('[utils] Error reading from document: URI:', documentReadError);
-              
-              // If that fails, try using copyFile with content:// conversion
-              try {
-                // Some document: URIs can be accessed through content:// 
-                const contentUri = decodedUri.replace('document:', 'content://');
-                await RNFS.copyFile(contentUri, tempFilePath);
-                console.log('[utils] Successfully copied using content:// conversion');
-                sourcePath = tempFilePath;
-              } catch (contentConversionError) {
-                console.error('[utils] Error copying with content:// conversion:', contentConversionError);
-                // Fall through to other methods
-              }
-            }
-          }
-          
-          // If still not copied, try standard approaches
-          if (sourcePath === fileUri) {
-            // Try to get file stats to verify it exists and is accessible
-            try {
-              const stats = await RNFS.stat(decodedUri);
-              console.log('File stats:', stats);
-            } catch (statError) {
-              console.error('Error getting file stats:', statError);
-            }
-            
-            // Copy the file from content/document URI to the temp path
-            // First try with decoded URI
-            try {
-              await RNFS.copyFile(decodedUri, tempFilePath);
-              console.log('Successfully copied file using decoded URI to:', tempFilePath);
-              sourcePath = tempFilePath;
-            } catch (decodedCopyError) {
-              console.error('Error copying using decoded URI:', decodedCopyError);
-              
-              // If that fails, try with original URI
-              try {
-                await RNFS.copyFile(fileUri, tempFilePath);
-                console.log('Successfully copied file using original URI to:', tempFilePath);
-                sourcePath = tempFilePath;
-              } catch (originalCopyError) {
-                console.error('Error copying using original URI:', originalCopyError);
-                
-                // Check if the problem is related to a file:// prefix
-                if (!fileUri.startsWith('file://') && !decodedUri.startsWith('file://')) {
-                  try {
-                    const fileUriWithPrefix = `file://${decodedUri}`;
-                    await RNFS.copyFile(fileUriWithPrefix, tempFilePath);
-                    console.log('Successfully copied file using file:// prefix to:', tempFilePath);
-                    sourcePath = tempFilePath;
-                  } catch (prefixCopyError) {
-                    console.error('Error copying with file:// prefix:', prefixCopyError);
-                    // Fall back to direct usage if all copy attempts fail
-                    sourcePath = fileUri;
-                  }
-                } else {
-                  // Fall back to direct usage if copy fails
-                  sourcePath = fileUri;
-                }
-              }
-            }
-          }
-        } catch (copyError) {
-          console.error('All copy attempts failed:', copyError);
-          // Fall back to direct usage if copy fails
-          sourcePath = fileUri;
-        }
-      } else if (!fileUri.startsWith('file://') && fileUri.toLowerCase().endsWith('.epub')) {
-        // Add file:// prefix for regular file paths if missing
-        // React Native file operations need absolute file:// paths on Android
-        console.log('Adding file:// prefix to path');
-        sourcePath = `file://${fileUri}`;
-      }
-    }
-    
-    // Create a unique destination folder with timestamp
-    const timestamp = Date.now();
-    const destinationPath = `${RNFS.CachesDirectoryPath}/extracted_epub_${timestamp}`;
-    
-    // Ensure the destination directory exists
-    try {
-      // Check if the destination directory already exists and remove it
-      const exists = await RNFS.exists(destinationPath);
-      if (exists) {
-        await RNFS.unlink(destinationPath);
-      }
-      
-      // Create the directory
-      await RNFS.mkdir(destinationPath);
-    } catch (error) {
-      console.error('Error preparing extraction directory:', error);
-      // Still create the directory if it doesn't exist
-      await RNFS.mkdir(destinationPath);
-    }
-    
-    console.log('Final source path for unzipping:', sourcePath);
-    
-    // Subscribe to unzipping progress (optional)
-    const subscription = ZipArchive.subscribe(({ progress, filePath }) => {
-      console.log(`Unzipping progress: ${progress}%`);
-    });
-    
-    try {
-      // Unzip the file
-      const extractedPath = await ZipArchive.unzip(sourcePath, destinationPath);
-      
-      // Unsubscribe from progress updates
-      subscription.remove();
-      
-      console.log('EPUB extracted to:', extractedPath);
-      return extractedPath;
-    } catch (unzipError) {
-      console.error('Error during unzipping:', unzipError);
-      
-      // If direct unzipping fails, try one more approach for Android
-      if (Platform.OS === 'android' && !sourcePath.startsWith('file://') && 
-          typeof sourcePath === 'string' && sourcePath.length > 0) {
-        try {
-          console.log('Trying unzipping with file:// prefix as fallback');
-          const extractedPath = await ZipArchive.unzip(`file://${sourcePath}`, destinationPath);
-          console.log('Fallback unzip succeeded to:', extractedPath);
-          return extractedPath;
-        } catch (fallbackError) {
-          console.error('Fallback unzip also failed:', fallbackError);
-          throw fallbackError;
-        }
-      } else {
-        throw unzipError;
-      }
-    }
-  } catch (error) {
-    console.error('Error extracting EPUB:', error);
-    throw error;
-  }
-};
-
 const findStyleSheets = async (opfPath: string, manifestItems: { [key: string]: string }) => {
   const stylesheets: StyleSheet[] = [];
   const basePath = opfPath.substring(0, opfPath.lastIndexOf('/'));
@@ -292,6 +126,7 @@ const extractTitle = async (filePath: string): Promise<string> => {
   }
 };
 
+// TODO flagged for deletion
 const readContentOpf = async (opfPath: string) => {
   try {
     console.log('Reading OPF file from path:', opfPath);
@@ -664,3 +499,74 @@ export const extractEpubMetadata = async (epubUri: string): Promise<{ title: str
         return { title: null, coverUri: null };
     }
 };
+
+/**
+ * Reads a text file in UTF-8 encoding from the provided URI
+ * 
+ * @param fileUri - The URI of the file to read
+ * @returns Promise that resolves with the file contents as a string
+ * @throws Error if file reading fails
+ */
+export const readTextFile = async (fileUri: string): Promise<string> => {
+  try {
+    // Check if the file exists before attempting to read it
+    const fileExists = await RNFS.exists(fileUri);
+    
+    if (!fileExists) {
+      throw new Error(`File not found: ${fileUri}`);
+    }
+    
+    // Read the file with UTF-8 encoding
+    const fileContents = await RNFS.readFile(fileUri, 'utf8');
+    
+    return fileContents;
+  } catch (error: any) {
+    // Re-throw with a more descriptive message
+    throw new Error(`Failed to read file at ${fileUri}: ${error.message}`);
+  }
+};
+
+/**
+ * Recursively searches for the first element with the tag name "content"
+ * 
+ * @param node - The DOM node to start searching from
+ * @returns The first content element found, or null if none exists
+ */
+export function findFirstContentTag(node: any): any | null {
+  // Base case: if node is null or undefined
+  if (!node) {
+    return null;
+  }
+  
+  // Check if current node is the content tag
+  if (node.nodeName === 'content') {
+    return node;
+  }
+  
+  // Recursively search child nodes
+  if (node.childNodes && node.childNodes.length > 0) {
+    for (let i = 0; i < node.childNodes.length; i++) {
+      const childNode = node.childNodes[i];
+      const contentNode = findFirstContentTag(childNode);
+      
+      // If content node found in children, return it
+      if (contentNode) {
+        return contentNode;
+      }
+    }
+  }
+  
+  // No content tag found in this branch
+  return null;
+}
+
+/**
+ * Helper function to get the src attribute from the first content tag
+ * 
+ * @param node - The DOM node to start searching from
+ * @returns The src attribute value of the first content tag, or null if not found
+ */
+export function getFirstContentSrc(node: any): string | null {
+  const contentTag = findFirstContentTag(node);
+  return contentTag ? contentTag.getAttribute('src') : null;
+}

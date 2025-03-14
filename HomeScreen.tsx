@@ -17,6 +17,7 @@ import * as ZipArchive from 'react-native-zip-archive';
 import { BookMetadata, getAllBookMetadata, processBookFile, updateLastRead, removeBookMetadata } from './BookMetadataStore';
 import { parseEpub } from "./components/reader/EpubLoader";
 import { RootStackParamList } from "./App";
+import { findFirstContentTag, readTextFile } from "./utils";
 
 interface EpubFile {
     id: string;
@@ -883,6 +884,7 @@ function HomeScreen({ route }: HomeProps): React.JSX.Element {
     };
 
     const openBook = async (item: EpubFile) => {
+      try {
         if (isSelectMode) {
             // Toggle selection
             const newSelected = new Set(selectedBooks);
@@ -897,13 +899,21 @@ function HomeScreen({ route }: HomeProps): React.JSX.Element {
             await updateLastRead(item.id);
             
             const result = await parseEpub(item.uri);
+            const firstContentElem = findFirstContentTag(result.navMap);
+            const firstContentPath = result.basePath + '/' + firstContentElem.getAttribute('src');
+            const firstContents = await readTextFile(firstContentPath);
+            console.log(firstContents);
+            // TODO BUG this route.params only exists when I navigate to Home from drawer, otherwise null
             if (result.navMap) {
               route.params!.setNavMap(result.navMap);
             }
 
             // Navigate to reader screen
-            navigation.navigate('Reader', { content: "" });
+            navigation.navigate('Reader', { content: firstContents });
         }
+      } catch (err: any) {
+        console.error(err);
+      }
     };
     
     // Handle deletion of selected books

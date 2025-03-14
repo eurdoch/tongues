@@ -13,7 +13,7 @@ export type RootStackParamList = {
     setNavMap: any;
   };
   Reader: { 
-    fileUri: string 
+    content: string;
   };
 };
 

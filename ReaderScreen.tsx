@@ -19,13 +19,13 @@ const supportedLanguages = [
   'Dutch',
 ];
 
-type ProfileScreenRouteProp = RouteProp<RootStackParamList, 'Reader'>;
+type ReaderScreenRouteProp = RouteProp<RootStackParamList, 'Reader'>;
 
-type ProfileProps = {
-  route: ProfileScreenRouteProp;
+type ReaderProps = {
+  route: ReaderScreenRouteProp;
 };
 
-function ReaderScreen({ route }: any) {
+function ReaderScreen({ route }: ReaderProps) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
@@ -46,6 +46,7 @@ function ReaderScreen({ route }: any) {
 
   useEffect(() => {
     setContent(route.params.content);
+    setIsLoading(false);
   }, [route.params.content]);
   
   // Helper function to decode HTML entities
