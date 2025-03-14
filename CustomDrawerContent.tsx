@@ -13,6 +13,7 @@ function CustomDrawerContent() {
     const navigation = useNavigation();
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const { navMap, setNavMap } = useNavigationContext();
+    const [basePath, setBasePath] = useState<string>('');
 
     useEffect(() => {
       // Example: Initialize or update navMap if needed
@@ -62,6 +63,7 @@ function CustomDrawerContent() {
           console.log(`Using existing file: ${existingPath}`);
 
           const result = await parseEpub(existingPath);
+          setBasePath(result.basePath);
           const firstContentElem = findFirstContentTag(result.navMap);
           const firstContentPath = result.basePath + '/' + firstContentElem.getAttribute('src');
           const firstContents = await readTextFile(firstContentPath);
@@ -80,6 +82,7 @@ function CustomDrawerContent() {
         
         if (savedFilePath) {
           const result = await parseEpub(savedFilePath);
+          setBasePath(result.basePath);
           const firstContentElem = findFirstContentTag(result.navMap);
           const firstContentPath = result.basePath + '/' + firstContentElem.getAttribute('src');
           const firstContents = await readTextFile(firstContentPath);
@@ -318,6 +321,16 @@ function CustomDrawerContent() {
       navigation.dispatch(DrawerActions.closeDrawer());
     };
     
+    const handleNavigateSection = async (src: string) => {
+      if (basePath) {
+        const sectionPath = basePath + '/' + src;
+        const content = await readTextFile(sectionPath);
+        navigation.navigate('Reader', {
+          content
+        });
+      }
+    }
+    
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.content}>
@@ -343,7 +356,7 @@ function CustomDrawerContent() {
         </View>
         { 
           navMap && 
-            <TableOfContents navMap={navMap} onNavigate={() => {console.log('navigate clicked')}} />
+            <TableOfContents navMap={navMap} onNavigate={handleNavigateSection} />
         }
       </SafeAreaView>
     );
