@@ -68,7 +68,10 @@ function CustomDrawerContent() {
           setNavMap(result.navMap);
 
           // Navigate to reader screen
-          navigation.navigate('Reader', { content: firstContents });
+          navigation.navigate('Reader', { 
+            content: firstContents,
+            basePath: result.basePath,
+          });
           return;
         }
         
@@ -83,7 +86,10 @@ function CustomDrawerContent() {
           setNavMap(result.navMap);
 
           // Navigate to reader screen
-          navigation.navigate('Reader', { content: firstContents });
+          navigation.navigate('Reader', { 
+            content: firstContents,
+            basePath: result.basePath,
+          });
         } else {
           throw new Error("Could not save file.");
         }

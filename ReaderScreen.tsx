@@ -2,14 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { 
   View, 
   StyleSheet, 
-  FlatList,
   ActivityIndicator, 
-  Text
 } from 'react-native';
 import GestureText from './GestureText';
 import Sound from 'react-native-sound';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from './App';
+import { parseHtml } from './components/reader/EpubContentParser';
+import { ElementNode } from './components/reader/types';
+import { renderNode } from './ElementRenderer';
 
 const supportedLanguages = [
   'French',
@@ -34,7 +35,7 @@ function ReaderScreen({ route }: ReaderProps) {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [sound, setSound] = useState<Sound | null>(null);
   const [languageSelectorVisible, setLanguageSelectorVisible] = useState<boolean>(false);
-  const [content, setContent] = useState<string>("");
+  const [content, setContent] = useState<ElementNode[]>([]);
 
   useEffect(() => {
     console.log('[ReaderScreen] MOUNTED - component mounted');
@@ -45,28 +46,10 @@ function ReaderScreen({ route }: ReaderProps) {
   }, []);
 
   useEffect(() => {
-    setContent(route.params.content);
+    const parsedContent = parseHtml(route.params.content); 
+    setContent(parsedContent);
     setIsLoading(false);
   }, [route.params.content]);
-  
-  // Helper function to decode HTML entities
-  const decodeHtmlEntities = (text: string) => {
-    if (!text) return '';
-    return text
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&#039;/g, "'")
-      .replace(/&rsquo;/g, "'")
-      .replace(/&ldquo;/g, '"')
-      .replace(/&rdquo;/g, '"')
-      .replace(/&ndash;/g, '–')
-      .replace(/&mdash;/g, '—')
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec))
-      .replace(/&#x([0-9A-F]+);/gi, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
-  };
 
   // Play the audio file
   const playAudio = () => {
@@ -95,12 +78,6 @@ function ReaderScreen({ route }: ReaderProps) {
     return (
       <View style={[styles.container, styles.centerContent]}>
         <ActivityIndicator size="large" color="#1a73e8" />
-        <GestureText 
-          style={styles.loadingText}
-          selectable={false}
-        >
-          Loading your book...
-        </GestureText>
       </View>
     );
   }
@@ -120,24 +97,11 @@ function ReaderScreen({ route }: ReaderProps) {
 
   return (
     <View style={styles.container}>
-      <Text>{content}</Text>
-      <FlatList
-        data={[{'id': 'helo'}]}
-        renderItem={({ item, index }) => <View>Hello</View>}
-        keyExtractor={(item) => item.id}
-        style={styles.scrollView}
-        initialNumToRender={20}
-        maxToRenderPerBatch={10}
-        windowSize={5}
-        removeClippedSubviews={false}
-        scrollEventThrottle={16}
-        onScrollBeginDrag={() => {
-          // Clear selections when scrolling
-          if (selectedOriginalText || translatedText) {
-            //clearSelection();
-          }
-        }}
-      />
+      { 
+        renderNode && content && content.map((node, index) => {
+          return renderNode(node, index);
+        })
+      }
       
       {/* Translation result popup */}
       {/* <TranslationModal

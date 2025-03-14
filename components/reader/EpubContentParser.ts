@@ -120,7 +120,7 @@ function parseAttributes(attributeString: string): Record<string, any> {
   return result;
 }
 
-function decodeHtmlEntities(text: string): string {
+export function decodeHtmlEntities(text: string): string {
   return text
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
@@ -135,3 +135,4 @@ function decodeHtmlEntities(text: string): string {
     .replace(/&ndash;/g, '–')
     .replace(/&mdash;/g, '—');
 }
+

@@ -907,7 +907,10 @@ function HomeScreen({ route }: HomeProps): React.JSX.Element {
             setNavMap(result.navMap);
 
             // Navigate to reader screen
-            navigation.navigate('Reader', { content: firstContents });
+            navigation.navigate('Reader', { 
+              content: firstContents,
+              basePath: result.basePath,
+            });
         }
       } catch (err: any) {
         console.error(err);
