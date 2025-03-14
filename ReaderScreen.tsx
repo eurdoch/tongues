@@ -13,6 +13,8 @@ import RNFS from 'react-native-fs';
 import { parseEpub } from './components/reader/EpubLoader';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from './App';
+import { walk } from 'epubjs/types/utils/core';
+import TableOfContents from './components/TableOfContents';
 
 const supportedLanguages = [
   'French',
@@ -39,6 +41,7 @@ function ReaderScreen({ route }: any) {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [sound, setSound] = useState<Sound | null>(null);
   const [languageSelectorVisible, setLanguageSelectorVisible] = useState<boolean>(false);
+  const [navMap, setNavMap] = useState<any>(null);
 
   useEffect(() => {
     console.log('[ReaderScreen] MOUNTED - component mounted');
@@ -49,8 +52,20 @@ function ReaderScreen({ route }: any) {
   }, []);
   
   useEffect(() => {
-    console.log(route.params.fileUri);
-      parseEpub(route.params.fileUri).then(result => console.log(result.toc));
+    async function loadEpub() {
+      try {
+        const result = await parseEpub(route.params.fileUri);
+        
+        if (result.navMap) {
+          setNavMap(result.navMap);
+          setIsLoading(false);
+        }
+      } catch (err: any) {
+        setError('Failed to load ebook: ' + err.message);
+      }
+    }
+    
+    loadEpub();
   }, [route.params.fileUri]);
   
   // Helper function to decode HTML entities
@@ -131,6 +146,7 @@ function ReaderScreen({ route }: any) {
 
   return (
     <View style={styles.container}>
+      { navMap && <TableOfContents navMap={navMap} onNavigate={() => {console.log('navigate clicked')}} />}
       <FlatList
         data={[{'id': 'helo'}]}
         renderItem={({ item, index }) => <View>Hello</View>}

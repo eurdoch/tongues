@@ -15,17 +15,20 @@ export async function parseEpub(fileUri: string) {
     const unzipResult = await unzip(fileUri, extractionPath);
     console.log('Epub unzipped to:', unzipResult);
 
+    let navMapObj = null;
     const tocPath = await findFileRecursively(unzipResult, 'toc.ncx');
+    
     if (tocPath) {
       const tocContents = await RNFS.readFile(tocPath, 'utf8');
       const parsedToc = new DOMParser().parseFromString(tocContents);
-      const navMap = findNavMap(parsedToc);
-      console.log('navMap: ', navMap);
+      navMapObj = findNavMap(parsedToc);
+      console.log('navMap found');
     }
     
     return {
       path: unzipResult,
-      toc: 'toc'
+      navMap: navMapObj,
+      basePath: tocPath ? tocPath.substring(0, tocPath.lastIndexOf('/')) : unzipResult
     };
   } catch (error) {
     console.error('Epub parsing failed:', error);
@@ -50,21 +53,19 @@ async function findFileRecursively(dir: string, fileName: string): Promise<strin
 }
 
 function findNavMap(parsedXml: any): any {
-  if (parsedXml.tagName === 'navMap') {
+  if (parsedXml.nodeName === 'navMap') {
     return parsedXml;
   }
 
   const childNodes = parsedXml.childNodes;
   if (childNodes) {
-    for (const key in childNodes) {
-      const foundNavMap = findNavMap(childNodes[key]);
+    for (let i = 0; i < childNodes.length; i++) {
+      const foundNavMap = findNavMap(childNodes[i]);
       if (foundNavMap) {
         return foundNavMap;
       }
     }
-
   }
 
   return null;
 }
-
