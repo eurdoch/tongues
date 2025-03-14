@@ -7,6 +7,7 @@ import RNFS from "react-native-fs";
 import { parseEpub } from "./components/reader/EpubLoader";
 import TableOfContents from "./components/TableOfContents";
 import { useNavigationContext } from "./NavigationContext";
+import { findFirstContentTag, readTextFile } from "./utils";
 
 function CustomDrawerContent() {
     const navigation = useNavigation();
@@ -61,15 +62,13 @@ function CustomDrawerContent() {
           console.log(`Using existing file: ${existingPath}`);
 
           const result = await parseEpub(existingPath);
-          if (result.navMap) {
-            setNavMap(result.navMap);
-            setIsLoading(false);
-          }
+          const firstContentElem = findFirstContentTag(result.navMap);
+          const firstContentPath = result.basePath + '/' + firstContentElem.getAttribute('src');
+          const firstContents = await readTextFile(firstContentPath);
+          setNavMap(result.navMap);
 
-          navigation.navigate('Reader', { 
-            content: "",
-            shouldRefreshHomeAfterClose: false // Don't need to refresh as we're using an existing file
-          });
+          // Navigate to reader screen
+          navigation.navigate('Reader', { content: firstContents });
           return;
         }
         
@@ -78,19 +77,13 @@ function CustomDrawerContent() {
         
         if (savedFilePath) {
           const result = await parseEpub(savedFilePath);
+          const firstContentElem = findFirstContentTag(result.navMap);
+          const firstContentPath = result.basePath + '/' + firstContentElem.getAttribute('src');
+          const firstContents = await readTextFile(firstContentPath);
+          setNavMap(result.navMap);
 
-          if (result.navMap) {
-            console.log('navMap: ', result.navMap);
-            setNavMap(result.navMap);
-            setIsLoading(false);
-
-            navigation.navigate('Reader', { 
-              content: "",
-              shouldRefreshHomeAfterClose: true // Flag to refresh HomeScreen when done
-            });
-          } else {
-            throw new Error("Could not parse epub.");
-          }
+          // Navigate to reader screen
+          navigation.navigate('Reader', { content: firstContents });
         } else {
           throw new Error("Could not save file.");
         }
