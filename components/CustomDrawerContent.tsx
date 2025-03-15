@@ -325,7 +325,8 @@ function CustomDrawerContent() {
           const sectionPath = currentBook.basePath + '/' + sectionPathParts[0];
           const content = await readTextFile(sectionPath);
           navigation.navigate('Reader', {
-            content
+            content,
+            language: currentBook.language,
           });
         } catch (e) {
           console.error(e);
