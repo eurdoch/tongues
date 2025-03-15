@@ -903,7 +903,7 @@ function HomeScreen({ route }: HomeProps): React.JSX.Element {
             const result = await parseEpub(item.uri);
             setCurrentBasePath(result.basePath);
             const firstContentElem = findFirstContentTag(result.navMap);
-            const firstContentPath = result.basePath + '/' + firstContentElem.getAttribute('src');
+            const firstContentPath = result.basePath + '/' + firstContentElem.getAttribute('src').split('#')[0];
             const firstContents = await readTextFile(firstContentPath);
             setNavMap(result.navMap);
 

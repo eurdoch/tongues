@@ -11,6 +11,7 @@ import { RootStackParamList } from './App';
 import { parseHtml } from './components/reader/EpubContentParser';
 import { ElementNode } from './components/reader/types';
 import { EpubHtmlRenderer } from './ElementRenderer';
+import TranslationModal from './components/reader/TranslationModal';
 
 const supportedLanguages = [
   'French',
@@ -73,6 +74,8 @@ function ReaderScreen({ route }: ReaderProps) {
       setIsPlaying(false);
     }
   };
+
+  const clearSelection = () => {}
   
   if (isLoading) {
     return (
@@ -99,8 +102,7 @@ function ReaderScreen({ route }: ReaderProps) {
     <View style={styles.container}>
       <EpubHtmlRenderer content={content} />
       
-      {/* Translation result popup */}
-      {/* <TranslationModal
+      <TranslationModal
         visible={!!translatedText && !!selectedOriginalText}
         originalText={selectedOriginalText}
         translatedText={translatedText}
@@ -110,7 +112,7 @@ function ReaderScreen({ route }: ReaderProps) {
         onClose={clearSelection}
         onPlayAudio={playAudio}
         onStopAudio={stopAudio}
-      /> */}
+      />
 
 
       {/* Read Along Modal */}
