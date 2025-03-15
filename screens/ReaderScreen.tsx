@@ -17,6 +17,7 @@ import { useNavigationContext } from '../NavigationContext';
 import { RouteProp } from '@react-navigation/native';
 import ReadAlongModal from '../components/ReadAlongModal';
 import { extractSentences } from '../parser/Sentences';
+import LanguageSelectorModal from '../components/LanguageSelectorModal';
 
 const supportedLanguages = [
   'French',
@@ -44,7 +45,7 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
   const [content, setContent] = useState<ElementNode[]>([]);
   const [sentences, setSentences] = useState<string[]>([]);
   const [readAlongVisible, setReadAlongVisible] = useState<boolean>(false);
-  const { currentBook } = useNavigationContext();
+  const { currentBook, setCurrentBook } = useNavigationContext();
 
   useEffect(() => {
     console.log('[ReaderScreen] MOUNTED - component mounted');
@@ -58,15 +59,25 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
     const parsedContent = parseHtml(route.params.content); 
     setContent(parsedContent);
     const sentences = extractSentences(parsedContent);
-    console.log('sentences: ', sentences);
     setSentences(sentences);
     setIsLoading(false);
+
+    if (currentBook.language === '') {
+      setLanguageSelectorVisible(true);
+    }
   }, [route.params.content]);
+
+  const handleLanguageSelect = (language: string) => {
+    setCurrentBook({
+      ...currentBook,
+      language,
+    })
+  };
 
   const handleReadAlong = (e: any) => {
     e.preventDefault();
     setReadAlongVisible(true);
-  }
+  };
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -76,7 +87,7 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
         </TouchableOpacity>
       )
     })
-  }, [route.params.content])
+  }, [route.params.content]);
 
   // Play the audio file
   const playAudio = () => {
@@ -147,18 +158,16 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
         sentences={sentences}
       />
 
-      {/* Language Selector Modal 
       <LanguageSelectorModal
         visible={languageSelectorVisible}
         supportedLanguages={supportedLanguages}
         onClose={() => {
-          // If user closes without selecting, default to French
-          setSelectedLanguage('French');
-          setLanguageSelectorVisible(false);
-          setIsLoading(false);
+          if (currentBook.language !== '') {
+            // only when language set
+          }
         }}
         onSelectLanguage={handleLanguageSelect}
-      />*/}
+      />
     </View>
   );
 }
