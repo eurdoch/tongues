@@ -51,17 +51,15 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   const nextSentenceData = useRef<SentenceData | null>(null);
   const isPreloading = useRef<boolean>(false);
 
-  // const saveReadingPosition = async (index: number) => {
-  //   if (bookId) {
-  //     try {
-  //       const key = `readAlong_${bookId}`;
-  //       await AsyncStorage.setItem(key, index.toString());
-  //       console.log(`[ReadAlongModal] Saved reading position: sentence ${index}`);
-  //     } catch (error) {
-  //       console.error('[ReadAlongModal] Error saving reading position:', error);
-  //     }
-  //   }
-  // };
+  const saveReadingPosition = async (index: number) => {
+    try {
+      const key = `read_along_current_index`;
+      await AsyncStorage.setItem(key, index.toString());
+      console.log(`[ReadAlongModal] Saved reading position: sentence ${index}`);
+    } catch (error) {
+      console.error('[ReadAlongModal] Error saving reading position:', error);
+    }
+  };
 
   // Add a debug log at the start of your interval to confirm it's running
   useEffect(() => {
@@ -170,7 +168,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     
     currentSentenceIndex.current = next;
     // Save the new sentence position
-    //saveReadingPosition(next);
+    saveReadingPosition(next);
     setHighlightIndex(0);
     
     // If we have preloaded data for the next sentence, use it
@@ -252,7 +250,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     soundRef.current.setSpeed(playbackSpeed);
     
     // Save the starting position
-    //saveReadingPosition(startIndex);
+    saveReadingPosition(startIndex);
     
     // Preload the next sentence while the first one is playing
     if (sentences.length > startIndex + 1) {
@@ -333,7 +331,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       soundRef.current = speech.sound;
       
       // Save the starting position
-      //saveReadingPosition(startIndex);
+      saveReadingPosition(startIndex);
       
       // Preload the next sentence while the first one is playing
       if (sentences.length > startIndex + 1) {

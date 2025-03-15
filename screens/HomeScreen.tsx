@@ -874,6 +874,7 @@ function HomeScreen({ route }: HomeProps): React.JSX.Element {
     };
 
     const openBook = async (item: EpubFile) => {
+        console.log('item: ', item);
       try {
         if (isSelectMode) {
             // Toggle selection

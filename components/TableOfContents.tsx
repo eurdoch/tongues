@@ -1,13 +1,8 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, FlatList } from 'react-native';
+import { NavPoint } from '../types/NavPoint';
 
-export type NavPoint = {
-  id: string;
-  playOrder: string;
-  label: string;
-  src: string;
-  children: NavPoint[];
-};
+
 
 /**
  * Extracts NavPoints from the navMap object returned by xmldom's DOMParser
@@ -78,7 +73,7 @@ export function extractNavPoints(navMap: any): NavPoint[] {
 
 type TableOfContentsProps = {
   navMap: any;
-  onNavigate: (src: string) => void;
+  onNavigate: (item: NavPoint) => void;
 };
 
 /**
@@ -94,7 +89,7 @@ const TableOfContents: React.FC<TableOfContentsProps> = ({ navMap, onNavigate })
       <View>
         <TouchableOpacity 
           style={[styles.navItem, { paddingLeft: 16 + level * 16 }]}
-          onPress={() => onNavigate(item.src)}
+          onPress={() => onNavigate(item)}
         >
           <Text style={styles.navText}>{item.label}</Text>
         </TouchableOpacity>

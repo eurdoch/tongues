@@ -8,6 +8,8 @@ import { parseEpub } from "../parser/EpubLoader";
 import TableOfContents from "./TableOfContents";
 import { useNavigationContext } from "../NavigationContext";
 import { findFirstContentTag, readTextFile } from "../utils";
+import { NavPoint } from "../types/NavPoint";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 function CustomDrawerContent() {
     const navigation = useNavigation();
@@ -317,13 +319,14 @@ function CustomDrawerContent() {
       navigation.dispatch(DrawerActions.closeDrawer());
     };
     
-    const handleNavigateSection = async (src: string) => {
+    const handleNavigateSection = async (item: NavPoint) => {
       if (currentBook.basePath) {
         try {
           navigation.dispatch(DrawerActions.closeDrawer());
-          const sectionPathParts = src.split('#');
+          const sectionPathParts = item.src.split('#');
           const sectionPath = currentBook.basePath + '/' + sectionPathParts[0];
           const content = await readTextFile(sectionPath);
+          await AsyncStorage.setItem("current_section", item.toString());
           navigation.navigate('Reader', {
             content,
             language: currentBook.language,

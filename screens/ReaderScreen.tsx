@@ -23,7 +23,6 @@ const supportedLanguages = [
   'French',
   'Spanish',
   'German',
-  'Italian',
   'Dutch',
 ];
 

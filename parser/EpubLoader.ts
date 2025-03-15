@@ -3,6 +3,7 @@ import { unzip } from 'react-native-zip-archive';
 import { DOMParser } from 'xmldom';
 import { readTextFile } from '../utils';
 import BookData from '../types/BookData';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const ISO_TO_LANG = {
   'fr': 'French',
@@ -19,8 +20,11 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
     if (await RNFS.exists(extractionPath)) {
       await RNFS.unlink(extractionPath);
     }
+
+    await AsyncStorage.setItem("current_book", fileUri);
+    console.log(`[Async Storage]: Saved current book: ${fileUri}`);
+
     await RNFS.mkdir(extractionPath);
-    
     const unzipResult = await unzip(fileUri, extractionPath);
     console.log('Epub unzipped to:', unzipResult);
 
