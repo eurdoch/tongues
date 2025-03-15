@@ -3,7 +3,7 @@ import { NavigationContainer, NavigationContainerRef } from '@react-navigation/n
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { NativeModules, Platform, EmitterSubscription, Alert, AppState } from 'react-native';
 import HomeScreen from './screens/HomeScreen';
-import ReaderScreen from './ReaderScreen';
+import ReaderScreen from './screens/ReaderScreen';
 import CustomDrawerContent from './components/CustomDrawerContent';
 import { NavigationProvider } from './NavigationContext';
 
@@ -70,17 +70,11 @@ function App() {
           if (navigationRef.current && navigationRef.current.isReady()) {
             console.log(`[App] Navigation is ready, navigating to Reader with URI: ${uri}`);
             
-            // Basic navigation parameters
-            const params = {
-              fileUri: uri,
-              shouldRefreshHomeAfterClose: true,
-              openedExternally: true,
-              timestamp: Date.now(), // Force params to be different
-              checkForDuplicates: true // Check for duplicates in the library
-            };
-            
             // Navigate directly to Reader screen
-            navigationRef.current.navigate('Reader', params);
+            // TODO get content
+            navigationRef.current.navigate('Reader', {
+              content: "",
+            });
             console.log(`[App] Navigation.navigate method called`);
           } else {
             console.log(`[App] Navigation not ready yet, setting timeout`);
@@ -88,13 +82,9 @@ function App() {
             setTimeout(() => {
               if (navigationRef.current && navigationRef.current.isReady()) {
                 console.log(`[App] Navigation ready after delay, navigating to Reader`);
+                // TODO get content
                 navigationRef.current.navigate('Reader', {
-                  // TODO change to content
-                  fileUri: uri,
-                  shouldRefreshHomeAfterClose: true,
-                  openedExternally: true,
-                  timestamp: Date.now(),
-                  checkForDuplicates: true
+                  content: "",
                 });
               } else {
                 console.error('[App] Navigation still not ready after delay');

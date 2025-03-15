@@ -23,6 +23,11 @@ export async function parseEpub(fileUri: string) {
       const parsedToc = new DOMParser().parseFromString(tocContents);
       navMapObj = findNavMap(parsedToc);
     }
+
+    const opfPath = await findFileWithExtension(unzipResult, 'opf');
+    if (opfPath) {
+      console.log('opfPath: ', opfPath);
+    }
     
     return {
       path: unzipResult,

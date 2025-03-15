@@ -144,18 +144,6 @@ function HomeScreen({ route }: HomeProps): React.JSX.Element {
         };
     }, [navigation]);
     
-    // Also refresh the book list when returning with refreshBooks flag
-    // (Keeping this for backward compatibility)
-    useEffect(() => {
-        if (route.params?.refreshBooks) {
-            console.log('Refreshing book list due to navigation param');
-            findEpubFiles();
-            
-            // Clear the parameter after using it
-            navigation.setParams({ refreshBooks: undefined });
-        }
-    }, [route.params?.refreshBooks]);
-
     const findDuplicateEpubs = (epubs: EpubFile[]): Map<string, EpubFile[]> => {
         // Group EPUBs by name only (without considering size)
         // This is more reliable since size might vary slightly between copies
@@ -419,7 +407,7 @@ function HomeScreen({ route }: HomeProps): React.JSX.Element {
                         if (bookFilename === epubFilename || bookNameNoExt === epubNameNoExt) {
                             console.log(`Updating lastModified date for duplicate book: ${book.filePath}`);
                             // Import the function dynamically to avoid circular references
-                            const { updateLastRead } = require('./BookMetadataStore');
+                            const { updateLastRead } = require('../BookMetadataStore')
                             await updateLastRead(book.id);
                         }
                     });
@@ -910,7 +898,6 @@ function HomeScreen({ route }: HomeProps): React.JSX.Element {
             // Navigate to reader screen
             navigation.navigate('Reader', { 
               content: firstContents,
-              basePath: result.basePath,
             });
         }
       } catch (err: any) {

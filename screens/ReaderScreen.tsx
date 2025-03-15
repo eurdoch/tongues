@@ -4,14 +4,14 @@ import {
   StyleSheet, 
   ActivityIndicator, 
 } from 'react-native';
-import GestureText from './GestureText';
 import Sound from 'react-native-sound';
 import { RouteProp } from '@react-navigation/native';
-import { RootStackParamList } from './App';
-import { parseHtml } from './parser/EpubContentParser';
-import { ElementNode } from './types/ElementNode';
-import { EpubHtmlRenderer } from './ElementRenderer';
-import TranslationModal from './components/TranslationModal';
+import { RootStackParamList } from '../App';
+import { ElementNode } from '../types/ElementNode';
+import { parseHtml } from '../parser/EpubContentParser';
+import GestureText from '../GestureText';
+import { EpubHtmlRenderer } from '../ElementRenderer';
+import TranslationModal from '../components/TranslationModal';
 
 const supportedLanguages = [
   'French',
@@ -37,6 +37,7 @@ function ReaderScreen({ route }: ReaderProps) {
   const [sound, setSound] = useState<Sound | null>(null);
   const [languageSelectorVisible, setLanguageSelectorVisible] = useState<boolean>(false);
   const [content, setContent] = useState<ElementNode[]>([]);
+  const [readAlongVisible, setReadAlongVisible] = useState<boolean>(false);
 
   useEffect(() => {
     console.log('[ReaderScreen] MOUNTED - component mounted');
@@ -114,8 +115,6 @@ function ReaderScreen({ route }: ReaderProps) {
         onStopAudio={stopAudio}
       />
 
-
-      {/* Read Along Modal */}
       {/* <ReadAlongModal
         visible={readAlongVisible}
         onClose={() => setReadAlongVisible(false)}
@@ -123,7 +122,6 @@ function ReaderScreen({ route }: ReaderProps) {
         sentences={contentSentences}
         bookId={fileUri?.split('/').pop()?.replace(/[^a-zA-Z0-9]/g, '') || ''}
       /> */}
-
 
       {/* Language Selector Modal 
       <LanguageSelectorModal
