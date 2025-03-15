@@ -17,13 +17,8 @@ function CustomDrawerContent() {
     const { currentBook, setCurrentBook } = useNavigationContext();
 
     useEffect(() => {
-      // Example: Initialize or update navMap if needed
-      console.log('[CustomDrawerContent] Component mounted, current navMap:', currentBook.navMap);
+      console.log('[CustomDrawerContent] Component mounted, current navMap:', currentBook?.navMap);
       
-      // If you need to set initial navMap data:
-      // setNavMap(initialData);
-      
-      // Clean up if necessary
       return () => {
         console.log('[CustomDrawerContent] Component unmounting');
       };
@@ -315,18 +310,22 @@ function CustomDrawerContent() {
     };
 
     const goToHome = () => {
-      navigation.navigate('Home');
-      navigation.dispatch(DrawerActions.closeDrawer());
+      AsyncStorage.removeItem("current_book").then(() => {
+        navigation.navigate('Home');
+        navigation.dispatch(DrawerActions.closeDrawer());
+        setCurrentBook(null);
+      });
+      AsyncStorage.removeItem("current_section");
     };
     
     const handleNavigateSection = async (item: NavPoint) => {
-      if (currentBook.basePath) {
+      if (currentBook) {
         try {
           navigation.dispatch(DrawerActions.closeDrawer());
           const sectionPathParts = item.src.split('#');
           const sectionPath = currentBook.basePath + '/' + sectionPathParts[0];
           const content = await readTextFile(sectionPath);
-          await AsyncStorage.setItem("current_section", item.toString());
+          await AsyncStorage.setItem("current_section", JSON.stringify(item));
           navigation.navigate('Reader', {
             content,
             language: currentBook.language,
@@ -361,7 +360,7 @@ function CustomDrawerContent() {
           
         </View>
         { 
-          currentBook.navMap && 
+          currentBook && 
             <TableOfContents navMap={currentBook.navMap} onNavigate={handleNavigateSection} />
         }
       </SafeAreaView>

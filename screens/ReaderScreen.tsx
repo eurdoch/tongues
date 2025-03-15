@@ -61,14 +61,14 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
     setSentences(sentences);
     setIsLoading(false);
 
-    if (currentBook.language === '') {
+    if (currentBook!.language === '') {
       setLanguageSelectorVisible(true);
     }
   }, [route.params.content]);
 
   const handleLanguageSelect = (language: string) => {
     setCurrentBook({
-      ...currentBook,
+      ...currentBook!,
       language,
     })
   };
@@ -138,35 +138,41 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
     <View style={styles.container}>
       <EpubHtmlRenderer content={content} />
       
-      <TranslationModal
-        visible={!!translatedText && !!selectedOriginalText}
-        originalText={selectedOriginalText}
-        translatedText={translatedText}
-        language={currentBook.language}
-        sound={sound}
-        isPlaying={isPlaying}
-        onClose={clearSelection}
-        onPlayAudio={playAudio}
-        onStopAudio={stopAudio}
-      />
+      { currentBook &&
+        <TranslationModal
+          visible={!!translatedText && !!selectedOriginalText}
+          originalText={selectedOriginalText}
+          translatedText={translatedText}
+          language={currentBook.language}
+          sound={sound}
+          isPlaying={isPlaying}
+          onClose={clearSelection}
+          onPlayAudio={playAudio}
+          onStopAudio={stopAudio}
+        />
+      }
 
-      <ReadAlongModal
-        visible={readAlongVisible}
-        onClose={() => setReadAlongVisible(false)}
-        language={currentBook.language}
-        sentences={sentences}
-      />
+      { currentBook && 
+          <ReadAlongModal
+            visible={readAlongVisible}
+            onClose={() => setReadAlongVisible(false)}
+            language={currentBook.language}
+            sentences={sentences}
+          />
+      }
 
-      <LanguageSelectorModal
-        visible={languageSelectorVisible}
-        supportedLanguages={supportedLanguages}
-        onClose={() => {
-          if (currentBook.language !== '') {
-            // only when language set
-          }
-        }}
-        onSelectLanguage={handleLanguageSelect}
-      />
+      { currentBook &&
+        <LanguageSelectorModal
+          visible={languageSelectorVisible}
+          supportedLanguages={supportedLanguages}
+          onClose={() => {
+            if (currentBook.language !== '') {
+              // only when language set
+            }
+          }}
+          onSelectLanguage={handleLanguageSelect}
+        />
+      }
     </View>
   );
 }

@@ -68,6 +68,7 @@ export function extractNavPoints(navMap: any): NavPoint[] {
     }
   }
   
+  console.log('DEBUG navPOints: ', navPoints);
   return navPoints;
 }
 

@@ -2,28 +2,18 @@ import React, { createContext, useState, useContext, ReactNode } from 'react';
 import BookData from './types/BookData';
 
 type NavigationContextType = {
-  currentBook: BookData,
-  setCurrentBook: (book: BookData) => void;
+  currentBook: BookData | null,
+  setCurrentBook: (book: BookData | null) => void;
 };
 
 const NavigationContext = createContext<NavigationContextType>({
-  currentBook: {
-    path: '',
-    basePath: '',
-    language: '',
-    navMap: null,
-  },
+  currentBook: null,
   setCurrentBook: () => {},
 });
 
 // Provider component
 export const NavigationProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [currentBook, setCurrentBook] = useState<BookData>({
-    path: '',
-    basePath: '',
-    language: '',
-    navMap: null,
-  });
+  const [currentBook, setCurrentBook] = useState<BookData | null>(null);
   
   return (
     <NavigationContext.Provider

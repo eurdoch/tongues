@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import RNFS from 'react-native-fs';
 import * as ZipArchive from 'react-native-zip-archive';
 import TOCItem from './types/TOCItem';
+import { NavPoint } from './types/NavPoint';
 
 const languages = [
   { label: 'French', value: 'French' },
@@ -528,12 +529,10 @@ export const readTextFile = async (fileUri: string): Promise<string> => {
  * @returns The first content element found, or null if none exists
  */
 export function findFirstContentTag(node: any): any | null {
-  // Base case: if node is null or undefined
   if (!node) {
     return null;
   }
   
-  // Check if current node is the content tag
   if (node.nodeName === 'content') {
     return node;
   }
@@ -564,4 +563,36 @@ export function findFirstContentTag(node: any): any | null {
 export function getFirstContentSrc(node: any): string | null {
   const contentTag = findFirstContentTag(node);
   return contentTag ? contentTag.getAttribute('src') : null;
+}
+
+/**
+ * Finds a navigation point by its ID
+ * @param navStructure - The navigation structure to search through
+ * @param targetId - The ID of the navigation point to find
+ * @returns The found NavPoint or null if not found
+ */
+function findNavPointById(navStructure: Record<string, NavPoint> | NavPoint[], targetId: string): NavPoint | null {
+  // Handle array or object structure
+  const navPoints = Array.isArray(navStructure) 
+    ? navStructure 
+    : Object.values(navStructure);
+  
+  // Search through the current level
+  for (const navPoint of navPoints) {
+    // Check if current point matches target ID
+    if (navPoint.id === targetId) {
+      return navPoint;
+    }
+    
+    // If this point has children, search through them recursively
+    if (navPoint.children && navPoint.children.length > 0) {
+      const found = findNavPointById(navPoint.children, targetId);
+      if (found) {
+        return found;
+      }
+    }
+  }
+  
+  // Not found at this level or any children
+  return null;
 }

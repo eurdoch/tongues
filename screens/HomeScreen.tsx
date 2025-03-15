@@ -19,6 +19,9 @@ import { parseEpub } from "../parser/EpubLoader";
 import { RootStackParamList } from "../App";
 import { findFirstContentTag, readTextFile } from "../utils";
 import { useNavigationContext } from "../NavigationContext";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { extractNavPoints } from "../components/TableOfContents";
+import { NavPoint } from "../types/NavPoint";
 
 interface EpubFile {
     id: string;
@@ -30,13 +33,7 @@ interface EpubFile {
     lastModified?: number;
 }
 
-type HomeScreenRouteProp = RouteProp<RootStackParamList, 'Home'>;
-
-type HomeProps = {
-  route: HomeScreenRouteProp
-};
-
-function HomeScreen({ route }: HomeProps): React.JSX.Element {
+function HomeScreen(): React.JSX.Element {
     const [epubFiles, setEpubFiles] = useState<EpubFile[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
@@ -50,6 +47,22 @@ function HomeScreen({ route }: HomeProps): React.JSX.Element {
         const allBookIds = new Set(epubFiles.map(book => book.id));
         setSelectedBooks(allBookIds);
     };
+
+    useEffect(() => {
+        if (epubFiles) {
+            AsyncStorage.getItem("current_book").then(storedCurrentBook => {
+                if (storedCurrentBook) {
+                    for (let file of epubFiles) {
+                        console.log(file.uri);
+                        if (file.uri === storedCurrentBook) {
+                            openBook(file);
+                            break;
+                        }
+                    }
+                }
+            })
+        }
+    }, [epubFiles]);
     
     // Configure header buttons based on selection mode
     useLayoutEffect(() => {
@@ -125,6 +138,7 @@ function HomeScreen({ route }: HomeProps): React.JSX.Element {
             
             console.log('Initial book scan');
             findEpubFiles();
+                
         };
         
         loadInitialBooks();
@@ -549,6 +563,7 @@ function HomeScreen({ route }: HomeProps): React.JSX.Element {
         }
     };
 
+    // TODO Flagged for deletion
     const extractEpubMetadata = async (epubUri: string): Promise<{ title: string | null, coverUri: string | null }> => {
         let tempDir = '';
         try {
@@ -874,7 +889,6 @@ function HomeScreen({ route }: HomeProps): React.JSX.Element {
     };
 
     const openBook = async (item: EpubFile) => {
-        console.log('item: ', item);
       try {
         if (isSelectMode) {
             // Toggle selection
@@ -891,13 +905,22 @@ function HomeScreen({ route }: HomeProps): React.JSX.Element {
             
             const book = await parseEpub(item.uri);
             setCurrentBook(book);
-            const firstContentElem = findFirstContentTag(book.navMap);
-            const firstContentPath = book.basePath + '/' + firstContentElem.getAttribute('src').split('#')[0];
-            const firstContents = await readTextFile(firstContentPath);
+
+            //const navPoints = extractNavPoints(book.navMap);
+            let srcPath;
+            const storedCurrentNavPoint = await AsyncStorage.getItem("current_section");
+            if (storedCurrentNavPoint) {
+                const jsonNavPoint: NavPoint = JSON.parse(storedCurrentNavPoint);
+                srcPath = book.basePath + '/' + jsonNavPoint.src.split('#')[0];
+            } else {
+                const firstContentElem = findFirstContentTag(book.navMap);
+                srcPath = book.basePath + '/' + firstContentElem.getAttribute('src').split('#')[0];
+            }
+            const content = await readTextFile(srcPath);
 
             // Navigate to reader screen
             navigation.navigate('Reader', { 
-              content: firstContents,
+              content,
               language: book.language
             });
         }
