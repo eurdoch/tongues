@@ -1,4 +1,4 @@
-import { ElementNode } from './types';
+import { ElementNode } from '../types/ElementNode';
 
 /**
  * Parses HTML content from an EPUB file into a structure that can be rendered

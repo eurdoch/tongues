@@ -2,9 +2,9 @@ import React, { useEffect, useRef } from 'react';
 import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { NativeModules, Platform, EmitterSubscription, Alert, AppState } from 'react-native';
-import HomeScreen from './HomeScreen';
+import HomeScreen from './screens/HomeScreen';
 import ReaderScreen from './ReaderScreen';
-import CustomDrawerContent from './CustomDrawerContent';
+import CustomDrawerContent from './components/CustomDrawerContent';
 import { NavigationProvider } from './NavigationContext';
 
 const Drawer = createDrawerNavigator();

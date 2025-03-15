@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text, View, StyleSheet, FlatList, ListRenderItem } from 'react-native';
-import { ElementNode } from './components/reader/types';
+import { ElementNode } from './types/ElementNode';
 import GestureText from './GestureText';
 
 export const renderNode = (node: ElementNode, index: number) => {

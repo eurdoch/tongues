@@ -12,23 +12,11 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
-import { fetchSpeechAudio, fetchWordTimestamps, translateText, explainWord } from './reader/TranslationService';
+import { fetchSpeechAudio, fetchWordTimestamps, translateText, explainWord } from '../services/TranslationService';
 import Sound from 'react-native-sound';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-interface TimestampMark {
-  time: number;
-  type: string; 
-  start: number;
-  end: number;
-  value: string;
-}
-
-interface SentenceData {
-  sound: Sound;
-  timestamps: TimestampMark[];
-  words: string[];
-}
+import TimestampMark from '../types/TimestampMark';
+import SentenceData from '../types/SentenceData';
 
 interface ReadAlongModalProps {
   visible: boolean;
@@ -45,7 +33,6 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   sentences,
   bookId,
 }) => {
-  // Add TranslationPopup component reference
   const translationPopupRef = useRef(null);
   const [words, setWords] = useState<string[]>([]);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -66,7 +53,6 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   const nextSentenceData = useRef<SentenceData | null>(null);
   const isPreloading = useRef<boolean>(false);
 
-  // Load the saved reading position when the modal becomes visible
   useEffect(() => {
     const loadSavedPosition = async () => {
       if (visible && bookId && sentences.length > 0) {

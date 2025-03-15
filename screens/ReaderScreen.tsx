@@ -8,10 +8,10 @@ import GestureText from './GestureText';
 import Sound from 'react-native-sound';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from './App';
-import { parseHtml } from './components/reader/EpubContentParser';
-import { ElementNode } from './components/reader/types';
+import { parseHtml } from './parser/EpubContentParser';
+import { ElementNode } from './types/ElementNode';
 import { EpubHtmlRenderer } from './ElementRenderer';
-import TranslationModal from './components/reader/TranslationModal';
+import TranslationModal from './components/TranslationModal';
 
 const supportedLanguages = [
   'French',

@@ -3,11 +3,6 @@ import RNFS from 'react-native-fs';
 import * as ZipArchive from 'react-native-zip-archive';
 import TOCItem from './types/TOCItem';
 
-interface StyleSheet {
-  path: string;
-  content: string;
-}
-
 const languages = [
   { label: 'French', value: 'French' },
   { label: 'Spanish', value: 'Spanish' },

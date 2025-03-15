@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, View, Modal, TouchableOpacity } from 'react-native';
-import GestureText from '../../GestureText';
+import GestureText from '../GestureText';
 import Sound from 'react-native-sound';
 
 interface TranslationModalProps {

@@ -14,11 +14,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import RNFS from "react-native-fs";
 import { RouteProp, useNavigation } from "@react-navigation/native";
 import * as ZipArchive from 'react-native-zip-archive';
-import { BookMetadata, getAllBookMetadata, processBookFile, updateLastRead, removeBookMetadata } from './BookMetadataStore';
-import { parseEpub } from "./components/reader/EpubLoader";
-import { RootStackParamList } from "./App";
-import { findFirstContentTag, readTextFile } from "./utils";
-import { useNavigationContext } from "./NavigationContext";
+import { BookMetadata, getAllBookMetadata, processBookFile, updateLastRead, removeBookMetadata } from '../BookMetadataStore';
+import { parseEpub } from "../parser/EpubLoader";
+import { RootStackParamList } from "../App";
+import { findFirstContentTag, readTextFile } from "../utils";
+import { useNavigationContext } from "../NavigationContext";
 
 interface EpubFile {
     id: string;

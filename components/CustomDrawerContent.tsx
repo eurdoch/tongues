@@ -4,10 +4,10 @@ import { pick } from "@react-native-documents/picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useEffect, useState } from "react";
 import RNFS from "react-native-fs";
-import { parseEpub } from "./components/reader/EpubLoader";
-import TableOfContents from "./components/TableOfContents";
-import { useNavigationContext } from "./NavigationContext";
-import { findFirstContentTag, readTextFile } from "./utils";
+import { parseEpub } from "../parser/EpubLoader";
+import TableOfContents from "./TableOfContents";
+import { useNavigationContext } from "../NavigationContext";
+import { findFirstContentTag, readTextFile } from "../utils";
 
 function CustomDrawerContent() {
     const navigation = useNavigation();
