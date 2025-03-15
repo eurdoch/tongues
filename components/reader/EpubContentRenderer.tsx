@@ -2,6 +2,8 @@ import React from 'react';
 import { GestureResponderEvent, Image, StyleSheet, View } from 'react-native';
 import GestureText from '../../GestureText';
 import { ElementNode } from './types';
+import { useNavigationContext } from '../../NavigationContext';
+import ImageFromUri from '../../ImageFromUri';
 
 /**
  * Renders a single node from the parsed EPUB content
@@ -10,6 +12,8 @@ export const renderNode = (
   node: ElementNode | string, 
   handleTextSelection: (event: GestureResponderEvent) => void
 ): React.ReactNode => {
+  const { currentBasePath } = useNavigationContext();
+
   if (typeof node === 'string') {
     return (
       <GestureText 
@@ -141,11 +145,7 @@ export const renderNode = (
       );
     case 'img':
       return (
-        <Image
-          source={{ uri: node.props?.src }}
-          style={styles.image}
-          resizeMode="contain"
-        />
+        <ImageFromUri uri={currentBasePath + '/' + node.props?.src} />
       );
     case 'a':
       return (
