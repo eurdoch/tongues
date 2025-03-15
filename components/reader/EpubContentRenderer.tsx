@@ -19,7 +19,6 @@ export const renderNode = (
       <GestureText 
         style={styles.text}
         selectable={true}
-        onPressOut={handleTextSelection}
       >
         {node}
       </GestureText>
@@ -42,7 +41,6 @@ export const renderNode = (
         <GestureText 
           style={[styles.text, styles.h1]}
           selectable={true}
-          onPressOut={handleTextSelection}
         >
           {renderChildren(node.children)}
         </GestureText>
@@ -52,7 +50,6 @@ export const renderNode = (
         <GestureText 
           style={[styles.text, styles.h2]}
           selectable={true}
-          onPressOut={handleTextSelection}
         >
           {renderChildren(node.children)}
         </GestureText>
@@ -62,7 +59,6 @@ export const renderNode = (
         <GestureText 
           style={[styles.text, styles.h3]}
           selectable={true}
-          onPressOut={handleTextSelection}
         >
           {renderChildren(node.children)}
         </GestureText>
@@ -74,7 +70,6 @@ export const renderNode = (
         <GestureText 
           style={[styles.text, styles.h4]}
           selectable={true}
-          onPressOut={handleTextSelection}
         >
           {renderChildren(node.children)}
         </GestureText>
@@ -85,7 +80,6 @@ export const renderNode = (
           <GestureText 
             style={styles.text}
             selectable={true}
-            onPressOut={handleTextSelection}
           >
             {renderChildren(node.children)}
           </GestureText>
@@ -97,7 +91,6 @@ export const renderNode = (
         <GestureText 
           style={[styles.text, styles.bold]}
           selectable={true}
-          onPressOut={handleTextSelection}
         >
           {renderChildren(node.children)}
         </GestureText>
@@ -108,7 +101,6 @@ export const renderNode = (
         <GestureText 
           style={[styles.text, styles.italic]}
           selectable={true}
-          onPressOut={handleTextSelection}
         >
           {renderChildren(node.children)}
         </GestureText>
@@ -118,7 +110,6 @@ export const renderNode = (
         <GestureText 
           style={[styles.text, styles.underline]}
           selectable={true}
-          onPressOut={handleTextSelection}
         >
           {renderChildren(node.children)}
         </GestureText>
@@ -138,7 +129,6 @@ export const renderNode = (
         <GestureText 
           style={styles.text}
           selectable={true}
-          onPressOut={handleTextSelection}
         >
           {renderChildren(node.children)}
         </GestureText>
@@ -152,7 +142,6 @@ export const renderNode = (
         <GestureText 
           style={[styles.text, styles.link]}
           selectable={true}
-          onPressOut={handleTextSelection}
         >
           {renderChildren(node.children)}
         </GestureText>
@@ -176,7 +165,6 @@ export const renderNode = (
           <GestureText 
             style={styles.text}
             selectable={true}
-            onPressOut={handleTextSelection}
           >
             {renderChildren(node.children)}
           </GestureText>
@@ -194,8 +182,8 @@ export const renderNode = (
 
 const styles = StyleSheet.create({
   text: {
-    fontSize: 24,
-    lineHeight: 28,
+    fontSize: 30,
+    lineHeight: 34,
     color: '#333',
   },
   h1: {

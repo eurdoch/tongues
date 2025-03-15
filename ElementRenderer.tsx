@@ -4,15 +4,13 @@ import { ElementNode } from './components/reader/types';
 import GestureText from './GestureText';
 
 export const renderNode = (node: ElementNode, index: number) => {
-  // Handle text nodes
   if (typeof node === 'string') {
-    return <Text key={`text-${index}`}>{node}</Text>;
+    return <GestureText selectable={true} key={`text-${index}`}>{node}</GestureText>;
   }
   
-  // Handle text node objects
   if (node.type === 'text') {
     return (
-      <GestureText selectable key={`text-node-${index}`}>
+      <GestureText selectable={true} key={`text-node-${index}`}>
         {node.children?.map((child, childIndex) => 
           typeof child === 'string' ? child : renderNode(child, childIndex)
         )}
@@ -27,11 +25,15 @@ export const renderNode = (node: ElementNode, index: number) => {
   switch (node.type) {
     case 'p':
       return (
-        <Text key={`p-${index}`} style={[styles.paragraph, styleProps]}>
+        <GestureText 
+          key={`p-${index}`} 
+          style={[styles.paragraph, styleProps]}
+          selectable={true} 
+        >
           {node.children?.map((child, childIndex) => 
             typeof child === 'string' ? child : renderNode(child, childIndex)
           )}
-        </Text>
+        </GestureText>
       );
       
     case 'h1':
@@ -45,11 +47,11 @@ export const renderNode = (node: ElementNode, index: number) => {
       
     case 'h2':
       return (
-        <Text key={`h2-${index}`} style={[styles.h2, styleProps]}>
+        <GestureText selectable={true} key={`h2-${index}`} style={[styles.h2, styleProps]}>
           {node.children?.map((child, childIndex) => 
             typeof child === 'string' ? child : renderNode(child, childIndex)
           )}
-        </Text>
+        </GestureText>
       );
       
     case 'h3':
@@ -244,21 +246,21 @@ const extractStyleProps = (props: Record<string, any>) => {
 const styles = StyleSheet.create({
   paragraph: {
     marginBottom: 10,
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: 24,
+    lineHeight: 40,
   },
   h1: {
-    fontSize: 24,
+    fontSize: 32,
     fontWeight: 'bold',
     marginVertical: 12,
   },
   h2: {
-    fontSize: 22,
+    fontSize: 30,
     fontWeight: 'bold',
     marginVertical: 10,
   },
   h3: {
-    fontSize: 20,
+    fontSize: 26,
     fontWeight: 'bold',
     marginVertical: 8,
   },

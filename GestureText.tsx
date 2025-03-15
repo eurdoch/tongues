@@ -1,22 +1,22 @@
 import React from 'react';
-import { Text, GestureResponderEvent } from 'react-native';
+import { Text, GestureResponderEvent, TouchableOpacity } from 'react-native';
 
 interface GestureTextProps {
   children: React.ReactNode;
-  onLongPress?: (event: GestureResponderEvent) => void;
-  onPress?: (event: GestureResponderEvent) => void;
-  onPressIn?: (event: GestureResponderEvent) => void;
-  onPressOut?: (event: GestureResponderEvent) => void;
+  //onLongPress?: (event: GestureResponderEvent) => void;
+  //onPress?: (event: GestureResponderEvent) => void;
+  //onPressIn?: (event: GestureResponderEvent) => void;
+  //onPressOut?: (event: GestureResponderEvent) => void;
   selectable: boolean;
   style?: any;
 }
 
 const GestureText: React.FC<GestureTextProps> = ({
   children,
-  onLongPress,
-  onPress,
-  onPressIn,
-  onPressOut,
+  //onLongPress,
+  //onPress,
+  //onPressIn,
+  //onPressOut,
   style,
   ...props
 }) => {
@@ -24,10 +24,10 @@ const GestureText: React.FC<GestureTextProps> = ({
     <Text
       {...props}
       style={style}
-      onLongPress={onLongPress}
-      onPress={onPress ? onPress : () => {}}
-      onPressIn={onPressIn}
-      onPressOut={onPressOut}
+      //onLongPress={onLongPress}
+      //onPress={onPress ? onPress : () => {console.log('press')}}
+      //onPressIn={onPressIn}
+      //onPressOut={onPressOut}
       selectable={props.selectable !== undefined ? props.selectable : true}
     >
       {children}
