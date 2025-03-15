@@ -4,6 +4,13 @@ import { DOMParser } from 'xmldom';
 import { readTextFile } from '../utils';
 import BookData from '../types/BookData';
 
+const ISO_TO_LANG = {
+  'fr': 'French',
+  'es': 'Spanish',
+  'de': 'German',
+  'nl': 'Dutch',
+}
+
 export async function parseEpub(fileUri: string): Promise<BookData> {
   try {
     console.log('Starting to unzip epub file:', fileUri);
@@ -31,6 +38,11 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
     if (opfPath) {
       const opfContent = await readTextFile(opfPath);
       language = extractLanguageFromOpf(opfContent);
+      if (language) {
+        language = ISO_TO_LANG[language];
+      } else {
+        language = '';
+      }
     }
     
     return {

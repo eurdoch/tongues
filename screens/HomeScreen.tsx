@@ -897,6 +897,7 @@ function HomeScreen({ route }: HomeProps): React.JSX.Element {
             // Navigate to reader screen
             navigation.navigate('Reader', { 
               content: firstContents,
+              language: book.language
             });
         }
       } catch (err: any) {

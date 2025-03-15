@@ -1,17 +1,22 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useState } from 'react';
 import { 
   View, 
   StyleSheet, 
-  ActivityIndicator, 
+  ActivityIndicator,
+  TouchableOpacity,
+  Text, 
 } from 'react-native';
 import Sound from 'react-native-sound';
-import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../App';
 import { ElementNode } from '../types/ElementNode';
 import { parseHtml } from '../parser/EpubContentParser';
 import GestureText from '../GestureText';
 import { EpubHtmlRenderer } from '../ElementRenderer';
 import TranslationModal from '../components/TranslationModal';
+import { useNavigationContext } from '../NavigationContext';
+import { RouteProp } from '@react-navigation/native';
+import ReadAlongModal from '../components/ReadAlongModal';
+import { extractSentences } from '../parser/Sentences';
 
 const supportedLanguages = [
   'French',
@@ -25,19 +30,21 @@ type ReaderScreenRouteProp = RouteProp<RootStackParamList, 'Reader'>;
 
 type ReaderProps = {
   route: ReaderScreenRouteProp;
+  navigation: any,
 };
 
-function ReaderScreen({ route }: ReaderProps) {
+function ReaderScreen({ route, navigation }: ReaderProps) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedLanguage, setSelectedLanguage] = useState<string>('');
   const [selectedOriginalText, setSelectedOriginalText] = useState<string | null>(null);
   const [translatedText, setTranslatedText] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [sound, setSound] = useState<Sound | null>(null);
   const [languageSelectorVisible, setLanguageSelectorVisible] = useState<boolean>(false);
   const [content, setContent] = useState<ElementNode[]>([]);
+  const [sentences, setSentences] = useState<string[]>([]);
   const [readAlongVisible, setReadAlongVisible] = useState<boolean>(false);
+  const { currentBook } = useNavigationContext();
 
   useEffect(() => {
     console.log('[ReaderScreen] MOUNTED - component mounted');
@@ -50,8 +57,26 @@ function ReaderScreen({ route }: ReaderProps) {
   useEffect(() => {
     const parsedContent = parseHtml(route.params.content); 
     setContent(parsedContent);
+    const sentences = extractSentences(parsedContent);
+    console.log('sentences: ', sentences);
+    setSentences(sentences);
     setIsLoading(false);
   }, [route.params.content]);
+
+  const handleReadAlong = (e: any) => {
+    e.preventDefault();
+    setReadAlongVisible(true);
+  }
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity onPress={handleReadAlong}>
+          <Text>RA</Text>
+        </TouchableOpacity>
+      )
+    })
+  }, [route.params.content])
 
   // Play the audio file
   const playAudio = () => {
@@ -107,7 +132,7 @@ function ReaderScreen({ route }: ReaderProps) {
         visible={!!translatedText && !!selectedOriginalText}
         originalText={selectedOriginalText}
         translatedText={translatedText}
-        language={selectedLanguage}
+        language={currentBook.language}
         sound={sound}
         isPlaying={isPlaying}
         onClose={clearSelection}
@@ -115,13 +140,12 @@ function ReaderScreen({ route }: ReaderProps) {
         onStopAudio={stopAudio}
       />
 
-      {/* <ReadAlongModal
+      <ReadAlongModal
         visible={readAlongVisible}
         onClose={() => setReadAlongVisible(false)}
-        language={selectedLanguage}
-        sentences={contentSentences}
-        bookId={fileUri?.split('/').pop()?.replace(/[^a-zA-Z0-9]/g, '') || ''}
-      /> */}
+        language={currentBook.language}
+        sentences={sentences}
+      />
 
       {/* Language Selector Modal 
       <LanguageSelectorModal

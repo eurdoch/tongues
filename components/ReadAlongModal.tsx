@@ -23,7 +23,6 @@ interface ReadAlongModalProps {
   onClose: () => void;
   language: string;
   sentences: string[];
-  bookId: string; // Add bookId to identify which book we're reading
 }
 
 const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
@@ -31,7 +30,6 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   language,
   onClose,
   sentences,
-  bookId,
 }) => {
   const translationPopupRef = useRef(null);
   const [words, setWords] = useState<string[]>([]);
@@ -53,58 +51,17 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   const nextSentenceData = useRef<SentenceData | null>(null);
   const isPreloading = useRef<boolean>(false);
 
-  useEffect(() => {
-    const loadSavedPosition = async () => {
-      if (visible && bookId && sentences.length > 0) {
-        try {
-          const key = `readAlong_${bookId}`;
-          const savedPosition = await AsyncStorage.getItem(key);
-          
-          if (savedPosition !== null) {
-            const savedIndex = parseInt(savedPosition, 10);
-            
-            // Validate the saved index is within the current sentences array bounds
-            if (!isNaN(savedIndex) && savedIndex >= 0 && savedIndex < sentences.length) {
-              console.log(`[ReadAlongModal] Restored reading position: sentence ${savedIndex}`);
-              currentSentenceIndex.current = savedIndex;
-              
-              // Set the words for the current sentence to display
-              setWords(sentences[savedIndex].split(' '));
-            } else {
-              console.log(`[ReadAlongModal] Saved position out of range, starting from beginning`);
-              currentSentenceIndex.current = 0;
-              
-              // Set words for the first sentence
-              setWords(sentences[0].split(' '));
-            }
-          } else {
-            // No saved position, start from the beginning
-            currentSentenceIndex.current = 0;
-            setWords(sentences[0].split(' '));
-          }
-        } catch (error) {
-          console.error('[ReadAlongModal] Error loading saved position:', error);
-          // In case of error, at least display the first sentence
-          setWords(sentences[0].split(' '));
-        }
-      }
-    };
-    
-    loadSavedPosition();
-  }, [visible, bookId, sentences]);
-  
-  // Save the current reading position whenever it changes
-  const saveReadingPosition = async (index: number) => {
-    if (bookId) {
-      try {
-        const key = `readAlong_${bookId}`;
-        await AsyncStorage.setItem(key, index.toString());
-        console.log(`[ReadAlongModal] Saved reading position: sentence ${index}`);
-      } catch (error) {
-        console.error('[ReadAlongModal] Error saving reading position:', error);
-      }
-    }
-  };
+  // const saveReadingPosition = async (index: number) => {
+  //   if (bookId) {
+  //     try {
+  //       const key = `readAlong_${bookId}`;
+  //       await AsyncStorage.setItem(key, index.toString());
+  //       console.log(`[ReadAlongModal] Saved reading position: sentence ${index}`);
+  //     } catch (error) {
+  //       console.error('[ReadAlongModal] Error saving reading position:', error);
+  //     }
+  //   }
+  // };
 
   // Add a debug log at the start of your interval to confirm it's running
   useEffect(() => {
@@ -213,7 +170,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     
     currentSentenceIndex.current = next;
     // Save the new sentence position
-    saveReadingPosition(next);
+    //saveReadingPosition(next);
     setHighlightIndex(0);
     
     // If we have preloaded data for the next sentence, use it
@@ -295,7 +252,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     soundRef.current.setSpeed(playbackSpeed);
     
     // Save the starting position
-    saveReadingPosition(startIndex);
+    //saveReadingPosition(startIndex);
     
     // Preload the next sentence while the first one is playing
     if (sentences.length > startIndex + 1) {
@@ -376,7 +333,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       soundRef.current = speech.sound;
       
       // Save the starting position
-      saveReadingPosition(startIndex);
+      //saveReadingPosition(startIndex);
       
       // Preload the next sentence while the first one is playing
       if (sentences.length > startIndex + 1) {
