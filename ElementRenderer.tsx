@@ -1,6 +1,7 @@
 import React from 'react';
 import { Text, View, StyleSheet, FlatList, ListRenderItem } from 'react-native';
 import { ElementNode } from './components/reader/types';
+import GestureText from './GestureText';
 
 export const renderNode = (node: ElementNode, index: number) => {
   // Handle text nodes
@@ -11,11 +12,11 @@ export const renderNode = (node: ElementNode, index: number) => {
   // Handle text node objects
   if (node.type === 'text') {
     return (
-      <Text key={`text-node-${index}`}>
+      <GestureText selectable key={`text-node-${index}`}>
         {node.children?.map((child, childIndex) => 
           typeof child === 'string' ? child : renderNode(child, childIndex)
         )}
-      </Text>
+      </GestureText>
     );
   }
   
@@ -118,7 +119,7 @@ export const renderNode = (node: ElementNode, index: number) => {
       );
       
     case 'img':
-      return <Text style={styles.h1}>Image Placeholder</Text>;
+      return <Text key={`img-${index}`} style={styles.h1}>Image Placeholder</Text>;
       
     case 'br':
       return <Text key={`br-${index}`}>{"\n"}</Text>;

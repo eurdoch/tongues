@@ -15,7 +15,6 @@ export type RootStackParamList = {
   };
   Reader: { 
     content: string;
-    basePath: string;
   };
 };
 

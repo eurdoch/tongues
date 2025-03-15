@@ -91,7 +91,6 @@ function CustomDrawerContent() {
           // Navigate to reader screen
           navigation.navigate('Reader', { 
             content: firstContents,
-            basePath: result.basePath,
           });
         } else {
           throw new Error("Could not save file.");
@@ -323,13 +322,23 @@ function CustomDrawerContent() {
     
     const handleNavigateSection = async (src: string) => {
       if (basePath) {
-        const sectionPath = basePath + '/' + src;
-        const content = await readTextFile(sectionPath);
-        navigation.navigate('Reader', {
-          content
-        });
+        try {
+          console.log('basePath: ', basePath);
+          navigation.dispatch(DrawerActions.closeDrawer());
+          const sectionPathParts = src.split('#');
+          const sectionPath = basePath + '/' + sectionPathParts[0];
+          console.log('sectionPathZ: ', sectionPath);
+          const content = await readTextFile(sectionPath);
+          console.log('content: ', content);
+          navigation.navigate('Reader', {
+            content
+          });
+        } catch (e) {
+          console.error(e);
+        }
       }
     }
+
     
     return (
       <SafeAreaView style={styles.container}>

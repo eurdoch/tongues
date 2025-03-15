@@ -194,7 +194,7 @@ export const renderNode = (
 
 const styles = StyleSheet.create({
   text: {
-    fontSize: 18,
+    fontSize: 24,
     lineHeight: 28,
     color: '#333',
   },
