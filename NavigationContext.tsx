@@ -1,34 +1,35 @@
-// NavigationContext.tsx
 import React, { createContext, useState, useContext, ReactNode } from 'react';
+import BookData from './types/BookData';
 
 type NavigationContextType = {
-  navMap: any;
-  setNavMap: (navMap: any) => void;
-  currentBasePath: string;
-  setCurrentBasePath: (basePath: string) => void;
-  // Add other shared state as needed
+  currentBook: BookData,
+  setCurrentBook: (book: BookData) => void;
 };
 
-// Create context with default values
 const NavigationContext = createContext<NavigationContextType>({
-  navMap: null,
-  setNavMap: () => {},
-  currentBasePath: '',
-  setCurrentBasePath: () => {},
+  currentBook: {
+    path: '',
+    basePath: '',
+    language: '',
+    navMap: null,
+  },
+  setCurrentBook: () => {},
 });
 
 // Provider component
 export const NavigationProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [navMap, setNavMap] = useState<any>(null);
-  const [currentBasePath, setCurrentBasePath] = useState<string>('');
+  const [currentBook, setCurrentBook] = useState<BookData>({
+    path: '',
+    basePath: '',
+    language: '',
+    navMap: null,
+  });
   
   return (
     <NavigationContext.Provider
       value={{
-        navMap,
-        setNavMap,
-        currentBasePath,
-        setCurrentBasePath
+        currentBook,
+        setCurrentBook,
       }}
     >
       {children}
@@ -36,5 +37,4 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({ children
   );
 };
 
-// Custom hook for using this context
 export const useNavigationContext = () => useContext(NavigationContext);

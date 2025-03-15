@@ -12,11 +12,11 @@ import { findFirstContentTag, readTextFile } from "../utils";
 function CustomDrawerContent() {
     const navigation = useNavigation();
     const [isLoading, setIsLoading] = useState<boolean>(false);
-    const { navMap, setNavMap, currentBasePath, setCurrentBasePath } = useNavigationContext();
+    const { currentBook, setCurrentBook } = useNavigationContext();
 
     useEffect(() => {
       // Example: Initialize or update navMap if needed
-      console.log('[CustomDrawerContent] Component mounted, current navMap:', navMap);
+      console.log('[CustomDrawerContent] Component mounted, current navMap:', currentBook.navMap);
       
       // If you need to set initial navMap data:
       // setNavMap(initialData);
@@ -61,16 +61,16 @@ function CustomDrawerContent() {
           const existingPath = existingFiles[0].path;
           console.log(`Using existing file: ${existingPath}`);
 
-          const result = await parseEpub(existingPath);
-          setCurrentBasePath(result.basePath);
-          const firstContentElem = findFirstContentTag(result.navMap);
-          const firstContentPath = result.basePath + '/' + firstContentElem.getAttribute('src');
+          const book = await parseEpub(existingPath);
+          setCurrentBook(book);
+          const firstContentElem = findFirstContentTag(book.navMap);
+          const firstContentPath = book.basePath + '/' + firstContentElem.getAttribute('src');
           const firstContents = await readTextFile(firstContentPath);
-          setNavMap(result.navMap);
 
           // Navigate to reader screen
           navigation.navigate('Reader', { 
             content: firstContents,
+            language: book.language,
           });
           return;
         }
@@ -79,16 +79,17 @@ function CustomDrawerContent() {
         const savedFilePath = await copyFileToAppStorage(file.uri);
         
         if (savedFilePath) {
-          const result = await parseEpub(savedFilePath);
-          setCurrentBasePath(result.basePath);
-          const firstContentElem = findFirstContentTag(result.navMap);
-          const firstContentPath = result.basePath + '/' + firstContentElem.getAttribute('src');
+          const book = await parseEpub(savedFilePath);
+          setCurrentBook(book);
+          const firstContentElem = findFirstContentTag(book.navMap);
+          const firstContentPath = book.basePath + '/' + firstContentElem.getAttribute('src');
           const firstContents = await readTextFile(firstContentPath);
-          setNavMap(result.navMap);
+          // TODO check if language is null and if so prmpt user for language
 
           // Navigate to reader screen
           navigation.navigate('Reader', { 
             content: firstContents,
+            language: book.language,
           });
         } else {
           throw new Error("Could not save file.");
@@ -317,11 +318,11 @@ function CustomDrawerContent() {
     };
     
     const handleNavigateSection = async (src: string) => {
-      if (currentBasePath) {
+      if (currentBook.basePath) {
         try {
           navigation.dispatch(DrawerActions.closeDrawer());
           const sectionPathParts = src.split('#');
-          const sectionPath = currentBasePath + '/' + sectionPathParts[0];
+          const sectionPath = currentBook.basePath + '/' + sectionPathParts[0];
           const content = await readTextFile(sectionPath);
           navigation.navigate('Reader', {
             content
@@ -332,7 +333,6 @@ function CustomDrawerContent() {
       }
     }
 
-    
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.content}>
@@ -357,8 +357,8 @@ function CustomDrawerContent() {
           
         </View>
         { 
-          navMap && 
-            <TableOfContents navMap={navMap} onNavigate={handleNavigateSection} />
+          currentBook.navMap && 
+            <TableOfContents navMap={currentBook.navMap} onNavigate={handleNavigateSection} />
         }
       </SafeAreaView>
     );

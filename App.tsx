@@ -13,6 +13,7 @@ export type RootStackParamList = {
   Home: {};
   Reader: { 
     content: string;
+    language: string;
   };
 };
 
