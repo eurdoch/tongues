@@ -317,15 +317,12 @@ function CustomDrawerContent() {
     };
     
     const handleNavigateSection = async (src: string) => {
-      console.log('src: ', src);
-      console.log('basePath: ', currentBasePath);
       if (currentBasePath) {
         try {
           navigation.dispatch(DrawerActions.closeDrawer());
           const sectionPathParts = src.split('#');
           const sectionPath = currentBasePath + '/' + sectionPathParts[0];
           const content = await readTextFile(sectionPath);
-          console.log('content: ', content);
           navigation.navigate('Reader', {
             content
           });

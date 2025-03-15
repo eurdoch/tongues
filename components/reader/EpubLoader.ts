@@ -16,7 +16,7 @@ export async function parseEpub(fileUri: string) {
     console.log('Epub unzipped to:', unzipResult);
 
     let navMapObj = null;
-    const tocPath = await findFileRecursively(unzipResult, 'toc.ncx');
+    const tocPath = await findFileWithExtension(unzipResult, 'ncx');
     
     if (tocPath) {
       const tocContents = await RNFS.readFile(tocPath, 'utf8');
@@ -50,6 +50,23 @@ async function findFileRecursively(dir: string, fileName: string): Promise<strin
   }
   return null;
 }
+
+async function findFileWithExtension(dir: string, extension: string): Promise<string | null> {
+  const files = await RNFS.readDir(dir);
+  for (const file of files) {
+    if (file.isFile() && file.name.endsWith(extension)) {
+      return `${dir}/${file.name}`;
+    } else if (file.isDirectory()) {
+      const subDir = `${dir}/${file.name}`;
+      const foundFile = await findFileWithExtension(subDir, extension);
+      if (foundFile) {
+        return foundFile;
+      }
+    }
+  }
+  return null;
+}
+
 
 function findNavMap(parsedXml: any): any {
   if (parsedXml.nodeName === 'navMap') {
