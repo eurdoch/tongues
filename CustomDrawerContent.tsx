@@ -12,8 +12,7 @@ import { findFirstContentTag, readTextFile } from "./utils";
 function CustomDrawerContent() {
     const navigation = useNavigation();
     const [isLoading, setIsLoading] = useState<boolean>(false);
-    const { navMap, setNavMap } = useNavigationContext();
-    const [basePath, setBasePath] = useState<string>('');
+    const { navMap, setNavMap, currentBasePath, setCurrentBasePath } = useNavigationContext();
 
     useEffect(() => {
       // Example: Initialize or update navMap if needed
@@ -63,7 +62,7 @@ function CustomDrawerContent() {
           console.log(`Using existing file: ${existingPath}`);
 
           const result = await parseEpub(existingPath);
-          setBasePath(result.basePath);
+          setCurrentBasePath(result.basePath);
           const firstContentElem = findFirstContentTag(result.navMap);
           const firstContentPath = result.basePath + '/' + firstContentElem.getAttribute('src');
           const firstContents = await readTextFile(firstContentPath);
@@ -72,7 +71,6 @@ function CustomDrawerContent() {
           // Navigate to reader screen
           navigation.navigate('Reader', { 
             content: firstContents,
-            basePath: result.basePath,
           });
           return;
         }
@@ -82,7 +80,7 @@ function CustomDrawerContent() {
         
         if (savedFilePath) {
           const result = await parseEpub(savedFilePath);
-          setBasePath(result.basePath);
+          setCurrentBasePath(result.basePath);
           const firstContentElem = findFirstContentTag(result.navMap);
           const firstContentPath = result.basePath + '/' + firstContentElem.getAttribute('src');
           const firstContents = await readTextFile(firstContentPath);
@@ -314,20 +312,18 @@ function CustomDrawerContent() {
     };
 
     const goToHome = () => {
-      navigation.navigate('Home', {
-        setNavMap: setNavMap,
-      });
+      navigation.navigate('Home');
       navigation.dispatch(DrawerActions.closeDrawer());
     };
     
     const handleNavigateSection = async (src: string) => {
-      if (basePath) {
+      console.log('src: ', src);
+      console.log('basePath: ', currentBasePath);
+      if (currentBasePath) {
         try {
-          console.log('basePath: ', basePath);
           navigation.dispatch(DrawerActions.closeDrawer());
           const sectionPathParts = src.split('#');
-          const sectionPath = basePath + '/' + sectionPathParts[0];
-          console.log('sectionPathZ: ', sectionPath);
+          const sectionPath = currentBasePath + '/' + sectionPathParts[0];
           const content = await readTextFile(sectionPath);
           console.log('content: ', content);
           navigation.navigate('Reader', {

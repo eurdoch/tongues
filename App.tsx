@@ -10,9 +10,7 @@ import { NavigationProvider } from './NavigationContext';
 const Drawer = createDrawerNavigator();
 
 export type RootStackParamList = {
-  Home: {
-    setNavMap: any;
-  };
+  Home: {};
   Reader: { 
     content: string;
   };

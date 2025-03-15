@@ -43,7 +43,7 @@ function HomeScreen({ route }: HomeProps): React.JSX.Element {
     const [isSelectMode, setIsSelectMode] = useState<boolean>(false);
     const [selectedBooks, setSelectedBooks] = useState<Set<string>>(new Set());
     const navigation = useNavigation();
-    const { navMap, setNavMap } = useNavigationContext();
+    const { setNavMap, setCurrentBasePath } = useNavigationContext();
 
     // Handle select all books
     const handleSelectAll = () => {
@@ -901,6 +901,7 @@ function HomeScreen({ route }: HomeProps): React.JSX.Element {
             await updateLastRead(item.id);
             
             const result = await parseEpub(item.uri);
+            setCurrentBasePath(result.basePath);
             const firstContentElem = findFirstContentTag(result.navMap);
             const firstContentPath = result.basePath + '/' + firstContentElem.getAttribute('src');
             const firstContents = await readTextFile(firstContentPath);
