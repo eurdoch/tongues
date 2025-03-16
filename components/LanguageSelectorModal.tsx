@@ -8,10 +8,11 @@ import {
   TouchableOpacity,
   FlatList,
 } from 'react-native';
+import { SupportedLanguages } from '../types/Language';
 
 interface LanguageSelectorModalProps {
   visible: boolean;
-  supportedLanguages: string[];
+  supportedLanguages: SupportedLanguages,
   onClose: () => void;
   onSelectLanguage: (language: string) => void;
 }

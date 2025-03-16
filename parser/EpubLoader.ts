@@ -4,6 +4,7 @@ import { DOMParser } from 'xmldom';
 import { readTextFile } from '../utils';
 import BookData from '../types/BookData';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { determineLanguage } from '../services/TranslationService';
 
 const ISO_TO_LANG = {
   'fr': 'French',
@@ -37,20 +38,12 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
       navMapObj = findNavMap(parsedToc);
     }
 
-    let language = null;
-    const opfPath = await findFileWithExtension(unzipResult, 'opf');
-    if (opfPath) {
-      const opfContent = await readTextFile(opfPath);
-      language = extractLanguageFromOpf(opfContent);
-      if (language) {
-        language = ISO_TO_LANG[language];
-      } else {
-        language = '';
-      }
-    }
-    
+    const lastContentNode = findLastContentTag(navMapObj);
+    const lastContents = await readTextFile(unzipResult + '/' + lastContentNode.attributes[0].value)
+    const determination = await determineLanguage(lastContents);
+
     return {
-      language,
+      language: determination.language,
       path: unzipResult,
       navMap: navMapObj,
       basePath: tocPath ? tocPath.substring(0, tocPath.lastIndexOf('/')) : unzipResult
@@ -93,6 +86,77 @@ async function findFileWithExtension(dir: string, extension: string): Promise<st
   return null;
 }
 
+/**
+ * Recursively searches for the last element with the tag name "content"
+ *
+ * @param node - The DOM node to start searching from
+ * @returns The last content element found, or null if none exists
+ */
+export function findLastContentTag(node: any): any | null {
+  if (!node) {
+    return null;
+  }
+  
+  let lastContentNode = null;
+  
+  // Check if the current node is a content node
+  if (node.nodeName === 'content') {
+    lastContentNode = node;
+  }
+  
+  // Recursively search child nodes in reverse order
+  // This is optional, but can be more efficient in some cases
+  if (node.childNodes && node.childNodes.length > 0) {
+    for (let i = node.childNodes.length - 1; i >= 0; i--) {
+      const childNode = node.childNodes[i];
+      const contentNodeInChild = findLastContentTag(childNode);
+      
+      // If content node found in children, remember it
+      if (contentNodeInChild) {
+        lastContentNode = contentNodeInChild;
+        break; // We can break early since we're traversing in reverse
+      }
+    }
+  }
+  
+  return lastContentNode;
+}
+
+/**
+ * Finds the last node in a DOM-like structure by traversing the tree
+ * This follows the pattern of going to the deepest level and rightmost node
+ * 
+ * @param node - The starting node to search from
+ * @returns The last node in the tree
+ */
+function findLastNode(node: any): any {
+  // Base case: If we have no node, return null
+  if (!node) {
+    return null;
+  }
+  
+  if (node.childNodes && Object.keys(node.childNodes).length > 0) {
+    // Get the numeric keys and find the highest index
+    const childKeys = Object.keys(node.childNodes)
+                          .filter(key => !isNaN(Number(key)))
+                          .map(Number);
+    
+    if (childKeys.length > 0) {
+      const lastChildIndex = Math.max(...childKeys);
+      return findLastNode(node.childNodes[lastChildIndex]);
+    }
+  }
+  
+  if (node.lastChild) {
+    return findLastNode(node.lastChild);
+  }
+  
+  if (node.nextSibling) {
+    return findLastNode(node.nextSibling);
+  }
+  
+  return node;
+}
 
 function findNavMap(parsedXml: any): any {
   if (parsedXml.nodeName === 'navMap') {

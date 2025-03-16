@@ -18,13 +18,7 @@ import { RouteProp } from '@react-navigation/native';
 import ReadAlongModal from '../components/ReadAlongModal';
 import { extractSentences } from '../parser/Sentences';
 import LanguageSelectorModal from '../components/LanguageSelectorModal';
-
-const supportedLanguages = [
-  'French',
-  'Spanish',
-  'German',
-  'Dutch',
-];
+import { SupportedLanguages } from '../types/Language';
 
 type ReaderScreenRouteProp = RouteProp<RootStackParamList, 'Reader'>;
 
@@ -61,7 +55,7 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
     setSentences(sentences);
     setIsLoading(false);
 
-    if (currentBook!.language === '') {
+    if (!currentBook!.language) {
       setLanguageSelectorVisible(true);
     }
   }, [route.params.content]);
@@ -164,10 +158,10 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
       { currentBook &&
         <LanguageSelectorModal
           visible={languageSelectorVisible}
-          supportedLanguages={supportedLanguages}
+          supportedLanguages={SupportedLanguages}
           onClose={() => {
-            if (currentBook.language !== '') {
-              // only when language set
+            if (currentBook.language) {
+              setLanguageSelectorVisible(false);
             }
           }}
           onSelectLanguage={handleLanguageSelect}

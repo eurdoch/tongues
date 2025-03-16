@@ -1,5 +1,6 @@
 import RNFS from 'react-native-fs';
 import Sound from 'react-native-sound';
+import { isInSupportedLanguages } from '../types/Language';
 
 /**
  * Get an explanation of a word using Anthropic's Haiku model
@@ -314,3 +315,28 @@ export async function loadFileToBlob(filePath: string) {
   }
 }
 
+export const determineLanguage = async (excerpt: string) => {
+  const response = await fetch('https://tongues.directto.link/language', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      text: excerpt,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => 'No error details');
+    console.error('Timestamp API error:', errorText);
+    throw new Error(`Word timestamps request failed with status: ${response.status}`);
+  }
+
+  const jsonResponse = await response.json();
+
+  if (!isInSupportedLanguages) {
+    return { language: null };
+  } else {
+    return jsonResponse;
+  }
+}

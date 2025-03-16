@@ -59,6 +59,7 @@ function CustomDrawerContent() {
           console.log(`Using existing file: ${existingPath}`);
 
           const book = await parseEpub(existingPath);
+
           setCurrentBook(book);
           const firstContentElem = findFirstContentTag(book.navMap);
           const firstContentPath = book.basePath + '/' + firstContentElem.getAttribute('src');
