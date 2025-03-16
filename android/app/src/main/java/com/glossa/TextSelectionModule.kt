@@ -1,4 +1,4 @@
-package com.tongues
+package com.glossa
 
 import android.content.Context
 import android.text.Selection

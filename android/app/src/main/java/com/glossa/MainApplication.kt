@@ -1,4 +1,4 @@
-package com.tongues
+package com.glossa
 
 import android.app.Application
 import com.facebook.react.PackageList

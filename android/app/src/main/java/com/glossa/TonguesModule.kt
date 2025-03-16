@@ -1,4 +1,4 @@
-package com.tongues
+package com.glossa
 
 import android.os.Handler
 import android.os.Looper

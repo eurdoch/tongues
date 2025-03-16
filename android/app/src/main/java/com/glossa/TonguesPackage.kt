@@ -1,4 +1,4 @@
-package com.tongues
+package com.glossa
 
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.ReactApplicationContext
