@@ -2,8 +2,6 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, FlatList } from 'react-native';
 import { NavPoint } from '../types/NavPoint';
 
-
-
 /**
  * Extracts NavPoints from the navMap object returned by xmldom's DOMParser
  */
@@ -68,7 +66,6 @@ export function extractNavPoints(navMap: any): NavPoint[] {
     }
   }
   
-  console.log('DEBUG navPOints: ', navPoints);
   return navPoints;
 }
 

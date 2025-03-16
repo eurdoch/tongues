@@ -6,9 +6,6 @@ import {
   TouchableWithoutFeedback,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
-  Animated,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
@@ -17,6 +14,7 @@ import Sound from 'react-native-sound';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import TimestampMark from '../types/TimestampMark';
 import SentenceData from '../types/SentenceData';
+import TranslationPopup from './TranslationPopup';
 
 interface ReadAlongModalProps {
   visible: boolean;
@@ -31,7 +29,6 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   onClose,
   sentences,
 }) => {
-  const translationPopupRef = useRef(null);
   const [words, setWords] = useState<string[]>([]);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [highlightIndex, setHighlightIndex] = useState<number>(0);
@@ -41,7 +38,6 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   const [isTranslating, setIsTranslating] = useState<boolean>(false);
   const [isExplaining, setIsExplaining] = useState<boolean>(false);
   const [showTranslationPopup, setShowTranslationPopup] = useState<boolean>(false);
-  const [touchPosition, setTouchPosition] = useState<{x: number, y: number}>({x: 0, y: 0});
   const [selectionMode, setSelectionMode] = useState<boolean>(false);
   const [selectedWords, setSelectedWords] = useState<{word: string, index: number}[]>([]);
   const soundRef = useRef<Sound | null>(null);
@@ -229,6 +225,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     }
   }
 
+  // TODO flagged for deletion
   const handleStart = async (_e: any) => {
     // Use the saved position or start from the beginning
     const startIndex = currentSentenceIndex.current;
@@ -369,9 +366,6 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       return;
     }
     
-    // We no longer need tap position as popup has fixed position now
-    setTouchPosition({ x: 0, y: 0 }); // Using fixed positioning instead
-    
     // Pause the audio
     if (soundRef.current && isPlaying) {
       soundRef.current.pause();
@@ -389,30 +383,26 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     // Get translation for the word
     setIsTranslating(true);
     try {
-      // Fetch only the translation initially
       const translation = await translateText(word, language);
       setSelectedWordTranslation(translation);
-      setShowTranslationPopup(true); // Show popup after translation is fetched
+      setShowTranslationPopup(true);
     } catch (error) {
       console.error('Error translating word:', error);
       setSelectedWordTranslation('Translation error');
-      setShowTranslationPopup(true); // Show popup even if there's an error
+      setShowTranslationPopup(true); 
     } finally {
       setIsTranslating(false);
     }
   };
   
   const handleExplainWord = async () => {
-    // Don't do anything if no word is selected
     if (!selectedWord) {
       return;
     }
     
-    // Show loading state
     setIsExplaining(true);
     
     try {
-      // Fetch explanation using the stored selected word
       const explanation = await explainWord(selectedWord, language);
       setSelectedWordExplanation(explanation);
     } catch (error) {
@@ -423,9 +413,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     }
   };
   
-  // Handle long press on a word
   const handleWordLongPress = (word: string, index: number) => {
-    // Pause the audio if playing
     if (soundRef.current && isPlaying) {
       soundRef.current.pause();
       setIsPlaying(false);
@@ -441,22 +429,17 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     setHighlightIndex(index);
   };
   
-  // Translate selected words
   const handleTranslateSelected = async () => {
     if (selectedWords.length === 0) return;
     
-    // Join selected words, sort by index to maintain sentence structure
     const sortedWords = [...selectedWords].sort((a, b) => a.index - b.index);
     const wordText = sortedWords.map(item => item.word).join(' ');
     
-    // Set the primary selected word
     setSelectedWord(wordText);
     
-    // Clear previous translations and explanations
     setSelectedWordTranslation('');
     setSelectedWordExplanation('');
     
-    // Get translation for the phrase
     setIsTranslating(true);
     try {
       const translation = await translateText(wordText, language);
@@ -585,7 +568,6 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         </TouchableWithoutFeedback>
       </Modal>
       
-      {/* Add the translation popup */}
       <TranslationPopup
         visible={showTranslationPopup}
         onClose={() => {
@@ -594,120 +576,13 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
           setSelectedWords([]);
         }}
         isTranslating={isTranslating}
-        selectedWord={selectedWord}
-        selectedWordTranslation={selectedWordTranslation}
-        touchPosition={touchPosition}
+        text={selectedWord}
+        translation={selectedWordTranslation}
         isExplaining={isExplaining}
         selectedWordExplanation={selectedWordExplanation}
         handleExplainWord={handleExplainWord}
       />
     </>
-  );
-};
-
-// Separate translation popup component
-const TranslationPopup: React.FC<any> = ({ 
-  visible, 
-  onClose, 
-  isTranslating,
-  selectedWord,
-  selectedWordTranslation,
-  touchPosition,
-  isExplaining,
-  selectedWordExplanation,
-  handleExplainWord
-}) => {
-  const [slideAnim] = useState({ translateX: new Animated.Value(0), translateY: new Animated.Value(0) });
-  
-  useEffect(() => {
-    if (visible) {
-      // Reset animation first
-      slideAnim.translateX.setValue(0);
-      slideAnim.translateY.setValue(0);
-      
-      // Start animation
-      Animated.parallel([
-        Animated.timing(slideAnim.translateX, {
-          toValue: 10,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(slideAnim.translateY, {
-          toValue: 10,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  }, [visible]);
-  
-  if (!visible) return null;
-  
-  return (
-    <Modal
-      transparent
-      visible={visible}
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-        <TouchableWithoutFeedback onPress={onClose}>
-        <View style={styles.overlay}>
-          <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
-            <Animated.View 
-              style={[
-                styles.container,
-                {
-                  height: 600,
-                  transform: [
-                    { translateX: slideAnim.translateX },
-                    { translateY: slideAnim.translateY }
-                  ]
-                }
-              ]}>
-              <ScrollView style={styles.contentScroll}>
-                <View style={styles.sentenceContainer}>
-                  <View style={styles.textSection}>
-                    {isTranslating ? (
-                      <View style={styles.loadingContainer}>
-                        <ActivityIndicator size="small" color="#007AFF" />
-                      </View>
-                    ) : (
-                      <View style={styles.popupContentContainer}>
-                        <Text style={styles.popupOriginalText}>{selectedWord}</Text>
-                        <Text style={styles.popupTranslation}>{selectedWordTranslation}</Text>
-                        
-                        {!selectedWordExplanation && !isExplaining && (
-                          <TouchableOpacity
-                            onPress={handleExplainWord}
-                            style={styles.popupExplainButton}
-                          >
-                            <Text style={styles.controlButtonText}>✨ Explain</Text>
-                          </TouchableOpacity>
-                        )}
-                        
-                        {isExplaining && (
-                          <View style={styles.loadingContainer}>
-                            <ActivityIndicator size="small" color="#007AFF" />
-                            <Text style={styles.loadingText}>Explaining...</Text>
-                          </View>
-                        )}
-                        
-                        {selectedWordExplanation && (
-                          <View style={styles.explanationContainer}>
-                            <Text style={styles.popupExplanation}>{selectedWordExplanation}</Text>
-                          </View>
-                        )}
-                      </View>
-                    )}
-                  </View>
-                </View>
-              </ScrollView>
-              
-            </Animated.View>
-          </TouchableWithoutFeedback>
-        </View>
-      </TouchableWithoutFeedback>
-    </Modal>
   );
 };
 
@@ -938,51 +813,6 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     backgroundColor: '#007AFF',
-  },
-  
-  // Translation popup styles
-  contentScroll: {
-    flex: 1,
-    width: '100%',
-  },
-  popupLoadingContainer: {
-    padding: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  popupContentContainer: {
-    width: '100%',
-    padding: 5,
-  },
-  popupOriginalText: {
-    color: '#FFFFFF',
-    fontSize: 22,
-    marginBottom: 10,
-    textAlign: 'left',
-    width: '100%',
-  },
-  popupTranslation: {
-    color: '#E0E0E0',
-    fontSize: 26,
-    fontWeight: 'bold',
-    marginBottom: 15,
-    textAlign: 'left',
-    width: '100%',
-  },
-  popupExplainButton: {
-    backgroundColor: 'rgba(0, 122, 255, 0.6)',
-    padding: 8,
-    borderRadius: 20,
-    alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 10,
-    alignSelf: 'center',
-  },
-  popupExplanation: {
-    color: '#E0E0E0',
-    fontSize: 18,
-    lineHeight: 26,
-    padding: 5,
   },
 });
 

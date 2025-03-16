@@ -208,6 +208,7 @@ export const fetchSpeechAudio = async (
   
   console.log('Fetching speech audio:', { textLength: text.length, language: normalizedLanguage });
   
+  // TODO this should not be in this function, it's creating state side effects outsdie of component
   // Release previous sound if exists
   if (previousSound) {
     previousSound.release();

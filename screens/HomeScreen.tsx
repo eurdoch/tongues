@@ -906,7 +906,6 @@ function HomeScreen(): React.JSX.Element {
             const book = await parseEpub(item.uri);
             setCurrentBook(book);
 
-            //const navPoints = extractNavPoints(book.navMap);
             let srcPath;
             const storedCurrentNavPoint = await AsyncStorage.getItem("current_section");
             if (storedCurrentNavPoint) {

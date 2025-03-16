@@ -15,6 +15,7 @@ interface TranslationModalProps {
   onStopAudio: () => void;
 }
 
+// TODO flagged for deletion
 const TranslationModal: React.FC<TranslationModalProps> = ({
   visible,
   originalText,
