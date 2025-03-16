@@ -77,3 +77,6 @@ pprog.toml
 android/app/src/main/assets/index.android.bundle
 TODO
 FINISHED
+
+# Keystore
+android/app/keystore.properties
