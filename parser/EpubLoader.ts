@@ -39,7 +39,50 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
     }
 
     const lastContentNode = findLastContentTag(navMapObj);
-    const lastContents = await readTextFile(unzipResult + '/' + lastContentNode.attributes[0].value)
+    if (!lastContentNode || !lastContentNode.attributes || !lastContentNode.attributes[0]) {
+      console.error('No valid content node found in navMap');
+      throw Error('No valid content node found in EPUB navigation map');
+    }
+
+    // Remove anchor fragment from file path if present
+    const contentPath = lastContentNode.attributes[0].value.split('#')[0];
+    
+    // Try different path combinations to locate the file
+    let filePath = `${unzipResult}/${contentPath}`;
+    let fileExists = await RNFS.exists(filePath);
+    
+    if (!fileExists) {
+      // Try an alternative path structure
+      const altPath = `${unzipResult}/OEBPS/${contentPath}`;
+      const altExists = await RNFS.exists(altPath);
+      if (altExists) {
+        filePath = altPath;
+        fileExists = true;
+      } else {
+        // Try to locate the file by name in the extraction directory
+        const fileName = contentPath.split('/').pop();
+        console.log(`Searching for file by name: ${fileName}`);
+        
+        try {
+          const foundFile = await findFileRecursively(unzipResult, fileName || '');
+          if (foundFile) {
+            filePath = foundFile;
+            fileExists = true;
+            console.log(`Found file at: ${foundFile}`);
+          }
+        } catch (searchError) {
+          console.error('Error searching for file by name:', searchError);
+        }
+      }
+    }
+    
+    if (!fileExists) {
+      console.error(`File not found at any path variation: ${contentPath}`);
+      throw Error(`File not found in EPUB: ${contentPath}`);
+    }
+    
+    console.log(`Reading content from: ${filePath}`);
+    const lastContents = await readTextFile(filePath);
     const determination = await determineLanguage(lastContents);
 
     return {
