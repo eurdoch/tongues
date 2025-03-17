@@ -38,6 +38,7 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
   const [content, setContent] = useState<ElementNode[]>([]);
   const [sentences, setSentences] = useState<string[]>([]);
   const [readAlongVisible, setReadAlongVisible] = useState<boolean>(false);
+  const [currentSentenceIndex, setCurrentSentenceIndex] = useState<number>(0);
   const { currentBook, setCurrentBook } = useNavigationContext();
 
   useEffect(() => {
@@ -69,6 +70,12 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
 
   const handleReadAlong = (e: any) => {
     e.preventDefault();
+    
+    // If we have sentences, initialize with the first one
+    if (sentences.length > 0) {
+      setCurrentSentenceIndex(0);
+    }
+    
     setReadAlongVisible(true);
   };
 
@@ -155,6 +162,7 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
             onClose={() => setReadAlongVisible(false)}
             language={currentBook.language}
             sentences={sentences}
+            initialSentenceIndex={currentSentenceIndex}
           />
       }
 

@@ -21,6 +21,7 @@ interface ReadAlongModalProps {
   onClose: () => void;
   language: string;
   sentences: string[];
+  initialSentenceIndex?: number;
 }
 
 const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
@@ -28,6 +29,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   language,
   onClose,
   sentences,
+  initialSentenceIndex = 0,
 }) => {
   const [words, setWords] = useState<string[]>([]);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -40,8 +42,8 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   const [showTranslationPopup, setShowTranslationPopup] = useState<boolean>(false);
   const [selectionMode, setSelectionMode] = useState<boolean>(false);
   const [selectedWords, setSelectedWords] = useState<{word: string, index: number}[]>([]);
+  const [currentSentenceIndex, setCurrentSentenceIndex] = useState<number>(0);
   const soundRef = useRef<Sound | null>(null);
-  const currentSentenceIndex = useRef<number>(0);
   const currentInterval = useRef<any>(null);
   const currentTimestamps = useRef<TimestampMark[]>([]);
   const nextSentenceData = useRef<SentenceData | null>(null);
@@ -57,7 +59,39 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     }
   };
 
-  // Add a debug log at the start of your interval to confirm it's running
+  // Initialize with the selected sentence when the modal becomes visible
+  useEffect(() => {
+    const initializeModal = async () => {
+      if (visible && sentences.length > 0) {
+        // Use initialSentenceIndex prop if provided, otherwise try to load from AsyncStorage
+        let indexToUse = initialSentenceIndex;
+
+        // Set the current sentence index
+        setCurrentSentenceIndex(indexToUse);
+        
+        const sentence = sentences[indexToUse];
+        if (sentence) {
+          setWords(sentence.split(' '));
+          
+          try {
+            const timestamps = await fetchWordTimestamps(sentence, language);
+            currentTimestamps.current = timestamps;
+            console.log('Initial timestamps loaded:', timestamps);
+            
+            if (indexToUse + 1 < sentences.length) {
+              preloadNextSentence(indexToUse + 1);
+            }
+          } catch (error) {
+            console.error('Error loading initial sentence:', error);
+          }
+        }
+      }
+    }
+
+    initializeModal();
+  }, [visible, sentences, language, initialSentenceIndex]);
+
+  // Set up the interval for tracking word highlighting
   useEffect(() => {
     console.log('Setting up interval');
     
@@ -86,7 +120,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         clearInterval(currentInterval.current);
       }
     }
-  }, [visible]);
+  }, [visible, highlightIndex]);
 
   const handleClose = async () => {
     setWords([]);
@@ -100,7 +134,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     setSelectedWords([]);
     pausedByUser.current = false;
     currentTimestamps.current = [];
-    currentSentenceIndex.current = 0;
+    setCurrentSentenceIndex(0);
     
     // Clean up current sound
     if (soundRef.current) {
@@ -162,9 +196,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       return;
     }
     
-    currentSentenceIndex.current = next;
-    // Save the new sentence position
-    saveReadingPosition(next);
+    setCurrentSentenceIndex(next);
     setHighlightIndex(0);
     
     // If we have preloaded data for the next sentence, use it
@@ -226,43 +258,42 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   }
 
   // TODO flagged for deletion
-  const handleStart = async (_e: any) => {
-    // Use the saved position or start from the beginning
-    const startIndex = currentSentenceIndex.current;
-    console.log(`[ReadAlongModal] Starting from sentence ${startIndex}`);
-    
-    setWords(sentences[startIndex].split(' '));
-    setHighlightIndex(0);
-    setSelectedWord('');
-    setSelectedWordTranslation('');
-    setSelectedWordExplanation('');
-    
-    const timestamps: TimestampMark[] = await fetchWordTimestamps(sentences[startIndex], language);
-    currentTimestamps.current = timestamps;
-    console.log('Timestamps: ', timestamps);
-    const speech = await fetchSpeechAudio(sentences[startIndex], language);
-    soundRef.current = speech.sound;
-    
-    // Apply current playback speed
-    soundRef.current.setSpeed(playbackSpeed);
-    
-    // Save the starting position
-    saveReadingPosition(startIndex);
-    
-    // Preload the next sentence while the first one is playing
-    if (sentences.length > startIndex + 1) {
-      preloadNextSentence(startIndex + 1);
-    }
+  // const handleStart = async (_e: any) => {
+  //  const startIndex = currentSentenceIndex.current;
+  //  console.log(`[ReadAlongModal] Starting from sentence ${startIndex}`);
+   
+  //  setWords(sentences[startIndex].split(' '));
+  //  setHighlightIndex(0);
+  //  setSelectedWord('');
+  //  setSelectedWordTranslation('');
+  //  setSelectedWordExplanation('');
+   
+  //  const timestamps: TimestampMark[] = await fetchWordTimestamps(sentences[startIndex], language);
+  //  currentTimestamps.current = timestamps;
+  //  console.log('Timestamps: ', timestamps);
+  //  const speech = await fetchSpeechAudio(sentences[startIndex], language);
+  //  soundRef.current = speech.sound;
+   
+  //  // Apply current playback speed
+  //  soundRef.current.setSpeed(playbackSpeed);
+   
+  //  // Save the starting position
+  //  saveReadingPosition(startIndex);
+   
+  //  // Preload the next sentence while the first one is playing
+  //  if (sentences.length > startIndex + 1) {
+  //    preloadNextSentence(startIndex + 1);
+  //  }
 
-    setIsPlaying(true);
-    // TODO handle errors where soundRef.current is null ?
-    soundRef.current.play((success) => {
-      if (success) {
-        console.log(`Sentence ${startIndex} finished playing.`);
-        handleNextSentencePlay(startIndex);
-      }
-    });
-  }
+  //  setIsPlaying(true);
+  //  // TODO handle errors where soundRef.current is null ?
+  //  soundRef.current.play((success) => {
+  //    if (success) {
+  //      console.log(`Sentence ${startIndex} finished playing.`);
+  //      handleNextSentencePlay(startIndex);
+  //    }
+  //  });
+  // }
 
   // Track if playback is paused by user - this helps prevent auto-advancing
   const pausedByUser = useRef<boolean>(false);
@@ -298,32 +329,37 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         // Only proceed to next sentence if playback completed successfully AND 
         // user didn't manually pause (to prevent auto-advancing after pause)
         if (success && !pausedByUser.current) {
-          console.log(`Sentence ${currentSentenceIndex.current} finished playing.`);
-          handleNextSentencePlay(currentSentenceIndex.current);
+          console.log(`Sentence ${currentSentenceIndex} finished playing.`);
+          handleNextSentencePlay(currentSentenceIndex);
         }
       });
       setIsPlaying(true);
       
       // If we're resuming and don't have the next sentence preloaded, start preloading
-      const nextIndex = currentSentenceIndex.current + 1;
+      const nextIndex = currentSentenceIndex + 1;
       if (nextIndex < sentences.length && !nextSentenceData.current && !isPreloading.current) {
         preloadNextSentence(nextIndex);
       }
     } else {
-      // No sound loaded yet, so we need to start from the saved position or beginning
-      // This is the same as the handleStart function
-      const startIndex = currentSentenceIndex.current;
+      // No sound loaded yet, so we need to start from the current position
+      const startIndex = currentSentenceIndex;
       console.log(`[ReadAlongModal] Starting from sentence ${startIndex}`);
       
+      // Words might already be set from the initialization useEffect, but set them again to be sure
       setWords(sentences[startIndex].split(' '));
       setHighlightIndex(0);
       setSelectedWord('');
       setSelectedWordTranslation('');
       setSelectedWordExplanation('');
       
-      const timestamps: TimestampMark[] = await fetchWordTimestamps(sentences[startIndex], language);
-      currentTimestamps.current = timestamps;
-      console.log('Timestamps: ', timestamps);
+      // If timestamps were already loaded in the useEffect, don't load them again
+      if (currentTimestamps.current.length === 0) {
+        const timestamps: TimestampMark[] = await fetchWordTimestamps(sentences[startIndex], language);
+        currentTimestamps.current = timestamps;
+        console.log('Timestamps loaded on play: ', timestamps);
+      }
+      
+      // Get speech audio
       const speech = await fetchSpeechAudio(sentences[startIndex], language);
       soundRef.current = speech.sound;
       
