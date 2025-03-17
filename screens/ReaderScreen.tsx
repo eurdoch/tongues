@@ -75,8 +75,11 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <TouchableOpacity onPress={handleReadAlong}>
-          <Text>RA</Text>
+        <TouchableOpacity 
+          onPress={handleReadAlong}
+          style={styles.headerButton}
+        >
+          <Text style={styles.headerButtonText}>Read Along</Text>
         </TouchableOpacity>
       )
     })
@@ -184,6 +187,16 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
     padding: 20,
+  },
+  headerButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 4,
+  },
+  headerButtonText: {
+    color: '#1a73e8',
+    fontSize: 16,
+    fontWeight: '600',
   },
   bookHeaderContainer: {
     marginBottom: 40,
