@@ -57,6 +57,44 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       console.error('[ReadAlongModal] Error saving reading position:', error);
     }
   };
+  
+  // Function to preload the next sentence
+  const preloadNextSentence = async (nextIndex: number) => {
+    if (nextIndex >= sentences.length || isPreloading.current) {
+      return;
+    }
+    
+    isPreloading.current = true;
+    try {
+      console.log(`[ReadAlongModal] Preloading next sentence ${nextIndex}: "${sentences[nextIndex].substring(0, 30)}..."`);
+      
+      const [timestamps, speech] = await Promise.all([
+        fetchWordTimestamps(sentences[nextIndex], language),
+        fetchSpeechAudio(sentences[nextIndex], language)
+      ]);
+      
+      if (speech && speech.sound) {
+        // Configure sound
+        speech.sound.setVolume(1.0);
+        speech.sound.setSpeed(playbackSpeed);
+        speech.sound.pause(); // Ensure it's paused
+        
+        // Store the preloaded data
+        nextSentenceData.current = {
+          sound: speech.sound,
+          timestamps: timestamps,
+          words: sentences[nextIndex].split(' ')
+        };
+        
+        console.log('[ReadAlongModal] Next sentence preloaded successfully');
+      }
+    } catch (error) {
+      console.error('[ReadAlongModal] Error preloading next sentence:', error);
+      nextSentenceData.current = null;
+    } finally {
+      isPreloading.current = false;
+    }
+  };
 
   // Loading state to prevent play before audio is ready
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -66,6 +104,128 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     // Use the extracted initializeModal function
     initializeModal();
   }, [visible, sentences, language]);
+
+  const loadNextSentence = async () => {
+    // Check if we have more sentences
+    const nextIndex = currentSentenceIndex + 1;
+    if (nextIndex >= sentences.length) {
+      console.log('[ReadAlongModal] Reached the end of all sentences');
+      return false;
+    }
+    
+    try {
+      setIsLoading(true);
+      
+      // Save the new position
+      await saveReadingPosition(nextIndex);
+      setCurrentSentenceIndex(nextIndex);
+      setHighlightIndex(0);
+      currentHighlightIndex.current = 0;
+      
+      // Clear the current audio
+      if (soundRef.current) {
+        soundRef.current.release();
+        soundRef.current = null;
+      }
+      
+      // If we have preloaded data, use it
+      if (nextSentenceData.current) {
+        console.log('[ReadAlongModal] Using preloaded data for next sentence');
+        soundRef.current = nextSentenceData.current.sound;
+        currentTimestamps.current = nextSentenceData.current.timestamps;
+        nextSentenceData.current = null; // Clear the preloaded data
+        
+        // Preload the sentence after this one
+        const sentenceAfterNextIndex = nextIndex + 1;
+        if (sentenceAfterNextIndex < sentences.length) {
+          preloadNextSentence(sentenceAfterNextIndex);
+        }
+        
+        return true;
+      } else {
+        // If no preloaded data, load the next sentence now
+        console.log(`[ReadAlongModal] Loading next sentence ${nextIndex} on demand`);
+        const sentence = sentences[nextIndex];
+        
+        // Fetch timestamps and audio in parallel
+        const [timestamps, speech] = await Promise.all([
+          fetchWordTimestamps(sentence, language),
+          fetchSpeechAudio(sentence, language)
+        ]);
+        
+        // Set the timestamps
+        currentTimestamps.current = timestamps;
+        
+        // Set the sound
+        if (speech && speech.sound) {
+          soundRef.current = speech.sound;
+          soundRef.current.setVolume(1.0);
+          soundRef.current.setSpeed(playbackSpeed);
+          
+          // Preload the sentence after this one
+          const sentenceAfterNextIndex = nextIndex + 1;
+          if (sentenceAfterNextIndex < sentences.length) {
+            preloadNextSentence(sentenceAfterNextIndex);
+          }
+          
+          return true;
+        }
+      }
+    } catch (error) {
+      console.error('[ReadAlongModal] Error loading next sentence:', error);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+    
+    return false;
+  };
+
+  // Track if a sentence has just completed playing
+  const [sentenceFinished, setSentenceFinished] = useState<boolean>(false);
+  
+  // Add a useEffect to handle auto-advancing to the next sentence
+  useEffect(() => {
+    // Only run this effect when a sentence has completed
+    if (sentenceFinished) {
+      console.log('[ReadAlongModal] Detected sentence completion, auto-advancing');
+      
+      // Load and play the next sentence
+      const autoAdvance = async () => {
+        try {
+          const nextLoaded = await loadNextSentence();
+          if (nextLoaded && soundRef.current) {
+            // Automatically play the next sentence
+            console.log('[ReadAlongModal] Starting playback of next sentence');
+            soundRef.current.play((nextSuccess) => {
+              if (nextSuccess) {
+                console.log('[ReadAlongModal] Next sentence completed successfully');
+                // Signal another sentence has finished
+                setSentenceFinished(true);
+              } else {
+                console.error('[ReadAlongModal] Next sentence playback error');
+                setIsPlaying(false);
+                setSentenceFinished(false);
+              }
+            });
+          } else {
+            // No more sentences or loading failed
+            console.log('[ReadAlongModal] No more sentences or load failed');
+            setIsPlaying(false);
+            setSentenceFinished(false);
+          }
+        } catch (error) {
+          console.error('[ReadAlongModal] Error in auto-advance:', error);
+          setIsPlaying(false);
+          setSentenceFinished(false);
+        }
+      };
+      
+      autoAdvance();
+      // Reset the flag
+      setSentenceFinished(false);
+    }
+  }, [sentenceFinished, sentences, language, currentSentenceIndex, playbackSpeed]);
 
   const handleTogglePlay = (e: any) => {
     e.preventDefault();
@@ -109,14 +269,15 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         }
 
         // Start playback
-        soundRef.current.play((success: boolean) => {
+        soundRef.current.play((success) => {
           if (success) {
             console.log('[ReadAlongModal] Sound finished playing successfully');
+            // Signal that a sentence has completed
+            setSentenceFinished(true);
           } else {
             console.error('[ReadAlongModal] Sound playback encountered an error');
+            setIsPlaying(false);
           }
-          // Automatically set playing to false when done
-          setIsPlaying(false);
         });
         
         setIsPlaying(true);
@@ -205,6 +366,12 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
           // Explicitly pause to prevent any auto-playing
           soundRef.current.pause();
           console.log('[ReadAlongModal] Sound loaded successfully (paused)');
+          
+          // Preload the next sentence if available
+          const nextIndex = validIndex + 1;
+          if (nextIndex < sentences.length) {
+            preloadNextSentence(nextIndex);
+          }
         } else {
           console.error('[ReadAlongModal] Failed to load audio');
         }
@@ -289,17 +456,33 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     setSelectionMode(false);
     setSelectedWords([]);
     currentTimestamps.current = [];
-    setCurrentSentenceIndex(0);
+    setSentenceFinished(false);
     
+    // Clean up any intervals
+    if (currentInterval.current) {
+      clearInterval(currentInterval.current);
+      currentInterval.current = null;
+    }
+    
+    // Release current sound
     if (soundRef.current) {
       soundRef.current.pause();
       soundRef.current.release();
+      soundRef.current = null;
     }
     
+    // Release preloaded sound if exists
     if (nextSentenceData.current?.sound) {
       nextSentenceData.current.sound.release();
       nextSentenceData.current = null;
     }
+    
+    // Reset loading and preloading flags
+    setIsLoading(false);
+    isPreloading.current = false;
+    
+    // Store current position for next time
+    await saveReadingPosition(currentSentenceIndex);
     
     onClose();
   }
@@ -419,34 +602,48 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
               <View style={styles.container} testID="readAlongContainer">
                 {/* Current sentence section */}
                 <View style={styles.sentenceContainer}>
-                  <View style={styles.textSection}>
-                    {sentences[currentSentenceIndex].split(' ').map((word, index) => {
-                      // Check if word is in selected words
-                      const isSelected = selectedWords.some(item => item.index === index);
-                      const textStyle = [
-                        styles.originalText,
-                        (highlightIndex === index && !selectionMode) && styles.highlightedWord,
-                        isSelected && styles.selectedWord
-                      ];
-                      return (
-                        <GestureDetector 
-                          key={index}
-                          gesture={longPressGesture}
-                        >
-                          <TouchableOpacity 
-                            onPress={(event) => handleWordClick(word, index, event)}
-                            onLongPress={() => handleWordLongPress(word, index)}
-                            delayLongPress={500}
-                            activeOpacity={0.7}
-                          >
-                            <Text style={textStyle}>
-                              {word}{' '}
-                            </Text>
-                          </TouchableOpacity>
-                        </GestureDetector>
-                      );
-                    })}
+                  <View style={styles.sentenceHeader}>
+                    <Text style={styles.sentencePosition}>
+                      {`Sentence ${currentSentenceIndex + 1} of ${sentences.length}`}
+                    </Text>
                   </View>
+                  
+                  {isLoading ? (
+                    <View style={styles.loadingContainer}>
+                      <Text style={styles.loadingText}>
+                        Loading next sentence...
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={styles.textSection}>
+                      {sentences[currentSentenceIndex].split(' ').map((word, index) => {
+                        // Check if word is in selected words
+                        const isSelected = selectedWords.some(item => item.index === index);
+                        const textStyle = [
+                          styles.originalText,
+                          (highlightIndex === index && !selectionMode) && styles.highlightedWord,
+                          isSelected && styles.selectedWord
+                        ];
+                        return (
+                          <GestureDetector 
+                            key={index}
+                            gesture={longPressGesture}
+                          >
+                            <TouchableOpacity 
+                              onPress={(event) => handleWordClick(word, index, event)}
+                              onLongPress={() => handleWordLongPress(word, index)}
+                              delayLongPress={500}
+                              activeOpacity={0.7}
+                            >
+                              <Text style={textStyle}>
+                                {word}{' '}
+                              </Text>
+                            </TouchableOpacity>
+                          </GestureDetector>
+                        );
+                      })}
+                    </View>
+                  )}
                 </View>
                 
                 {/* Selection mode controls */}
@@ -553,6 +750,25 @@ const styles = StyleSheet.create({
     minWidth: 100,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  sentenceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+    paddingVertical: 5,
+  },
+  sentencePosition: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    opacity: 0.8,
+    textAlign: 'center',
+  },
+  loadingContainer: {
+    padding: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
   },
   loadingText: {
     color: '#FFFFFF',
