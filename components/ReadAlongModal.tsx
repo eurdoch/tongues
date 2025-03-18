@@ -62,26 +62,48 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   useEffect(() => {
     const initializeModal = async () => {
       if (visible && sentences.length > 0) {
-        const storedIndex = await AsyncStorage.getItem("read_along_current_index");
-        if (storedIndex) {
-          const parsedIndex = parseInt(storedIndex);
-          const index = parsedIndex ? parsedIndex : 0;
-          setCurrentSentenceIndex(index);
-        
-          try {
-            const sentence = sentences[index];
-            const timestamps = await fetchWordTimestamps(sentence, language);
-            currentTimestamps.current = timestamps;
-            const speech = await fetchSpeechAudio(sentence, language);
-            soundRef.current = speech.sound;
-            console.log('Initial timestamps loaded:', timestamps);
-            
-            if (index + 1 < sentences.length) {
-              //preloadNextSentence(indexToUse + 1);
-            }
-          } catch (error) {
-            console.error('Error loading initial sentence:', error);
+        try {
+          // Get stored position or default to first sentence
+          const storedIndex = await AsyncStorage.getItem("read_along_current_index");
+          const parsedIndex = storedIndex ? parseInt(storedIndex) : 0;
+          const validIndex = isNaN(parsedIndex) || parsedIndex >= sentences.length ? 0 : parsedIndex;
+          
+          setCurrentSentenceIndex(validIndex);
+          setHighlightIndex(0); // Reset highlight when loading a new sentence
+          
+          // Clear any previous audio and timestamps
+          if (soundRef.current) {
+            soundRef.current.release();
+            soundRef.current = null;
           }
+          
+          currentTimestamps.current = [];
+          
+          // Load current sentence
+          const sentence = sentences[validIndex];
+          console.log(`[ReadAlongModal] Loading sentence ${validIndex}: "${sentence.substring(0, 30)}..."`);
+          
+          // Fetch timestamps and audio in parallel
+          const [timestamps, speech] = await Promise.all([
+            fetchWordTimestamps(sentence, language),
+            fetchSpeechAudio(sentence, language)
+          ]);
+          
+          // Set the timestamps
+          currentTimestamps.current = timestamps;
+          console.log('[ReadAlongModal] Timestamps loaded:', timestamps.length);
+          
+          // Set the sound
+          if (speech && speech.sound) {
+            soundRef.current = speech.sound;
+            // Configure sound
+            soundRef.current.setVolume(1.0);
+            soundRef.current.setSpeed(playbackSpeed);
+          } else {
+            console.error('[ReadAlongModal] Failed to load audio');
+          }
+        } catch (error) {
+          console.error('[ReadAlongModal] Error loading sentence:', error);
         }
       }
     }
@@ -91,16 +113,37 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
 
   const handleTogglePlay = (e: any) => {
     e.preventDefault();
+    
     if (soundRef.current) {
       if (!isPlaying) {
+        // Reset highlight index when starting playback from beginning
+        if (soundRef.current.getCurrentTime) {
+          soundRef.current.getCurrentTime((seconds) => {
+            if (seconds < 0.1) {
+              setHighlightIndex(0);
+            }
+          });
+        }
+
+        // Start playback
         soundRef.current.play((success: boolean) => {
-          console.log('DEBUG Sound finished.');
+          if (success) {
+            console.log('[ReadAlongModal] Sound finished playing successfully');
+          } else {
+            console.error('[ReadAlongModal] Sound playback encountered an error');
+          }
+          // Automatically set playing to false when done
+          setIsPlaying(false);
         });
+        
         setIsPlaying(true);
       } else {
+        // Pause playback
         soundRef.current.pause();
         setIsPlaying(false);
       }
+    } else {
+      console.error('[ReadAlongModal] Cannot play sound - sound object not initialized');
     }
   }
 
