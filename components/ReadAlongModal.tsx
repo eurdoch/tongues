@@ -30,7 +30,6 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   onClose,
   sentences,
 }) => {
-  const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [highlightIndex, setHighlightIndex] = useState<number>(0);
   const [selectedWord, setSelectedWord] = useState<string>('');
   const [selectedWordTranslation, setSelectedWordTranslation] = useState<string>('');
@@ -46,6 +45,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   const currentTimestamps = useRef<TimestampMark[]>([]);
   const nextSentenceData = useRef<SentenceData | null>(null);
   const isPreloading = useRef<boolean>(false);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
 
   const saveReadingPosition = async (index: number) => {
     try {
@@ -89,44 +89,53 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   }, [sentences]);
 
   const handleTogglePlay = (e: any) => {
+    console.log('DEBUG handleTogglePla');
+    console.log('DEBUG soundRef.current');
     e.preventDefault();
     if (soundRef.current) {
-      soundRef.current.play((success: boolean) => {
-        console.log('DEBUG Sound finished.');
-      });
+      if (!isPlaying) {
+        soundRef.current.play((success: boolean) => {
+          console.log('DEBUG Sound finished.');
+        });
+        setIsPlaying(true);
+      } else {
+        soundRef.current.pause();
+        setIsPlaying(false);
+      }
     }
   }
 
   // Set up the interval for tracking word highlighting
-  // useEffect(() => {
-  //   console.log('Setting up interval');
+  useEffect(() => {
+    console.log('Setting up interval');
     
-  //   if (visible) {
-  //     const interval = setInterval(() => {
-  //       if (soundRef.current) {
-  //         soundRef.current.getCurrentTime((seconds, _isPlaying) => {
-  //           const milliseconds = seconds * 1000;
-  //           for (let index = highlightIndex; index < currentTimestamps.current.length; index++) {
-  //             if (currentTimestamps.current.length === index + 1) {
-  //               setHighlightIndex(index);
-  //               break;
-  //             } else if (currentTimestamps.current[index].time > milliseconds) {
-  //               setHighlightIndex(index-1);
-  //               break;
-  //             }
-  //           }
-  //         });
-  //       }
-  //     }, 100);
+    if (visible) {
+      const interval = setInterval(() => {
+        if (soundRef.current && currentTimestamps.current) {
+          soundRef.current.getCurrentTime((seconds, _isPlaying) => {
+            const milliseconds = seconds * 1000;
+            for (let index = highlightIndex; index < currentTimestamps.current.length; index++) {
+              //console.log('DEBUG currentTimestamps: ', currentTimestamps.current[index]);
+              if (currentTimestamps.current.length === index + 1) {
+                setHighlightIndex(index);
+                break;
+              } else if (currentTimestamps.current[index] && currentTimestamps.current[index].time > milliseconds) {
+                setHighlightIndex(index-1);
+                break;
+              }
+            }
+          });
+        }
+      }, 100);
 
-  //     currentInterval.current = interval;
-  //   } else {
-  //     console.log('Cleaning up interval');
-  //     if (currentInterval.current) {
-  //       clearInterval(currentInterval.current);
-  //     }
-  //   }
-  // }, [visible, highlightIndex]);
+      currentInterval.current = interval;
+    } else {
+      console.log('Cleaning up interval');
+      if (currentInterval.current) {
+        clearInterval(currentInterval.current);
+      }
+    }
+  }, [visible, highlightIndex]);
 
   const handleClose = async () => {
     console.log('handleClose');
@@ -245,7 +254,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                         (highlightIndex === index) && styles.highlightedWord,
                         //isSelected && styles.selectedWord
                       ];
-                      return <Text style={textStyle}>{word}{' '}</Text>;
+                      return <Text key={index} style={textStyle}>{word}{' '}</Text>;
                       
                       // return (
                       //   <GestureDetector 
@@ -303,9 +312,6 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                         size={18} 
                         style={{marginRight: 6}}
                       />
-                      <Text style={styles.controlButtonText}>
-                        {isPlaying ? 'Pause' : 'Play'}
-                      </Text>
                     </TouchableOpacity>
                     
                     {/* <TouchableOpacity
