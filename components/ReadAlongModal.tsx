@@ -29,9 +29,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   language,
   onClose,
   sentences,
-  initialSentenceIndex = 0,
 }) => {
-  const [words, setWords] = useState<string[]>([]);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [highlightIndex, setHighlightIndex] = useState<number>(0);
   const [selectedWord, setSelectedWord] = useState<string>('');
@@ -63,23 +61,22 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   useEffect(() => {
     const initializeModal = async () => {
       if (visible && sentences.length > 0) {
-        // Use initialSentenceIndex prop if provided, otherwise try to load from AsyncStorage
-        let indexToUse = initialSentenceIndex;
-
-        // Set the current sentence index
-        setCurrentSentenceIndex(indexToUse);
+        const storedIndex = await AsyncStorage.getItem("read_along_current_index");
+        if (storedIndex) {
+          const parsedIndex = parseInt(storedIndex);
+          const index = parsedIndex ? parsedIndex : 0;
+          setCurrentSentenceIndex(index);
         
-        const sentence = sentences[indexToUse];
-        if (sentence) {
-          setWords(sentence.split(' '));
-          
           try {
+            const sentence = sentences[index];
             const timestamps = await fetchWordTimestamps(sentence, language);
             currentTimestamps.current = timestamps;
+            const speech = await fetchSpeechAudio(sentence, language);
+            soundRef.current = speech.sound;
             console.log('Initial timestamps loaded:', timestamps);
             
-            if (indexToUse + 1 < sentences.length) {
-              preloadNextSentence(indexToUse + 1);
+            if (index + 1 < sentences.length) {
+              //preloadNextSentence(indexToUse + 1);
             }
           } catch (error) {
             console.error('Error loading initial sentence:', error);
@@ -89,413 +86,141 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     }
 
     initializeModal();
-  }, [visible, sentences, language, initialSentenceIndex]);
+  }, [sentences]);
+
+  const handleTogglePlay = (e: any) => {
+    e.preventDefault();
+    if (soundRef.current) {
+      soundRef.current.play((success: boolean) => {
+        console.log('DEBUG Sound finished.');
+      });
+    }
+  }
 
   // Set up the interval for tracking word highlighting
-  useEffect(() => {
-    console.log('Setting up interval');
+  // useEffect(() => {
+  //   console.log('Setting up interval');
     
-    if (visible) {
-      const interval = setInterval(() => {
-        if (soundRef.current) {
-          soundRef.current.getCurrentTime((seconds, _isPlaying) => {
-            const milliseconds = seconds * 1000;
-            for (let index = highlightIndex; index < currentTimestamps.current.length; index++) {
-              if (currentTimestamps.current.length === index + 1) {
-                setHighlightIndex(index);
-                break;
-              } else if (currentTimestamps.current[index].time > milliseconds) {
-                setHighlightIndex(index-1);
-                break;
-              }
-            }
-          });
-        }
-      }, 100);
+  //   if (visible) {
+  //     const interval = setInterval(() => {
+  //       if (soundRef.current) {
+  //         soundRef.current.getCurrentTime((seconds, _isPlaying) => {
+  //           const milliseconds = seconds * 1000;
+  //           for (let index = highlightIndex; index < currentTimestamps.current.length; index++) {
+  //             if (currentTimestamps.current.length === index + 1) {
+  //               setHighlightIndex(index);
+  //               break;
+  //             } else if (currentTimestamps.current[index].time > milliseconds) {
+  //               setHighlightIndex(index-1);
+  //               break;
+  //             }
+  //           }
+  //         });
+  //       }
+  //     }, 100);
 
-      currentInterval.current = interval;
-    } else {
-      console.log('Cleaning up interval');
-      if (currentInterval.current) {
-        clearInterval(currentInterval.current);
-      }
-    }
-  }, [visible, highlightIndex]);
+  //     currentInterval.current = interval;
+  //   } else {
+  //     console.log('Cleaning up interval');
+  //     if (currentInterval.current) {
+  //       clearInterval(currentInterval.current);
+  //     }
+  //   }
+  // }, [visible, highlightIndex]);
 
   const handleClose = async () => {
-    setWords([]);
-    setIsPlaying(false);
-    setHighlightIndex(0);
-    setSelectedWord('');
-    setSelectedWordTranslation('');
-    setSelectedWordExplanation('');
-    setShowTranslationPopup(false);
-    setSelectionMode(false);
-    setSelectedWords([]);
-    pausedByUser.current = false;
-    currentTimestamps.current = [];
-    setCurrentSentenceIndex(0);
+    console.log('handleClose');
+  //   setIsPlaying(false);
+  //   setHighlightIndex(0);
+  //   setSelectedWord('');
+  //   setSelectedWordTranslation('');
+  //   setSelectedWordExplanation('');
+  //   setShowTranslationPopup(false);
+  //   setSelectionMode(false);
+  //   setSelectedWords([]);
+  //   pausedByUser.current = false;
+  //   currentTimestamps.current = [];
+  //   setCurrentSentenceIndex(0);
     
-    // Clean up current sound
-    if (soundRef.current) {
-      soundRef.current.pause();
-      soundRef.current.release();
-    }
+  //   // Clean up current sound
+  //   if (soundRef.current) {
+  //     soundRef.current.pause();
+  //     soundRef.current.release();
+  //   }
     
-    // Clean up next sound if it exists
-    if (nextSentenceData.current?.sound) {
-      nextSentenceData.current.sound.release();
-      nextSentenceData.current = null;
-    }
+  //   // Clean up next sound if it exists
+  //   if (nextSentenceData.current?.sound) {
+  //     nextSentenceData.current.sound.release();
+  //     nextSentenceData.current = null;
+  //   }
     
-    onClose();
+  //   onClose();
   }
-
-  // Function to preload the next sentence data
-  const preloadNextSentence = async (nextIndex: number): Promise<void> => {
-    // Don't preload if we're already preloading or if there's no next sentence
-    if (isPreloading.current || nextIndex >= sentences.length) {
-      return;
-    }
-    
-    isPreloading.current = true;
-    console.log(`Preloading sentence ${nextIndex}`);
-    
-    try {
-      const timestamps = await fetchWordTimestamps(sentences[nextIndex], language);
-      const speech = await fetchSpeechAudio(sentences[nextIndex], language);
-      const words = sentences[nextIndex].split(' ');
-      
-      nextSentenceData.current = {
-        sound: speech.sound,
-        timestamps,
-        words
-      };
-      
-      console.log(`Preloaded sentence ${nextIndex} successfully`);
-    } catch (error) {
-      console.error(`Error preloading sentence ${nextIndex}:`, error);
-      nextSentenceData.current = null;
-    } finally {
-      isPreloading.current = false;
-    }
-  };
-
-  const handleNextSentencePlay = async (currentIndex: number) => {
-    // Don't proceed to next sentence if user manually paused
-    if (pausedByUser.current) {
-      console.log('[ReadAlongModal] User paused - not advancing to next sentence');
-      return;
-    }
-    
-    const next = currentIndex + 1;
-    
-    // Check if we've reached the end of sentences
-    if (next >= sentences.length) {
-      console.log('Reached the end of all sentences');
-      return;
-    }
-    
-    setCurrentSentenceIndex(next);
-    setHighlightIndex(0);
-    
-    // If we have preloaded data for the next sentence, use it
-    if (nextSentenceData.current) {
-      console.log(`Using preloaded data for sentence ${next}`);
-      currentTimestamps.current = nextSentenceData.current.timestamps;
-      setWords(nextSentenceData.current.words);
-      
-      // Clean up previous sound if it exists
-      if (soundRef.current) {
-        soundRef.current.release();
-      }
-      
-      soundRef.current = nextSentenceData.current.sound;
-      // Apply current playback speed
-      soundRef.current.setSpeed(playbackSpeed);
-      nextSentenceData.current = null;
-      
-      // Start preloading the sentence after this one
-      if (next + 1 < sentences.length) {
-        preloadNextSentence(next + 1);
-      }
-      
-      soundRef.current.play((success) => {
-        if (success && !pausedByUser.current) {
-          console.log(`Sentence ${next} finished playing.`);
-          handleNextSentencePlay(next);
-        }
-      });
-    } else {
-      // If we don't have preloaded data, load it now
-      console.log(`Loading sentence ${next} data on demand`);
-      const timestamps = await fetchWordTimestamps(sentences[next], language);
-      currentTimestamps.current = timestamps;
-      const speech = await fetchSpeechAudio(sentences[next], language);
-      setWords(sentences[next].split(' '));
-      
-      // Clean up previous sound if it exists
-      if (soundRef.current) {
-        soundRef.current.release();
-      }
-      
-      soundRef.current = speech.sound;
-      // Apply current playback speed
-      soundRef.current.setSpeed(playbackSpeed);
-      
-      // Start preloading the sentence after this one
-      if (next + 1 < sentences.length) {
-        preloadNextSentence(next + 1);
-      }
-      
-      soundRef.current.play((success) => {
-        if (success && !pausedByUser.current) {
-          console.log(`Sentence ${next} finished playing.`);
-          handleNextSentencePlay(next);
-        }
-      });
-    }
-  }
-
-  // TODO flagged for deletion
-  // const handleStart = async (_e: any) => {
-  //  const startIndex = currentSentenceIndex.current;
-  //  console.log(`[ReadAlongModal] Starting from sentence ${startIndex}`);
-   
-  //  setWords(sentences[startIndex].split(' '));
-  //  setHighlightIndex(0);
-  //  setSelectedWord('');
-  //  setSelectedWordTranslation('');
-  //  setSelectedWordExplanation('');
-   
-  //  const timestamps: TimestampMark[] = await fetchWordTimestamps(sentences[startIndex], language);
-  //  currentTimestamps.current = timestamps;
-  //  console.log('Timestamps: ', timestamps);
-  //  const speech = await fetchSpeechAudio(sentences[startIndex], language);
-  //  soundRef.current = speech.sound;
-   
-  //  // Apply current playback speed
-  //  soundRef.current.setSpeed(playbackSpeed);
-   
-  //  // Save the starting position
-  //  saveReadingPosition(startIndex);
-   
-  //  // Preload the next sentence while the first one is playing
-  //  if (sentences.length > startIndex + 1) {
-  //    preloadNextSentence(startIndex + 1);
-  //  }
-
-  //  setIsPlaying(true);
-  //  // TODO handle errors where soundRef.current is null ?
-  //  soundRef.current.play((success) => {
-  //    if (success) {
-  //      console.log(`Sentence ${startIndex} finished playing.`);
-  //      handleNextSentencePlay(startIndex);
-  //    }
-  //  });
-  // }
-
-  // Track if playback is paused by user - this helps prevent auto-advancing
-  const pausedByUser = useRef<boolean>(false);
 
   // Track playback speed
-  const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
+  // const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
   
-  const handleSlowDown = () => {
-    if (soundRef.current) {
-      // Don't go below 0.5x speed
-      const newSpeed = Math.max(0.5, playbackSpeed - 0.5);
-      setPlaybackSpeed(newSpeed);
-      soundRef.current.setSpeed(newSpeed);
-      console.log(`[ReadAlongModal] Playback speed set to ${newSpeed}x`);
-    }
-  };
-  
-  const handleTogglePlay = async (_e: any) => {
-    // If already playing, just pause
-    if (isPlaying && soundRef.current) {
-      soundRef.current.pause();
-      setIsPlaying(false);
-      pausedByUser.current = true; // Set flag to indicate user manually paused
-      return;
-    }
-    
-    // If we have a sound loaded, resume playing
-    if (soundRef.current) {
-      pausedByUser.current = false; // Reset pause flag when manually playing
-      // Apply current playback speed
-      soundRef.current.setSpeed(playbackSpeed);
-      soundRef.current.play((success) => {
-        // Only proceed to next sentence if playback completed successfully AND 
-        // user didn't manually pause (to prevent auto-advancing after pause)
-        if (success && !pausedByUser.current) {
-          console.log(`Sentence ${currentSentenceIndex} finished playing.`);
-          handleNextSentencePlay(currentSentenceIndex);
-        }
-      });
-      setIsPlaying(true);
-      
-      // If we're resuming and don't have the next sentence preloaded, start preloading
-      const nextIndex = currentSentenceIndex + 1;
-      if (nextIndex < sentences.length && !nextSentenceData.current && !isPreloading.current) {
-        preloadNextSentence(nextIndex);
-      }
-    } else {
-      // No sound loaded yet, so we need to start from the current position
-      const startIndex = currentSentenceIndex;
-      console.log(`[ReadAlongModal] Starting from sentence ${startIndex}`);
-      
-      // Words might already be set from the initialization useEffect, but set them again to be sure
-      setWords(sentences[startIndex].split(' '));
-      setHighlightIndex(0);
-      setSelectedWord('');
-      setSelectedWordTranslation('');
-      setSelectedWordExplanation('');
-      
-      // If timestamps were already loaded in the useEffect, don't load them again
-      if (currentTimestamps.current.length === 0) {
-        const timestamps: TimestampMark[] = await fetchWordTimestamps(sentences[startIndex], language);
-        currentTimestamps.current = timestamps;
-        console.log('Timestamps loaded on play: ', timestamps);
-      }
-      
-      // Get speech audio
-      const speech = await fetchSpeechAudio(sentences[startIndex], language);
-      soundRef.current = speech.sound;
-      
-      // Save the starting position
-      saveReadingPosition(startIndex);
-      
-      // Preload the next sentence while the first one is playing
-      if (sentences.length > startIndex + 1) {
-        preloadNextSentence(startIndex + 1);
-      }
+  // const handleSlowDown = () => {
+  //   if (soundRef.current) {
+  //     // Don't go below 0.5x speed
+  //     const newSpeed = Math.max(0.5, playbackSpeed - 0.5);
+  //     setPlaybackSpeed(newSpeed);
+  //     soundRef.current.setSpeed(newSpeed);
+  //     console.log(`[ReadAlongModal] Playback speed set to ${newSpeed}x`);
+  //   }
+  // };
 
-      setIsPlaying(true);
-      pausedByUser.current = false; // Reset pause flag
-      soundRef.current.play((success) => {
-        // Only proceed to next sentence if playback completed successfully AND
-        // user didn't manually pause (to prevent auto-advancing after pause)
-        if (success && !pausedByUser.current) {
-          console.log(`Sentence ${startIndex} finished playing.`);
-          handleNextSentencePlay(startIndex);
-        }
-      });
-    }
-  }
-
-  const handleWordClick = async (word: string, index: number, event: any) => {
-    // If in selection mode, add/remove word from selection
-    if (selectionMode) {
-      // Check if word already selected
-      const existingIndex = selectedWords.findIndex(item => item.index === index);
-      
-      if (existingIndex >= 0) {
-        // Remove from selection
-        setSelectedWords(selectedWords.filter(item => item.index !== index));
-      } else {
-        // Add to selection
-        setSelectedWords([...selectedWords, { word, index }]);
-      }
-      
-      setHighlightIndex(index);
-      return;
-    }
+  // const handleWordLongPress = (word: string, index: number) => {
+  //   if (soundRef.current && isPlaying) {
+  //     soundRef.current.pause();
+  //     setIsPlaying(false);
+  //   }
     
-    // Pause the audio
-    if (soundRef.current && isPlaying) {
-      soundRef.current.pause();
-      setIsPlaying(false);
-    }
+  //   // Enter selection mode
+  //   setSelectionMode(true);
     
-    // Set the highlight to the clicked word and store the word itself
-    setHighlightIndex(index);
-    setSelectedWord(word);
+  //   // Add the long-pressed word to selection
+  //   setSelectedWords([{ word, index }]);
     
-    // Clear previous explanation and translation
-    setSelectedWordExplanation('');
-    setSelectedWordTranslation('');
-    
-    // Get translation for the word
-    setIsTranslating(true);
-    try {
-      const translation = await translateText(word, language);
-      setSelectedWordTranslation(translation);
-      setShowTranslationPopup(true);
-    } catch (error) {
-      console.error('Error translating word:', error);
-      setSelectedWordTranslation('Translation error');
-      setShowTranslationPopup(true); 
-    } finally {
-      setIsTranslating(false);
-    }
-  };
+  //   // Set highlight
+  //   setHighlightIndex(index);
+  // };
   
-  const handleExplainWord = async () => {
-    if (!selectedWord) {
-      return;
-    }
+  // const handleTranslateSelected = async () => {
+  //   if (selectedWords.length === 0) return;
     
-    setIsExplaining(true);
+  //   const sortedWords = [...selectedWords].sort((a, b) => a.index - b.index);
+  //   const wordText = sortedWords.map(item => item.word).join(' ');
     
-    try {
-      const explanation = await explainWord(selectedWord, language);
-      setSelectedWordExplanation(explanation);
-    } catch (error) {
-      console.error('Error explaining word:', error);
-      setSelectedWordExplanation('Explanation not available');
-    } finally {
-      setIsExplaining(false);
-    }
-  };
-  
-  const handleWordLongPress = (word: string, index: number) => {
-    if (soundRef.current && isPlaying) {
-      soundRef.current.pause();
-      setIsPlaying(false);
-    }
+  //   setSelectedWord(wordText);
     
-    // Enter selection mode
-    setSelectionMode(true);
+  //   setSelectedWordTranslation('');
+  //   setSelectedWordExplanation('');
     
-    // Add the long-pressed word to selection
-    setSelectedWords([{ word, index }]);
-    
-    // Set highlight
-    setHighlightIndex(index);
-  };
-  
-  const handleTranslateSelected = async () => {
-    if (selectedWords.length === 0) return;
-    
-    const sortedWords = [...selectedWords].sort((a, b) => a.index - b.index);
-    const wordText = sortedWords.map(item => item.word).join(' ');
-    
-    setSelectedWord(wordText);
-    
-    setSelectedWordTranslation('');
-    setSelectedWordExplanation('');
-    
-    setIsTranslating(true);
-    try {
-      const translation = await translateText(wordText, language);
-      setSelectedWordTranslation(translation);
-      setShowTranslationPopup(true);
-    } catch (error) {
-      console.error('Error translating phrase:', error);
-      setSelectedWordTranslation('Translation error');
-      setShowTranslationPopup(true);
-    } finally {
-      setIsTranslating(false);
-    }
-  };
+  //   setIsTranslating(true);
+  //   try {
+  //     const translation = await translateText(wordText, language);
+  //     setSelectedWordTranslation(translation);
+  //     setShowTranslationPopup(true);
+  //   } catch (error) {
+  //     console.error('Error translating phrase:', error);
+  //     setSelectedWordTranslation('Translation error');
+  //     setShowTranslationPopup(true);
+  //   } finally {
+  //     setIsTranslating(false);
+  //   }
+  // };
 
   // Create long press gesture for each word
-  const longPressGesture = Gesture.LongPress()
-    .minDuration(500) // 500ms for long press
-    .onStart(({ x, y }) => {
-      // This is handled in the component directly
-    });
+  // const longPressGesture = Gesture.LongPress()
+  //   .minDuration(500) // 500ms for long press
+  //   .onStart(({ x, y }) => {
+  //     // This is handled in the component directly
+  //   });
+
+  const handleExplainWord = (e: any) => {
+    console.log('handleExplainWord');
+  }
     
   return (
     <>
@@ -512,37 +237,38 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                 {/* Current sentence section */}
                 <View style={styles.sentenceContainer}>
                   <View style={styles.textSection}>
-                    {words.map((word, index) => {
+                    {sentences[currentSentenceIndex].split(' ').map((word, index) => {
                       // Check if word is in selected words
-                      const isSelected = selectedWords.some(item => item.index === index);
+                      // const isSelected = selectedWords.some(item => item.index === index);
                       const textStyle = [
                         styles.originalText,
                         (highlightIndex === index) && styles.highlightedWord,
-                        isSelected && styles.selectedWord
+                        //isSelected && styles.selectedWord
                       ];
+                      return <Text style={textStyle}>{word}{' '}</Text>;
                       
-                      return (
-                        <GestureDetector 
-                          key={index}
-                          gesture={longPressGesture}
-                        >
-                          <TouchableOpacity 
-                            onPress={(event) => handleWordClick(word, index, event)}
-                            onLongPress={() => handleWordLongPress(word, index)}
-                            delayLongPress={500}
-                          >
-                            <Text style={textStyle}>
-                              {word}{' '}
-                            </Text>
-                          </TouchableOpacity>
-                        </GestureDetector>
-                      );
+                      // return (
+                      //   <GestureDetector 
+                      //     key={index}
+                      //     gesture={longPressGesture}
+                      //   >
+                      //     <TouchableOpacity 
+                      //       onPress={(event) => handleWordClick(word, index, event)}
+                      //       onLongPress={() => handleWordLongPress(word, index)}
+                      //       delayLongPress={500}
+                      //     >
+                      //       <Text style={textStyle}>
+                      //         {word}{' '}
+                      //       </Text>
+                      //     </TouchableOpacity>
+                      //   </GestureDetector>
+                      // );
                     })}
                   </View>
                 </View>
                 
                 {/* Selection mode controls */}
-                {selectionMode && (
+                {/* {selectionMode && (
                   <View style={styles.selectionControls}>
                     <TouchableOpacity
                       onPress={() => {
@@ -562,7 +288,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                       <Text style={styles.controlButtonText}>Translate Selected</Text>
                     </TouchableOpacity>
                   </View>
-                )}
+                )} */}
                 
                 {/* Playback controls */}
                 {!selectionMode && (
@@ -582,7 +308,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                       </Text>
                     </TouchableOpacity>
                     
-                    <TouchableOpacity
+                    {/* <TouchableOpacity
                       onPress={handleSlowDown}
                       style={[styles.controlButton, styles.speedButton]}
                     >
@@ -595,7 +321,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                       <Text style={styles.controlButtonText}>
                         Slow Down ({playbackSpeed}x)
                       </Text>
-                    </TouchableOpacity>
+                    </TouchableOpacity> */}
                   </View>
                 )}
               </View>
