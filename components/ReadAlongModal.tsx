@@ -82,7 +82,28 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         if (soundRef.current.getCurrentTime) {
           soundRef.current.getCurrentTime((seconds) => {
             if (seconds < 0.1) {
+              // Starting from beginning
+              currentHighlightIndex.current = 0;
               setHighlightIndex(0);
+            } else {
+              // If we're resuming from middle, find the right word to highlight
+              const milliseconds = seconds * 1000;
+              let wordIndex = 0;
+              
+              // Find the appropriate word based on current playback position
+              for (let i = 0; i < currentTimestamps.current.length; i++) {
+                const timestamp = currentTimestamps.current[i];
+                if (!timestamp) continue;
+                
+                if (timestamp.time <= milliseconds) {
+                  wordIndex = i;
+                } else {
+                  break;
+                }
+              }
+              
+              currentHighlightIndex.current = wordIndex;
+              setHighlightIndex(wordIndex);
             }
           });
         }
@@ -100,8 +121,33 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         
         setIsPlaying(true);
       } else {
-        // Pause playback
+        // Pause playback but maintain current highlight position
         soundRef.current.pause();
+        
+        // Get current time to make sure highlight stays at right position
+        if (soundRef.current.getCurrentTime) {
+          soundRef.current.getCurrentTime((seconds) => {
+            const milliseconds = seconds * 1000;
+            let wordIndex = currentHighlightIndex.current; // Start with current value
+            
+            // Find the appropriate word based on current playback position
+            for (let i = 0; i < currentTimestamps.current.length; i++) {
+              const timestamp = currentTimestamps.current[i];
+              if (!timestamp) continue;
+              
+              if (timestamp.time <= milliseconds) {
+                wordIndex = i;
+              } else {
+                break;
+              }
+            }
+            
+            // Update both ref and state to ensure consistency
+            currentHighlightIndex.current = wordIndex;
+            setHighlightIndex(wordIndex);
+          });
+        }
+        
         setIsPlaying(false);
       }
     } else {
@@ -124,6 +170,9 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         
         setCurrentSentenceIndex(validIndex);
         setHighlightIndex(0); // Reset highlight when loading a new sentence
+        if (currentHighlightIndex) {
+          currentHighlightIndex.current = 0; // Also reset the ref
+        }
         
         // Clear any previous audio and timestamps
         if (soundRef.current) {
@@ -167,41 +216,72 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     }
   }
 
+  // Create stable reference for current highlight index
+  const currentHighlightIndex = useRef<number>(0);
+  
   // Set up the interval for tracking word highlighting
   useEffect(() => {
-    console.log('Setting up interval');
+    console.log('[ReadAlongModal] Setting up highlight tracking');
     
     if (visible) {
-      const interval = setInterval(() => {
-        if (soundRef.current && currentTimestamps.current) {
-          soundRef.current.getCurrentTime((seconds, _isPlaying) => {
-            const milliseconds = seconds * 1000;
-            for (let index = highlightIndex; index < currentTimestamps.current.length; index++) {
-              //console.log('DEBUG currentTimestamps: ', currentTimestamps.current[index]);
-              if (currentTimestamps.current.length === index + 1) {
-                setHighlightIndex(index);
-                break;
-              } else if (currentTimestamps.current[index] && currentTimestamps.current[index].time > milliseconds) {
-                setHighlightIndex(index-1);
-                break;
-              }
-            }
-          });
-        }
-      }, 100);
-
-      currentInterval.current = interval;
-    } else {
-      console.log('Cleaning up interval');
-      if (currentInterval.current) {
-        clearInterval(currentInterval.current);
+      // Only reset highlight when first becoming visible, not on every isPlaying change
+      if (!currentInterval.current) {
+        setHighlightIndex(0);
+        currentHighlightIndex.current = 0;
       }
+      
+      // If playing, set up interval for continuous updates
+      if (isPlaying) {
+        const interval = setInterval(() => {
+          if (soundRef.current && currentTimestamps.current && currentTimestamps.current.length > 0) {
+            soundRef.current.getCurrentTime((seconds, _isPlaying) => {
+              // Convert to milliseconds for comparison with timestamps
+              const milliseconds = seconds * 1000;
+              
+              // Find the correct word to highlight based on current time
+              let newHighlightIndex = currentHighlightIndex.current; // Start with current value
+              
+              // Find the last timestamp that is earlier than or equal to the current time
+              for (let i = 0; i < currentTimestamps.current.length; i++) {
+                const timestamp = currentTimestamps.current[i];
+                if (!timestamp) continue;
+                
+                // If this timestamp is in the future, we've gone too far
+                if (timestamp.time > milliseconds) {
+                  break;
+                }
+                
+                // This timestamp is earlier than current time, so update index
+                newHighlightIndex = i;
+              }
+              
+              // Only update if changed to avoid unnecessary re-renders
+              if (newHighlightIndex !== currentHighlightIndex.current) {
+                currentHighlightIndex.current = newHighlightIndex;
+                setHighlightIndex(newHighlightIndex);
+              }
+            });
+          }
+        }, 100); // More frequent updates for better responsiveness
+  
+        currentInterval.current = interval;
+      }
+      
+      return () => {
+        // On cleanup, clear the interval but DO NOT reset the highlight position
+        console.log('[ReadAlongModal] Cleaning up highlight tracking');
+        if (currentInterval.current) {
+          clearInterval(currentInterval.current);
+          currentInterval.current = null;
+        }
+      };
     }
-  }, [visible, highlightIndex]);
+  }, [visible, isPlaying]); // Remove highlightIndex dependency to prevent flashing
 
   const handleClose = async () => {
     setIsPlaying(false);
     setHighlightIndex(0);
+    currentHighlightIndex.current = 0; // Reset ref
     setSelectedWord('');
     setSelectedWordTranslation('');
     setSelectedWordExplanation('');

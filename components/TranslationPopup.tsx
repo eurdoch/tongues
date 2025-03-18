@@ -41,7 +41,7 @@ const TranslationPopup: React.FC<any> = ({
 
       if (currentBook) {
         console.log('DEBUG text: ', text);
-        fetchSpeechAudio(text, currentBook?.language).then(audio => {
+        fetchSpeechAudio(text, currentBook.language).then(audio => {
             setTranslationSound(audio.sound);
         })
       }
