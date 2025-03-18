@@ -58,61 +58,23 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     }
   };
 
+  // Loading state to prevent play before audio is ready
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+
   // Initialize with the selected sentence when the modal becomes visible
   useEffect(() => {
-    const initializeModal = async () => {
-      if (visible && sentences.length > 0) {
-        try {
-          // Get stored position or default to first sentence
-          const storedIndex = await AsyncStorage.getItem("read_along_current_index");
-          const parsedIndex = storedIndex ? parseInt(storedIndex) : 0;
-          const validIndex = isNaN(parsedIndex) || parsedIndex >= sentences.length ? 0 : parsedIndex;
-          
-          setCurrentSentenceIndex(validIndex);
-          setHighlightIndex(0); // Reset highlight when loading a new sentence
-          
-          // Clear any previous audio and timestamps
-          if (soundRef.current) {
-            soundRef.current.release();
-            soundRef.current = null;
-          }
-          
-          currentTimestamps.current = [];
-          
-          // Load current sentence
-          const sentence = sentences[validIndex];
-          console.log(`[ReadAlongModal] Loading sentence ${validIndex}: "${sentence.substring(0, 30)}..."`);
-          
-          // Fetch timestamps and audio in parallel
-          const [timestamps, speech] = await Promise.all([
-            fetchWordTimestamps(sentence, language),
-            fetchSpeechAudio(sentence, language)
-          ]);
-          
-          // Set the timestamps
-          currentTimestamps.current = timestamps;
-          console.log('[ReadAlongModal] Timestamps loaded:', timestamps.length);
-          
-          // Set the sound
-          if (speech && speech.sound) {
-            soundRef.current = speech.sound;
-            // Configure sound
-            soundRef.current.setVolume(1.0);
-            soundRef.current.setSpeed(playbackSpeed);
-          } else {
-            console.error('[ReadAlongModal] Failed to load audio');
-          }
-        } catch (error) {
-          console.error('[ReadAlongModal] Error loading sentence:', error);
-        }
-      }
-    }
-
+    // Use the extracted initializeModal function
     initializeModal();
-  }, [sentences]);
+  }, [visible, sentences, language]);
 
   const handleTogglePlay = (e: any) => {
     e.preventDefault();
+    
+    // Prevent play actions while loading audio
+    if (isLoading) {
+      console.log('[ReadAlongModal] Ignoring play request - audio still loading');
+      return;
+    }
     
     if (soundRef.current) {
       if (!isPlaying) {
@@ -144,6 +106,64 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       }
     } else {
       console.error('[ReadAlongModal] Cannot play sound - sound object not initialized');
+      // Try to reload the audio if it failed to load
+      initializeModal();
+    }
+  }
+  
+  // Extract initialization to a named function so it can be called from handleTogglePlay
+  const initializeModal = async () => {
+    if (visible && sentences.length > 0) {
+      try {
+        setIsLoading(true);
+        
+        // Get stored position or default to first sentence
+        const storedIndex = await AsyncStorage.getItem("read_along_current_index");
+        const parsedIndex = storedIndex ? parseInt(storedIndex) : 0;
+        const validIndex = isNaN(parsedIndex) || parsedIndex >= sentences.length ? 0 : parsedIndex;
+        
+        setCurrentSentenceIndex(validIndex);
+        setHighlightIndex(0); // Reset highlight when loading a new sentence
+        
+        // Clear any previous audio and timestamps
+        if (soundRef.current) {
+          soundRef.current.release();
+          soundRef.current = null;
+        }
+        
+        currentTimestamps.current = [];
+        
+        // Load current sentence
+        const sentence = sentences[validIndex];
+        console.log(`[ReadAlongModal] Loading sentence ${validIndex}: "${sentence.substring(0, 30)}..."`);
+        
+        // Fetch timestamps and audio in parallel
+        const [timestamps, speech] = await Promise.all([
+          fetchWordTimestamps(sentence, language),
+          fetchSpeechAudio(sentence, language)
+        ]);
+        
+        // Set the timestamps
+        currentTimestamps.current = timestamps;
+        console.log('[ReadAlongModal] Timestamps loaded:', timestamps.length);
+        
+        // Set the sound
+        if (speech && speech.sound) {
+          soundRef.current = speech.sound;
+          // Configure sound
+          soundRef.current.setVolume(1.0);
+          soundRef.current.setSpeed(playbackSpeed);
+          // Explicitly pause to prevent any auto-playing
+          soundRef.current.pause();
+          console.log('[ReadAlongModal] Sound loaded successfully (paused)');
+        } else {
+          console.error('[ReadAlongModal] Failed to load audio');
+        }
+      } catch (error) {
+        console.error('[ReadAlongModal] Error loading sentence:', error);
+      } finally {
+        setIsLoading(false); // Mark loading as complete regardless of success/failure
+      }
     }
   }
 
@@ -375,21 +395,32 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                 {/* Playback controls */}
                 {!selectionMode && (
                   <View style={styles.controls}>
-                    <TouchableOpacity
-                      onPress={handleTogglePlay}
-                      style={styles.controlButton}
-                    >
-                      <Icon
-                        name={isPlaying ? 'pause' : 'play'} 
-                        color="#FFFFFF"
-                        size={18} 
-                        style={{marginRight: 6}}
-                      />
-                    </TouchableOpacity>
+                    {isLoading ? (
+                      <View style={styles.loadingButton}>
+                        <Text style={styles.loadingText}>Loading audio...</Text>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        onPress={handleTogglePlay}
+                        style={styles.controlButton}
+                        disabled={isLoading}
+                      >
+                        <Icon
+                          name={isPlaying ? 'pause' : 'play'} 
+                          color="#FFFFFF"
+                          size={18} 
+                          style={{marginRight: 6}}
+                        />
+                        <Text style={styles.controlButtonText}>
+                          {isPlaying ? 'Pause' : 'Play'}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
                     
-                    {/* <TouchableOpacity
+                    <TouchableOpacity
                       onPress={handleSlowDown}
                       style={[styles.controlButton, styles.speedButton]}
+                      disabled={isLoading}
                     >
                       <Icon
                         name="backward" 
@@ -398,9 +429,9 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                         style={{marginRight: 6}}
                       />
                       <Text style={styles.controlButtonText}>
-                        Slow Down ({playbackSpeed}x)
+                        {playbackSpeed}x
                       </Text>
-                    </TouchableOpacity> */}
+                    </TouchableOpacity>
                   </View>
                 )}
               </View>
@@ -433,6 +464,19 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.65)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  loadingButton: {
+    backgroundColor: 'rgba(150, 150, 150, 0.5)',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    minWidth: 100,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    color: '#FFFFFF',
+    fontSize: 16,
   },
   container: {
     width: '90%',
