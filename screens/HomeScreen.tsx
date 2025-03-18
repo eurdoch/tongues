@@ -36,6 +36,7 @@ interface EpubFile {
 function HomeScreen(): React.JSX.Element {
     const [epubFiles, setEpubFiles] = useState<EpubFile[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
+    const [isBookLoading, setIsBookLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
     const [isSelectMode, setIsSelectMode] = useState<boolean>(false);
     const [selectedBooks, setSelectedBooks] = useState<Set<string>>(new Set());
@@ -50,17 +51,21 @@ function HomeScreen(): React.JSX.Element {
 
     useEffect(() => {
         if (epubFiles) {
-            AsyncStorage.getItem("current_book").then(storedCurrentBook => {
+            const loadSavedBook = async () => {
+                const storedCurrentBook = await AsyncStorage.getItem("current_book");
                 if (storedCurrentBook) {
+                    console.log('[HomeScreen] Found stored book path:', storedCurrentBook);
                     for (let file of epubFiles) {
-                        console.log(file.uri);
                         if (file.uri === storedCurrentBook) {
+                            console.log('[HomeScreen] Loading previous book:', file.title);
                             openBook(file);
                             break;
                         }
                     }
                 }
-            })
+            };
+            
+            loadSavedBook();
         }
     }, [epubFiles]);
     
@@ -900,6 +905,9 @@ function HomeScreen(): React.JSX.Element {
             }
             setSelectedBooks(newSelected);
         } else {
+            // Set loading state
+            setIsBookLoading(true);
+            
             // Update last read time in metadata
             await updateLastRead(item.id);
             
@@ -922,9 +930,14 @@ function HomeScreen(): React.JSX.Element {
               content,
               language: book.language
             });
+            
+            // Reset loading state
+            setIsBookLoading(false);
         }
       } catch (err: any) {
         console.error(err);
+        // Make sure we reset loading state on error
+        setIsBookLoading(false);
       }
     };
     
@@ -1058,6 +1071,16 @@ function HomeScreen(): React.JSX.Element {
                     numColumns={2}
                     contentContainerStyle={styles.bookList}
                 />
+            )}
+            
+            {/* Book loading overlay */}
+            {isBookLoading && (
+                <View style={styles.loadingOverlay}>
+                    <View style={styles.loadingCard}>
+                        <ActivityIndicator size="large" color="#1a73e8" />
+                        <Text style={styles.bookLoadingText}>Opening book...</Text>
+                    </View>
+                </View>
             )}
         </SafeAreaView>
     );
@@ -1205,6 +1228,36 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#777',
         textAlign: 'center',
+    },
+    loadingOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1000,
+    },
+    loadingCard: {
+        backgroundColor: 'white',
+        borderRadius: 10,
+        padding: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+        minWidth: 200,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 5,
+    },
+    bookLoadingText: {
+        marginTop: 15,
+        fontSize: 16,
+        color: '#333',
+        fontWeight: '500',
     },
 });
 
