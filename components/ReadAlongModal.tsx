@@ -46,6 +46,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   const nextSentenceData = useRef<SentenceData | null>(null);
   const isPreloading = useRef<boolean>(false);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
 
   const saveReadingPosition = async (index: number) => {
     try {
@@ -89,8 +90,6 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   }, [sentences]);
 
   const handleTogglePlay = (e: any) => {
-    console.log('DEBUG handleTogglePla');
-    console.log('DEBUG soundRef.current');
     e.preventDefault();
     if (soundRef.current) {
       if (!isPlaying) {
@@ -138,97 +137,129 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   }, [visible, highlightIndex]);
 
   const handleClose = async () => {
-    console.log('handleClose');
-  //   setIsPlaying(false);
-  //   setHighlightIndex(0);
-  //   setSelectedWord('');
-  //   setSelectedWordTranslation('');
-  //   setSelectedWordExplanation('');
-  //   setShowTranslationPopup(false);
-  //   setSelectionMode(false);
-  //   setSelectedWords([]);
-  //   pausedByUser.current = false;
-  //   currentTimestamps.current = [];
-  //   setCurrentSentenceIndex(0);
+    setIsPlaying(false);
+    setHighlightIndex(0);
+    setSelectedWord('');
+    setSelectedWordTranslation('');
+    setSelectedWordExplanation('');
+    setShowTranslationPopup(false);
+    setSelectionMode(false);
+    setSelectedWords([]);
+    currentTimestamps.current = [];
+    setCurrentSentenceIndex(0);
     
-  //   // Clean up current sound
-  //   if (soundRef.current) {
-  //     soundRef.current.pause();
-  //     soundRef.current.release();
-  //   }
+    if (soundRef.current) {
+      soundRef.current.pause();
+      soundRef.current.release();
+    }
     
-  //   // Clean up next sound if it exists
-  //   if (nextSentenceData.current?.sound) {
-  //     nextSentenceData.current.sound.release();
-  //     nextSentenceData.current = null;
-  //   }
+    if (nextSentenceData.current?.sound) {
+      nextSentenceData.current.sound.release();
+      nextSentenceData.current = null;
+    }
     
-  //   onClose();
+    onClose();
   }
 
-  // Track playback speed
-  // const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
-  
-  // const handleSlowDown = () => {
-  //   if (soundRef.current) {
-  //     // Don't go below 0.5x speed
-  //     const newSpeed = Math.max(0.5, playbackSpeed - 0.5);
-  //     setPlaybackSpeed(newSpeed);
-  //     soundRef.current.setSpeed(newSpeed);
-  //     console.log(`[ReadAlongModal] Playback speed set to ${newSpeed}x`);
-  //   }
-  // };
+  const handleSlowDown = () => {
+    if (soundRef.current) {
+      // Don't go below 0.5x speed
+      const newSpeed = Math.max(0.5, playbackSpeed - 0.5);
+      setPlaybackSpeed(newSpeed);
+      soundRef.current.setSpeed(newSpeed);
+      console.log(`[ReadAlongModal] Playback speed set to ${newSpeed}x`);
+    }
+  };
 
-  // const handleWordLongPress = (word: string, index: number) => {
-  //   if (soundRef.current && isPlaying) {
-  //     soundRef.current.pause();
-  //     setIsPlaying(false);
-  //   }
+  const handleWordLongPress = (word: string, index: number) => {
+    // If playing audio, pause it during selection
+    if (soundRef.current && isPlaying) {
+      soundRef.current.pause();
+      setIsPlaying(false);
+    }
     
-  //   // Enter selection mode
-  //   setSelectionMode(true);
+    // Enter selection mode
+    setSelectionMode(true);
     
-  //   // Add the long-pressed word to selection
-  //   setSelectedWords([{ word, index }]);
+    // Add the long-pressed word to selection (or if it's already there, this is the only selected word)
+    setSelectedWords([{ word, index }]);
     
-  //   // Set highlight
-  //   setHighlightIndex(index);
-  // };
-  
-  // const handleTranslateSelected = async () => {
-  //   if (selectedWords.length === 0) return;
+    // Set highlight to the selected word
+    setHighlightIndex(index);
+  };
+
+  const handleTranslateSelected = async () => {
+    if (selectedWords.length === 0) return;
     
-  //   const sortedWords = [...selectedWords].sort((a, b) => a.index - b.index);
-  //   const wordText = sortedWords.map(item => item.word).join(' ');
+    const sortedWords = [...selectedWords].sort((a, b) => a.index - b.index);
+    const wordText = sortedWords.map(item => item.word).join(' ');
     
-  //   setSelectedWord(wordText);
+    setSelectedWord(wordText);
     
-  //   setSelectedWordTranslation('');
-  //   setSelectedWordExplanation('');
+    setSelectedWordTranslation('');
+    setSelectedWordExplanation('');
     
-  //   setIsTranslating(true);
-  //   try {
-  //     const translation = await translateText(wordText, language);
-  //     setSelectedWordTranslation(translation);
-  //     setShowTranslationPopup(true);
-  //   } catch (error) {
-  //     console.error('Error translating phrase:', error);
-  //     setSelectedWordTranslation('Translation error');
-  //     setShowTranslationPopup(true);
-  //   } finally {
-  //     setIsTranslating(false);
-  //   }
-  // };
+    setIsTranslating(true);
+    try {
+      const translation = await translateText(wordText, language);
+      setSelectedWordTranslation(translation);
+      setShowTranslationPopup(true);
+    } catch (error) {
+      console.error('Error translating phrase:', error);
+      setSelectedWordTranslation('Translation error');
+      setShowTranslationPopup(true);
+    } finally {
+      setIsTranslating(false);
+    }
+  };
 
   // Create long press gesture for each word
-  // const longPressGesture = Gesture.LongPress()
-  //   .minDuration(500) // 500ms for long press
-  //   .onStart(({ x, y }) => {
-  //     // This is handled in the component directly
-  //   });
+  const longPressGesture = Gesture.LongPress()
+    .minDuration(500) // 500ms for long press
+    .onStart(({ x, y }) => {
+      // This is handled in the component directly
+    });
 
   const handleExplainWord = (e: any) => {
     console.log('handleExplainWord');
+  }
+
+  const handleWordClick = (word: string, index: number, event: any) => {
+    event.preventDefault();
+    
+    // If we're in selection mode, add this word to the selection
+    if (selectionMode) {
+      // Check if the word is already selected
+      const isAlreadySelected = selectedWords.some(item => item.index === index);
+      
+      if (isAlreadySelected) {
+        // Remove the word if it's already selected
+        setSelectedWords(selectedWords.filter(item => item.index !== index));
+      } else {
+        // Add the word to the selection
+        setSelectedWords([...selectedWords, { word, index }]);
+      }
+    } else {
+      // If not in selection mode, just translate the single word
+      setSelectedWord(word);
+      setSelectedWords([{ word, index }]);
+      
+      // Translate the word
+      setIsTranslating(true);
+      translateText(word, language)
+        .then(translation => {
+          setSelectedWordTranslation(translation);
+          setShowTranslationPopup(true);
+        })
+        .catch(error => {
+          console.error('Error translating word:', error);
+          setSelectedWordTranslation('Translation error');
+          setShowTranslationPopup(true);
+        })
+        .finally(() => {
+          setIsTranslating(false);
+        });
+    }
   }
     
   return (
@@ -248,36 +279,35 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                   <View style={styles.textSection}>
                     {sentences[currentSentenceIndex].split(' ').map((word, index) => {
                       // Check if word is in selected words
-                      // const isSelected = selectedWords.some(item => item.index === index);
+                      const isSelected = selectedWords.some(item => item.index === index);
                       const textStyle = [
                         styles.originalText,
-                        (highlightIndex === index) && styles.highlightedWord,
-                        //isSelected && styles.selectedWord
+                        (highlightIndex === index && !selectionMode) && styles.highlightedWord,
+                        isSelected && styles.selectedWord
                       ];
-                      return <Text key={index} style={textStyle}>{word}{' '}</Text>;
-                      
-                      // return (
-                      //   <GestureDetector 
-                      //     key={index}
-                      //     gesture={longPressGesture}
-                      //   >
-                      //     <TouchableOpacity 
-                      //       onPress={(event) => handleWordClick(word, index, event)}
-                      //       onLongPress={() => handleWordLongPress(word, index)}
-                      //       delayLongPress={500}
-                      //     >
-                      //       <Text style={textStyle}>
-                      //         {word}{' '}
-                      //       </Text>
-                      //     </TouchableOpacity>
-                      //   </GestureDetector>
-                      // );
+                      return (
+                        <GestureDetector 
+                          key={index}
+                          gesture={longPressGesture}
+                        >
+                          <TouchableOpacity 
+                            onPress={(event) => handleWordClick(word, index, event)}
+                            onLongPress={() => handleWordLongPress(word, index)}
+                            delayLongPress={500}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={textStyle}>
+                              {word}{' '}
+                            </Text>
+                          </TouchableOpacity>
+                        </GestureDetector>
+                      );
                     })}
                   </View>
                 </View>
                 
                 {/* Selection mode controls */}
-                {/* {selectionMode && (
+                {selectionMode && (
                   <View style={styles.selectionControls}>
                     <TouchableOpacity
                       onPress={() => {
@@ -297,7 +327,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                       <Text style={styles.controlButtonText}>Translate Selected</Text>
                     </TouchableOpacity>
                   </View>
-                )} */}
+                )}
                 
                 {/* Playback controls */}
                 {!selectionMode && (
