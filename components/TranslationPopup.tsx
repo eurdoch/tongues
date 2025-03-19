@@ -71,7 +71,6 @@ const TranslationPopup: React.FC<any> = ({
               style={[
                 styles.container,
                 {
-                  height: 600,
                   transform: [
                     { translateX: slideAnim.translateX },
                     { translateY: slideAnim.translateY }
@@ -141,6 +140,7 @@ const styles = StyleSheet.create({
     },
     container: {
       width: '90%',
+      minHeight: 200, // Increased to ensure buttons are visible
       maxHeight: '80%',
       backgroundColor: '#2A2A2A',
       borderRadius: 20,
@@ -168,6 +168,7 @@ const styles = StyleSheet.create({
       popupContentContainer: {
         width: '100%',
         padding: 5,
+        paddingBottom: 15, // Add padding at bottom to ensure content isn't cut off
       },
       originalTextContainer: {
         flexDirection: 'row',
