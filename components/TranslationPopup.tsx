@@ -291,12 +291,12 @@ const styles = StyleSheet.create({
       },
       explanationContainerWrapper: {
         width: '100%',
-        maxHeight: 200,
+        maxHeight: 300,
         marginTop: 10,
         marginBottom: 10,
       },
       explanationScrollView: {
-        maxHeight: 200,
+        maxHeight: 300,
         width: '100%',
       },
       explanationContainer: {
