@@ -153,14 +153,22 @@ const TranslationPopup: React.FC<any> = ({
                         )}
                         
                         {selectedWordExplanation && (
-                          <View style={styles.explanationContainer}>
-                            <Text style={styles.popupExplanation}>{selectedWordExplanation}</Text>
+                          <View style={styles.explanationContainerWrapper}>
+                            <ScrollView style={styles.explanationScrollView}>
+                              <View style={styles.explanationContainer}>
+                                <Text style={styles.popupExplanation}>{selectedWordExplanation}</Text>
+                              </View>
+                            </ScrollView>
                           </View>
                         )}
                         
                         {explanation && (
-                          <View style={styles.explanationContainer}>
-                            <Text style={styles.popupExplanation}>{explanation}</Text>
+                          <View style={styles.explanationContainerWrapper}>
+                            <ScrollView style={styles.explanationScrollView}>
+                              <View style={styles.explanationContainer}>
+                                <Text style={styles.popupExplanation}>{explanation}</Text>
+                              </View>
+                            </ScrollView>
                           </View>
                         )}
                       </View>
@@ -254,6 +262,7 @@ const styles = StyleSheet.create({
         fontSize: 18,
         lineHeight: 26,
         padding: 5,
+        paddingBottom: 10,
       },
       controlButtonText: {
         color: '#FFFFFF',
@@ -280,10 +289,20 @@ const styles = StyleSheet.create({
         marginTop: 10,
         fontSize: 14,
       },
+      explanationContainerWrapper: {
+        width: '100%',
+        maxHeight: 200,
+        marginTop: 10,
+        marginBottom: 10,
+      },
+      explanationScrollView: {
+        maxHeight: 200,
+        width: '100%',
+      },
       explanationContainer: {
         padding: 10,
         width: '100%',
-        height: '100%',
         backgroundColor: 'rgba(0, 0, 0, 0.2)',
+        borderRadius: 8,
       },
 }); 
