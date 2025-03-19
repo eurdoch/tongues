@@ -726,7 +726,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         isExplaining={isExplaining}
         selectedWordExplanation={selectedWordExplanation}
         handleExplainWord={() => {
-          console.log('Explaining word in ReadAlongModal');
+          console.log('Explaining word from parent ReadAlongModal');
         }}
       />
     </>

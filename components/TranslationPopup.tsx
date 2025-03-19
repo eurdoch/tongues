@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Animated, Modal, TouchableWithoutFeedback, ScrollView, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Animated, Modal, TouchableWithoutFeedback, ScrollView, Text, TouchableOpacity, ActivityIndicator, StyleSheet, Alert } from "react-native";
 import Sound from "react-native-sound";
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { fetchSpeechAudio } from "../services/TranslationService";
@@ -13,11 +13,13 @@ const TranslationPopup: React.FC<any> = ({
   translation,
   isExplaining,
   selectedWordExplanation,
-  handleExplainWord,
+  handleExplainWord: parentHandleExplainWord,
 }) => {
   const [slideAnim] = useState({ translateX: new Animated.Value(0), translateY: new Animated.Value(0) });
   const { currentBook } = useNavigationContext();
   const [translationSound, setTranslationSound] = useState<Sound | null>(null);
+  const [isExplainingLocal, setIsExplainingLocal] = useState(false);
+  const [explanation, setExplanation] = useState<string | null>(null);
   
   useEffect(() => {
     if (visible) {
@@ -54,6 +56,45 @@ const TranslationPopup: React.FC<any> = ({
     e.preventDefault();
     if (translationSound) {
         translationSound.play();
+    }
+  }
+
+  const handleExplainWord = async (e: any) => {
+    e.preventDefault();
+    
+    if (!currentBook || !text) return;
+    
+    setIsExplainingLocal(true);
+    setExplanation(null);
+    
+    try {
+      const response = await fetch('https://tongues.directto.link/explain', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          word: text, 
+          language: currentBook.language 
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      setExplanation(data.explanation);
+      
+      // Also call parent handler if provided
+      if (parentHandleExplainWord) {
+        parentHandleExplainWord(e);
+      }
+    } catch (error) {
+      console.error('Error explaining text:', error);
+      Alert.alert('Error', 'Failed to get explanation. Please try again.');
+    } finally {
+      setIsExplainingLocal(false);
     }
   }
 
@@ -95,7 +136,7 @@ const TranslationPopup: React.FC<any> = ({
                         </View>
                         <Text style={styles.popupTranslation}>{translation}</Text>
                         
-                        {!selectedWordExplanation && !isExplaining && (
+                        {!selectedWordExplanation && !isExplaining && !isExplainingLocal && !explanation && (
                           <TouchableOpacity
                             onPress={handleExplainWord}
                             style={styles.popupExplainButton}
@@ -104,7 +145,7 @@ const TranslationPopup: React.FC<any> = ({
                           </TouchableOpacity>
                         )}
                         
-                        {isExplaining && (
+                        {(isExplaining || isExplainingLocal) && (
                           <View style={styles.loadingContainer}>
                             <ActivityIndicator size="small" color="#007AFF" />
                             <Text style={styles.loadingText}>Explaining...</Text>
@@ -114,6 +155,12 @@ const TranslationPopup: React.FC<any> = ({
                         {selectedWordExplanation && (
                           <View style={styles.explanationContainer}>
                             <Text style={styles.popupExplanation}>{selectedWordExplanation}</Text>
+                          </View>
+                        )}
+                        
+                        {explanation && (
+                          <View style={styles.explanationContainer}>
+                            <Text style={styles.popupExplanation}>{explanation}</Text>
                           </View>
                         )}
                       </View>
