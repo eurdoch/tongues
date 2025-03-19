@@ -19,6 +19,7 @@ import ReadAlongModal from '../components/ReadAlongModal';
 import { extractSentences } from '../parser/Sentences';
 import LanguageSelectorModal from '../components/LanguageSelectorModal';
 import { SupportedLanguages } from '../types/Language';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type ReaderScreenRouteProp = RouteProp<RootStackParamList, 'Reader'>;
 
@@ -38,7 +39,6 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
   const [content, setContent] = useState<ElementNode[]>([]);
   const [sentences, setSentences] = useState<string[]>([]);
   const [readAlongVisible, setReadAlongVisible] = useState<boolean>(false);
-  const [currentSentenceIndex, setCurrentSentenceIndex] = useState<number>(0);
   const { currentBook, setCurrentBook } = useNavigationContext();
 
   useEffect(() => {
@@ -50,15 +50,22 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
   }, []);
 
   useEffect(() => {
-    const parsedContent = parseHtml(route.params.content); 
-    setContent(parsedContent);
-    const sentences = extractSentences(parsedContent);
-    setSentences(sentences);
-    setIsLoading(false);
+    const updateReader = async () => {
+      const parsedContent = parseHtml(route.params.content); 
+      setContent(parsedContent);
+      const sentences = extractSentences(parsedContent);
+      setSentences(sentences);
 
-    if (!currentBook!.language) {
-      setLanguageSelectorVisible(true);
+      
+
+      setIsLoading(false);
+
+      if (!currentBook!.language) {
+        setLanguageSelectorVisible(true);
+      }
     }
+
+    updateReader();
   }, [route.params.content]);
 
   const handleLanguageSelect = (language: string) => {
@@ -162,7 +169,7 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
             onClose={() => setReadAlongVisible(false)}
             language={currentBook.language}
             sentences={sentences}
-            initialSentenceIndex={currentSentenceIndex}
+            section={route.params.section}
           />
       }
 

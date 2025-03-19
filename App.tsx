@@ -6,6 +6,7 @@ import HomeScreen from './screens/HomeScreen';
 import ReaderScreen from './screens/ReaderScreen';
 import CustomDrawerContent from './components/CustomDrawerContent';
 import { NavigationProvider } from './NavigationContext';
+import { NavPoint } from './types/NavPoint';
 
 const Drawer = createDrawerNavigator();
 
@@ -14,6 +15,7 @@ export type RootStackParamList = {
   Reader: { 
     content: string;
     language: string;
+    section: NavPoint;
   };
 };
 

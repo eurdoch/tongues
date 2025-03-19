@@ -15,6 +15,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import TimestampMark from '../types/TimestampMark';
 import SentenceData from '../types/SentenceData';
 import TranslationPopup from './TranslationPopup';
+import { useNavigationContext } from '../NavigationContext';
+import { NavPoint } from '../types/NavPoint';
 
 interface ReadAlongModalProps {
   visible: boolean;
@@ -22,6 +24,7 @@ interface ReadAlongModalProps {
   language: string;
   sentences: string[];
   initialSentenceIndex?: number;
+  section: NavPoint;
 }
 
 const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
@@ -29,6 +32,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   language,
   onClose,
   sentences,
+  section,
 }) => {
   const [highlightIndex, setHighlightIndex] = useState<number>(0);
   const [selectedWord, setSelectedWord] = useState<string>('');
@@ -47,11 +51,14 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   const isPreloading = useRef<boolean>(false);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
+  const { currentBook } = useNavigationContext();
 
   const saveReadingPosition = async (index: number) => {
     try {
-      const key = `read_along_current_index`;
-      await AsyncStorage.setItem(key, index.toString());
+      const position = await AsyncStorage.getItem(`${currentBook!.path}_position`);
+      let positionJson = JSON.parse(position!); // position is set before entering ReaderScreen
+      positionJson.readAlongIndex = index;
+      await AsyncStorage.setItem(`${currentBook!.path}_position`, JSON.stringify(positionJson));
       console.log(`[ReadAlongModal] Saved reading position: sentence ${index}`);
     } catch (error) {
       console.error('[ReadAlongModal] Error saving reading position:', error);
@@ -195,7 +202,13 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         try {
           const nextLoaded = await loadNextSentence();
           if (nextLoaded && soundRef.current) {
-            // Automatically play the next sentence
+            console.log('[ReadAlongModal] Saving current position');
+            const position = {
+              section,
+              readAlongIndex: currentSentenceIndex,
+            };
+            await AsyncStorage.setItem(`${currentBook!.path}_position`, JSON.stringify(position));
+
             console.log('[ReadAlongModal] Starting playback of next sentence');
             soundRef.current.play((nextSuccess) => {
               if (nextSuccess) {
@@ -325,17 +338,21 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         setIsLoading(true);
         
         // Get stored position or default to first sentence
-        const storedIndex = await AsyncStorage.getItem("read_along_current_index");
-        const parsedIndex = storedIndex ? parseInt(storedIndex) : 0;
-        const validIndex = isNaN(parsedIndex) || parsedIndex >= sentences.length ? 0 : parsedIndex;
+        const position = await AsyncStorage.getItem(`${currentBook!.path}_position`);
+        let index;
+        if (position) {
+          const positionJson = JSON.parse(position);
+          index = positionJson.readAlongIndex;
+          setCurrentSentenceIndex(index);
+        } else {
+          setCurrentSentenceIndex(0);
+        }
         
-        setCurrentSentenceIndex(validIndex);
         setHighlightIndex(0); // Reset highlight when loading a new sentence
         if (currentHighlightIndex) {
           currentHighlightIndex.current = 0; // Also reset the ref
         }
         
-        // Clear any previous audio and timestamps
         if (soundRef.current) {
           soundRef.current.release();
           soundRef.current = null;
@@ -343,11 +360,9 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         
         currentTimestamps.current = [];
         
-        // Load current sentence
-        const sentence = sentences[validIndex];
-        console.log(`[ReadAlongModal] Loading sentence ${validIndex}: "${sentence.substring(0, 30)}..."`);
+        const sentence = sentences[index];
+        console.log(`[ReadAlongModal] Loading sentence ${index}: "${sentence.substring(0, 30)}..."`);
         
-        // Fetch timestamps and audio in parallel
         const [timestamps, speech] = await Promise.all([
           fetchWordTimestamps(sentence, language),
           fetchSpeechAudio(sentence, language)
@@ -357,18 +372,14 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         currentTimestamps.current = timestamps;
         console.log('[ReadAlongModal] Timestamps loaded:', timestamps.length);
         
-        // Set the sound
         if (speech && speech.sound) {
           soundRef.current = speech.sound;
-          // Configure sound
           soundRef.current.setVolume(1.0);
           soundRef.current.setSpeed(playbackSpeed);
-          // Explicitly pause to prevent any auto-playing
           soundRef.current.pause();
           console.log('[ReadAlongModal] Sound loaded successfully (paused)');
           
-          // Preload the next sentence if available
-          const nextIndex = validIndex + 1;
+          const nextIndex = index + 1;
           if (nextIndex < sentences.length) {
             preloadNextSentence(nextIndex);
           }

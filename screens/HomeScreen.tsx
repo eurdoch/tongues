@@ -12,16 +12,13 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import RNFS from "react-native-fs";
-import { RouteProp, useNavigation } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import * as ZipArchive from 'react-native-zip-archive';
 import { BookMetadata, getAllBookMetadata, processBookFile, updateLastRead, removeBookMetadata } from '../BookMetadataStore';
 import { parseEpub } from "../parser/EpubLoader";
-import { RootStackParamList } from "../App";
 import { findFirstContentTag, readTextFile } from "../utils";
 import { useNavigationContext } from "../NavigationContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { extractNavPoints } from "../components/TableOfContents";
-import { NavPoint } from "../types/NavPoint";
 
 interface EpubFile {
     id: string;
@@ -909,16 +906,17 @@ function HomeScreen(): React.JSX.Element {
             setIsBookLoading(true);
             
             // Update last read time in metadata
+            // TODO flagged for deletion
             await updateLastRead(item.id);
             
             const book = await parseEpub(item.uri);
             setCurrentBook(book);
 
+            const storedPosition = await AsyncStorage.getItem(`${book.path}_position`);
             let srcPath;
-            const storedCurrentNavPoint = await AsyncStorage.getItem("current_section");
-            if (storedCurrentNavPoint) {
-                const jsonNavPoint: NavPoint = JSON.parse(storedCurrentNavPoint);
-                srcPath = book.basePath + '/' + jsonNavPoint.src.split('#')[0];
+            if (storedPosition) {
+              const positionJson = JSON.parse(storedPosition);
+              srcPath = book.basePath + '/' + positionJson.section.src.split('#')[0];
             } else {
                 const firstContentElem = findFirstContentTag(book.navMap);
                 srcPath = book.basePath + '/' + firstContentElem.getAttribute('src').split('#')[0];

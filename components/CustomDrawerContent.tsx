@@ -316,7 +316,6 @@ function CustomDrawerContent() {
         navigation.dispatch(DrawerActions.closeDrawer());
         setCurrentBook(null);
       });
-      AsyncStorage.removeItem("current_section");
     };
     
     const handleNavigateSection = async (item: NavPoint) => {
@@ -326,10 +325,15 @@ function CustomDrawerContent() {
           const sectionPathParts = item.src.split('#');
           const sectionPath = currentBook.basePath + '/' + sectionPathParts[0];
           const content = await readTextFile(sectionPath);
-          await AsyncStorage.setItem("current_section", JSON.stringify(item));
+          const position = {
+            section: item,
+            readAlongIndex: 0,
+          };
+          await AsyncStorage.setItem(`${currentBook.path}_position`, JSON.stringify(position));
           navigation.navigate('Reader', {
             content,
             language: currentBook.language,
+            section: item,
           });
         } catch (e) {
           console.error(e);
