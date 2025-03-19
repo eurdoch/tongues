@@ -87,9 +87,13 @@ const TranslationPopup: React.FC<any> = ({
                       </View>
                     ) : (
                       <View style={styles.popupContentContainer}>
-                        <Text style={styles.popupOriginalText}>{text}</Text>
+                        <View style={styles.originalTextContainer}>
+                          <Text style={styles.popupOriginalText}>{text}</Text>
+                          {translationSound && (
+                            <Icon name="volume-up" size={22} color="#FFFFFF" onPress={playAudio} style={styles.volumeIcon} />
+                          )}
+                        </View>
                         <Text style={styles.popupTranslation}>{translation}</Text>
-                        { translationSound && <Icon name="volume-up" onPress={playAudio} /> }
                         
                         {!selectedWordExplanation && !isExplaining && (
                           <TouchableOpacity
@@ -165,12 +169,20 @@ const styles = StyleSheet.create({
         width: '100%',
         padding: 5,
       },
+      originalTextContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 10,
+      },
       popupOriginalText: {
         color: '#FFFFFF',
         fontSize: 22,
-        marginBottom: 10,
         textAlign: 'left',
-        width: '100%',
+        flex: 1,
+      },
+      volumeIcon: {
+        marginLeft: 10,
+        padding: 5,
       },
       popupTranslation: {
         color: '#E0E0E0',
