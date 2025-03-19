@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { View, Animated, Modal, TouchableWithoutFeedback, ScrollView, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from "react-native";
 import Sound from "react-native-sound";
 import Icon from 'react-native-vector-icons/FontAwesome';
@@ -56,6 +56,7 @@ const TranslationPopup: React.FC<any> = ({
         translationSound.play();
     }
   }
+
   
   return (
     <Modal
@@ -140,7 +141,6 @@ const styles = StyleSheet.create({
     },
     container: {
       width: '90%',
-      minHeight: 200, // Increased to ensure buttons are visible
       maxHeight: '80%',
       backgroundColor: '#2A2A2A',
       borderRadius: 20,
@@ -153,11 +153,11 @@ const styles = StyleSheet.create({
       },
       shadowOpacity: 0.25,
       shadowRadius: 3.84,
-      display: 'flex',
       flexDirection: 'column',
+      flex: 0, // Use flex to naturally size to content
     },
     contentScroll: {
-        flex: 1,
+        flexGrow: 0,
         width: '100%',
       },
       popupLoadingContainer: {
@@ -218,8 +218,7 @@ const styles = StyleSheet.create({
         flex: 0,
       },
       textSection: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
+        flexDirection: 'column',
         marginBottom: 10,
         width: '100%',
       },

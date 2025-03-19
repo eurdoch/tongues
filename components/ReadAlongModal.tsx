@@ -546,10 +546,6 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       // This is handled in the component directly
     });
 
-  const handleExplainWord = (e: any) => {
-    console.log('handleExplainWord');
-  }
-
   const handleWordClick = (word: string, index: number, event: any) => {
     event.preventDefault();
     
@@ -729,7 +725,9 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         translation={selectedWordTranslation}
         isExplaining={isExplaining}
         selectedWordExplanation={selectedWordExplanation}
-        handleExplainWord={handleExplainWord}
+        handleExplainWord={() => {
+          console.log('Explaining word in ReadAlongModal');
+        }}
       />
     </>
   );
