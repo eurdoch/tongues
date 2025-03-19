@@ -623,7 +623,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                     </View>
                   ) : (
                     <View style={styles.textSection}>
-                      {sentences[currentSentenceIndex].split(' ').map((word, index) => {
+                      {sentences[currentSentenceIndex] && sentences[currentSentenceIndex].split(' ').map((word, index) => {
                         // Check if word is in selected words
                         const isSelected = selectedWords.some(item => item.index === index);
                         const textStyle = [

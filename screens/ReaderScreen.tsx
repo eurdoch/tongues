@@ -77,12 +77,6 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
 
   const handleReadAlong = (e: any) => {
     e.preventDefault();
-    
-    // If we have sentences, initialize with the first one
-    if (sentences.length > 0) {
-      setCurrentSentenceIndex(0);
-    }
-    
     setReadAlongVisible(true);
   };
 
