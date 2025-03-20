@@ -867,42 +867,50 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                         {playbackSpeed}x
                       </Text>
                     </TouchableOpacity>
+                  </View>
+                )}
+                
+                {/* Navigation controls - row below the main controls */}
+                {!selectionMode && (
+                  <View style={styles.navigationControls}>
+                    <TouchableOpacity
+                      onPress={handlePreviousSentence}
+                      style={[
+                        styles.navButton, 
+                        styles.prevButton,
+                        (isLoading || currentSentenceIndex === 0) && styles.disabledButton
+                      ]}
+                      disabled={isLoading || currentSentenceIndex === 0}
+                    >
+                      <Icon
+                        name="chevron-left" 
+                        color="#FFFFFF"
+                        size={18}
+                        style={(isLoading || currentSentenceIndex === 0) && {opacity: 0.5}}
+                      />
+                      <Text style={styles.navButtonText}>Previous</Text>
+                    </TouchableOpacity>
                     
-                    <View style={styles.navigationGroup}>
-                      <TouchableOpacity
-                        onPress={handlePreviousSentence}
+                    <TouchableOpacity
+                      onPress={handleNextSentence}
+                      style={[
+                        styles.navButton, 
+                        styles.nextButton,
+                        (isLoading || currentSentenceIndex === sentences.length - 1) && styles.disabledButton
+                      ]}
+                      disabled={isLoading || currentSentenceIndex === sentences.length - 1}
+                    >
+                      <Text style={styles.navButtonText}>Next</Text>
+                      <Icon
+                        name="chevron-right" 
+                        color="#FFFFFF"
+                        size={18}
                         style={[
-                          styles.navButton, 
-                          styles.prevButton,
-                          (isLoading || currentSentenceIndex === 0) && styles.disabledButton
+                          {marginLeft: 6},
+                          (isLoading || currentSentenceIndex === sentences.length - 1) && {opacity: 0.5}
                         ]}
-                        disabled={isLoading || currentSentenceIndex === 0}
-                      >
-                        <Icon
-                          name="chevron-left" 
-                          color="#FFFFFF"
-                          size={18}
-                          style={(isLoading || currentSentenceIndex === 0) && {opacity: 0.5}}
-                        />
-                      </TouchableOpacity>
-                      
-                      <TouchableOpacity
-                        onPress={handleNextSentence}
-                        style={[
-                          styles.navButton, 
-                          styles.nextButton,
-                          (isLoading || currentSentenceIndex === sentences.length - 1) && styles.disabledButton
-                        ]}
-                        disabled={isLoading || currentSentenceIndex === sentences.length - 1}
-                      >
-                        <Icon
-                          name="chevron-right" 
-                          color="#FFFFFF"
-                          size={18}
-                          style={(isLoading || currentSentenceIndex === sentences.length - 1) && {opacity: 0.5}}
-                        />
-                      </TouchableOpacity>
-                    </View>
+                      />
+                    </TouchableOpacity>
                   </View>
                 )}
               </View>
@@ -1181,6 +1189,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
+    minWidth: 130,
   },
   prevButton: {
     backgroundColor: 'rgba(0, 122, 255, 0.8)',
@@ -1190,6 +1200,21 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     backgroundColor: 'rgba(150, 150, 150, 0.5)',
+  },
+  navigationControls: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 15,
+    paddingTop: 0,
+    borderTopWidth: 0,
+  },
+  navButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '500',
+    marginLeft: 6,
+    marginRight: 6,
   },
   controlButtonText: {
     color: '#FFFFFF',
