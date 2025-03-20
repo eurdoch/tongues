@@ -507,6 +507,37 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       console.log(`[ReadAlongModal] Playback speed set to ${newSpeed}x`);
     }
   };
+  
+  const handleRestartSentence = () => {
+    if (soundRef.current) {
+      console.log('[ReadAlongModal] Restarting current sentence from beginning');
+      
+      // Pause if currently playing
+      if (isPlaying) {
+        soundRef.current.pause();
+      }
+      
+      // Reset to beginning
+      soundRef.current.setCurrentTime(0);
+      
+      // Reset highlight index to the first word
+      setHighlightIndex(0);
+      currentHighlightIndex.current = 0;
+      
+      // Resume playing if it was playing before
+      if (isPlaying) {
+        soundRef.current.play((success) => {
+          if (success) {
+            console.log('[ReadAlongModal] Sound finished playing successfully');
+            setSentenceFinished(true);
+          } else {
+            console.error('[ReadAlongModal] Sound playback encountered an error');
+            setIsPlaying(false);
+          }
+        });
+      }
+    }
+  };
 
   const handleWordLongPress = (word: string, index: number) => {
     // If playing audio, pause it during selection
@@ -700,6 +731,22 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                         </Text>
                       </TouchableOpacity>
                     )}
+                    
+                    <TouchableOpacity
+                      onPress={handleRestartSentence}
+                      style={[styles.controlButton, styles.restartButton]}
+                      disabled={isLoading}
+                    >
+                      <Icon
+                        name="refresh" 
+                        color="#FFFFFF"
+                        size={18} 
+                        style={{marginRight: 6}}
+                      />
+                      <Text style={styles.controlButtonText}>
+                        Restart
+                      </Text>
+                    </TouchableOpacity>
                     
                     <TouchableOpacity
                       onPress={handleSlowDown}
@@ -978,6 +1025,9 @@ const styles = StyleSheet.create({
   },
   speedButton: {
     backgroundColor: 'rgba(255, 193, 7, 0.8)',
+  },
+  restartButton: {
+    backgroundColor: 'rgba(76, 175, 80, 0.8)',
   },
   controlButtonText: {
     color: '#FFFFFF',
