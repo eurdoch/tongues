@@ -538,6 +538,110 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       }
     }
   };
+  
+  const handlePreviousSentence = async () => {
+    // Only proceed if not at the first sentence already
+    if (currentSentenceIndex > 0 && !isLoading) {
+      console.log('[ReadAlongModal] Moving to previous sentence');
+      
+      // Stop current playback
+      if (soundRef.current) {
+        const wasPlaying = isPlaying;
+        
+        if (isPlaying) {
+          soundRef.current.pause();
+          setIsPlaying(false);
+        }
+        
+        // Clean up current sound
+        soundRef.current.release();
+        soundRef.current = null;
+      }
+      
+      try {
+        setIsLoading(true);
+        
+        // Calculate the new index
+        const newIndex = currentSentenceIndex - 1;
+        
+        // Update the tracking state
+        setCurrentSentenceIndex(newIndex);
+        setHighlightIndex(0);
+        currentHighlightIndex.current = 0;
+        
+        // Save the new position
+        await saveReadingPosition(newIndex);
+        
+        // Load the previous sentence
+        const sentence = sentences[newIndex];
+        console.log(`[ReadAlongModal] Loading previous sentence ${newIndex}: "${sentence.substring(0, 30)}..."`);
+        
+        // Fetch timestamps and audio
+        const [timestamps, speech] = await Promise.all([
+          fetchWordTimestamps(sentence, language),
+          fetchSpeechAudio(sentence, language)
+        ]);
+        
+        // Set the timestamps
+        currentTimestamps.current = timestamps;
+        
+        // Set the sound
+        if (speech && speech.sound) {
+          soundRef.current = speech.sound;
+          soundRef.current.setVolume(1.0);
+          soundRef.current.setSpeed(playbackSpeed);
+          
+          // Start playing automatically
+          soundRef.current.play((success) => {
+            if (success) {
+              console.log('[ReadAlongModal] Previous sentence completed successfully');
+              setSentenceFinished(true);
+            } else {
+              console.error('[ReadAlongModal] Previous sentence playback error');
+              setIsPlaying(false);
+            }
+          });
+          
+          // Update playing state
+          setIsPlaying(true);
+        } else {
+          console.error('[ReadAlongModal] Failed to load audio for previous sentence');
+        }
+        
+        // Preload the sentence after this one (which is the current sentence)
+        preloadNextSentence(currentSentenceIndex);
+      } catch (error) {
+        console.error('[ReadAlongModal] Error loading previous sentence:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+  
+  const handleNextSentence = async () => {
+    // Only proceed if not at the last sentence already
+    if (currentSentenceIndex < sentences.length - 1 && !isLoading) {
+      console.log('[ReadAlongModal] Manually advancing to next sentence');
+      
+      // This is similar to automatic advancement but triggered manually
+      const nextLoaded = await loadNextSentence();
+      
+      if (nextLoaded && soundRef.current) {
+        console.log('[ReadAlongModal] Starting playback of next sentence');
+        soundRef.current.play((success) => {
+          if (success) {
+            console.log('[ReadAlongModal] Next sentence completed successfully');
+            setSentenceFinished(true);
+          } else {
+            console.error('[ReadAlongModal] Next sentence playback error');
+            setIsPlaying(false);
+          }
+        });
+        
+        setIsPlaying(true);
+      }
+    }
+  };
 
   const handleWordLongPress = (word: string, index: number) => {
     // If playing audio, pause it during selection
@@ -763,6 +867,42 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                         {playbackSpeed}x
                       </Text>
                     </TouchableOpacity>
+                    
+                    <View style={styles.navigationGroup}>
+                      <TouchableOpacity
+                        onPress={handlePreviousSentence}
+                        style={[
+                          styles.navButton, 
+                          styles.prevButton,
+                          (isLoading || currentSentenceIndex === 0) && styles.disabledButton
+                        ]}
+                        disabled={isLoading || currentSentenceIndex === 0}
+                      >
+                        <Icon
+                          name="chevron-left" 
+                          color="#FFFFFF"
+                          size={18}
+                          style={(isLoading || currentSentenceIndex === 0) && {opacity: 0.5}}
+                        />
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity
+                        onPress={handleNextSentence}
+                        style={[
+                          styles.navButton, 
+                          styles.nextButton,
+                          (isLoading || currentSentenceIndex === sentences.length - 1) && styles.disabledButton
+                        ]}
+                        disabled={isLoading || currentSentenceIndex === sentences.length - 1}
+                      >
+                        <Icon
+                          name="chevron-right" 
+                          color="#FFFFFF"
+                          size={18}
+                          style={(isLoading || currentSentenceIndex === sentences.length - 1) && {opacity: 0.5}}
+                        />
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 )}
               </View>
@@ -1028,6 +1168,28 @@ const styles = StyleSheet.create({
   },
   restartButton: {
     backgroundColor: 'rgba(76, 175, 80, 0.8)',
+  },
+  navigationGroup: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: 90,
+  },
+  navButton: {
+    backgroundColor: 'rgba(0, 122, 255, 0.8)',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  prevButton: {
+    backgroundColor: 'rgba(0, 122, 255, 0.8)',
+  },
+  nextButton: {
+    backgroundColor: 'rgba(0, 122, 255, 0.8)',
+  },
+  disabledButton: {
+    backgroundColor: 'rgba(150, 150, 150, 0.5)',
   },
   controlButtonText: {
     color: '#FFFFFF',
