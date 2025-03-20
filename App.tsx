@@ -56,7 +56,7 @@ function App() {
       console.log('[App] Setting up openEpubFile event listener with DeviceEventEmitter');
       
       // Add a listener for the openEpubFile event
-      eventListener = DeviceEventEmitter.addListener('openEpubFile', (event: any) => {
+      eventListener = DeviceEventEmitter.addListener('openEpubFile', async (event: any) => {
         console.log('[App] Received openEpubFile event:', event);
         
         const { uri } = event;
@@ -68,34 +68,63 @@ function App() {
         
         console.log(`[App] Received file URI to open: ${uri}`);
         
-        // Simple navigation approach
         try {
-          if (navigationRef.current && navigationRef.current.isReady()) {
-            console.log(`[App] Navigation is ready, navigating to Reader with URI: ${uri}`);
+          // Import necessary functions
+          const { parseEpub } = require('./parser/EpubLoader');
+          const { findFirstContentTag, readTextFile, copyFileToAppStorage } = require('./utils');
+          const { useNavigationContext } = require('./NavigationContext');
+          
+          // Process the epub file properly
+          console.log(`[App] Processing epub file: ${uri}`);
+          
+          // Copy the file to app storage for persistence
+          const savedFilePath = await copyFileToAppStorage(uri);
+          
+          if (savedFilePath) {
+            // Parse the epub file
+            const book = await parseEpub(savedFilePath);
             
-            // Navigate directly to Reader screen
-            // TODO get content
-            navigationRef.current.navigate('Reader', {
-              content: "",
-            });
-            console.log(`[App] Navigation.navigate method called`);
+            // Get the first content element
+            const firstContentElem = findFirstContentTag(book.navMap);
+            const firstContentPath = book.basePath + '/' + firstContentElem.getAttribute('src');
+            const firstContents = await readTextFile(firstContentPath);
+            
+            // Store the book data so it can be accessed by components
+            // Define global type if it doesn't exist (needed for TypeScript)
+            if (!global.pendingBook) {
+              global.pendingBook = null;
+            }
+            // Store the book data globally
+            global.pendingBook = book;
+            
+            // Navigate to the reader screen
+            if (navigationRef.current && navigationRef.current.isReady()) {
+              console.log(`[App] Navigation is ready, navigating to Reader with content`);
+              navigationRef.current.navigate('Reader', {
+                content: firstContents,
+                language: book.language,
+              });
+              console.log(`[App] Navigation.navigate method called`);
+            } else {
+              console.log(`[App] Navigation not ready yet, setting timeout`);
+              // Try again after a delay if navigation isn't ready
+              setTimeout(() => {
+                if (navigationRef.current && navigationRef.current.isReady()) {
+                  console.log(`[App] Navigation ready after delay, navigating to Reader`);
+                  navigationRef.current.navigate('Reader', {
+                    content: firstContents,
+                    language: book.language,
+                  });
+                } else {
+                  console.error('[App] Navigation still not ready after delay');
+                }
+              }, 1000);
+            }
           } else {
-            console.log(`[App] Navigation not ready yet, setting timeout`);
-            // Try again after a delay if navigation isn't ready
-            setTimeout(() => {
-              if (navigationRef.current && navigationRef.current.isReady()) {
-                console.log(`[App] Navigation ready after delay, navigating to Reader`);
-                // TODO get content
-                navigationRef.current.navigate('Reader', {
-                  content: "",
-                });
-              } else {
-                console.error('[App] Navigation still not ready after delay');
-              }
-            }, 1000);
+            console.error('[App] Could not save file to app storage');
           }
         } catch (error) {
-          console.error('[App] Error during navigation:', error);
+          console.error('[App] Error processing epub file:', error);
         }
       });
       

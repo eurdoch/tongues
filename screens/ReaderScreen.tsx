@@ -51,22 +51,27 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
 
   useEffect(() => {
     const updateReader = async () => {
+      // Check for pending book from direct file open
+      if (global.pendingBook && !currentBook) {
+        console.log('[ReaderScreen] Found pending book, setting in context');
+        setCurrentBook(global.pendingBook);
+        global.pendingBook = null;
+      }
+
       const parsedContent = parseHtml(route.params.content); 
       setContent(parsedContent);
       const sentences = extractSentences(parsedContent);
       setSentences(sentences);
 
-      
-
       setIsLoading(false);
 
-      if (!currentBook!.language) {
+      if (currentBook && !currentBook.language) {
         setLanguageSelectorVisible(true);
       }
     }
 
     updateReader();
-  }, [route.params.content]);
+  }, [route.params.content, currentBook, setCurrentBook]);
 
   const handleLanguageSelect = (language: string) => {
     setCurrentBook({
