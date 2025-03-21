@@ -319,6 +319,9 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
             // Update both ref and state to ensure consistency
             currentHighlightIndex.current = wordIndex;
             setHighlightIndex(wordIndex);
+            
+            // Reset the sentence finished flag to prevent auto-advancing
+            setSentenceFinished(false);
           });
         }
         
