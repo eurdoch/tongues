@@ -571,6 +571,7 @@ export function getFirstContentSrc(node: any): string | null {
  * @param targetId - The ID of the navigation point to find
  * @returns The found NavPoint or null if not found
  */
+// TODO marked for deletion
 function findNavPointById(navStructure: Record<string, NavPoint> | NavPoint[], targetId: string): NavPoint | null {
   // Handle array or object structure
   const navPoints = Array.isArray(navStructure) 

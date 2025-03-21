@@ -105,12 +105,37 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
 
   // Loading state to prevent play before audio is ready
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [sentenceTranslation, setSentenceTranslation] = useState<string>('');
+  const [isTranslatingSentence, setIsTranslatingSentence] = useState<boolean>(false);
 
   // Initialize with the selected sentence when the modal becomes visible
   useEffect(() => {
     // Use the extracted initializeModal function
     initializeModal();
   }, [visible, sentences, language]);
+  
+  // Translate current sentence whenever it changes
+  useEffect(() => {
+    if (visible && sentences.length > 0 && !isLoading) {
+      translateCurrentSentence();
+    }
+  }, [currentSentenceIndex, sentences, language, visible, isLoading]);
+  
+  // Function to translate the current sentence
+  const translateCurrentSentence = async () => {
+    if (!sentences[currentSentenceIndex]) return;
+    
+    setIsTranslatingSentence(true);
+    try {
+      const translation = await translateText(sentences[currentSentenceIndex], language);
+      setSentenceTranslation(translation);
+    } catch (error) {
+      console.error('[ReadAlongModal] Error translating sentence:', error);
+      setSentenceTranslation('Translation failed');
+    } finally {
+      setIsTranslatingSentence(false);
+    }
+  };
 
   const loadNextSentence = async () => {
     // Check if we have more sentences
@@ -122,6 +147,9 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     
     try {
       setIsLoading(true);
+      
+      // Reset sentence translation
+      setSentenceTranslation('');
       
       // Save the new position
       await saveReadingPosition(nextIndex);
@@ -339,6 +367,9 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     if (visible && sentences.length > 0) {
       try {
         setIsLoading(true);
+        
+        // Reset sentence translation
+        setSentenceTranslation('');
         
         // Get stored position or default to first sentence
         const position = await AsyncStorage.getItem(`${currentBook!.path}_position`);
@@ -572,6 +603,9 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         setHighlightIndex(0);
         currentHighlightIndex.current = 0;
         
+        // Reset sentence translation
+        setSentenceTranslation('');
+        
         // Save the new position
         await saveReadingPosition(newIndex);
         
@@ -760,34 +794,45 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                       </Text>
                     </View>
                   ) : (
-                    <View style={styles.textSection}>
-                      {sentences[currentSentenceIndex] && sentences[currentSentenceIndex].split(' ').map((word, index) => {
-                        // Check if word is in selected words
-                        const isSelected = selectedWords.some(item => item.index === index);
-                        const textStyle = [
-                          styles.originalText,
-                          (highlightIndex === index && !selectionMode) && styles.highlightedWord,
-                          isSelected && styles.selectedWord
-                        ];
-                        return (
-                          <GestureDetector 
-                            key={index}
-                            gesture={longPressGesture}
-                          >
-                            <TouchableOpacity 
-                              onPress={(event) => handleWordClick(word, index, event)}
-                              onLongPress={() => handleWordLongPress(word, index)}
-                              delayLongPress={500}
-                              activeOpacity={0.7}
+                    <>
+                      <View style={styles.textSection}>
+                        {sentences[currentSentenceIndex] && sentences[currentSentenceIndex].split(' ').map((word, index) => {
+                          // Check if word is in selected words
+                          const isSelected = selectedWords.some(item => item.index === index);
+                          const textStyle = [
+                            styles.originalText,
+                            (highlightIndex === index && !selectionMode) && styles.highlightedWord,
+                            isSelected && styles.selectedWord
+                          ];
+                          return (
+                            <GestureDetector 
+                              key={index}
+                              gesture={longPressGesture}
                             >
-                              <Text style={textStyle}>
-                                {word}{' '}
-                              </Text>
-                            </TouchableOpacity>
-                          </GestureDetector>
-                        );
-                      })}
-                    </View>
+                              <TouchableOpacity 
+                                onPress={(event) => handleWordClick(word, index, event)}
+                                onLongPress={() => handleWordLongPress(word, index)}
+                                delayLongPress={500}
+                                activeOpacity={0.7}
+                              >
+                                <Text style={textStyle}>
+                                  {word}{' '}
+                                </Text>
+                              </TouchableOpacity>
+                            </GestureDetector>
+                          );
+                        })}
+                      </View>
+                      
+                      {/* Sentence translation section */}
+                      <View style={styles.sentenceTranslationContainer}>
+                        {isTranslatingSentence ? (
+                          <Text style={styles.translatingText}>Translating...</Text>
+                        ) : (
+                          <Text style={styles.sentenceTranslation}>{sentenceTranslation}</Text>
+                        )}
+                      </View>
+                    </>
                   )}
                 </View>
                 
@@ -980,6 +1025,25 @@ const styles = StyleSheet.create({
   loadingText: {
     color: '#FFFFFF',
     fontSize: 16,
+  },
+  sentenceTranslationContainer: {
+    marginTop: 15,
+    padding: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 8,
+    width: '100%',
+  },
+  sentenceTranslation: {
+    color: '#E0E0E0',
+    fontSize: 18,
+    lineHeight: 24,
+    fontStyle: 'italic',
+  },
+  translatingText: {
+    color: '#AAAAAA',
+    fontSize: 16,
+    fontStyle: 'italic',
+    textAlign: 'center',
   },
   container: {
     width: '90%',
