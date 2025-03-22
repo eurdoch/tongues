@@ -10,6 +10,7 @@ import { useNavigationContext } from "../NavigationContext";
 import { findFirstContentTag, readTextFile, copyFileToAppStorage, checkIfFileExists } from "../utils";
 import { NavPoint } from "../types/NavPoint";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { NativeDocumentPicker } from "@react-native-documents/picker/lib/typescript/spec/NativeDocumentPicker";
 
 function CustomDrawerContent() {
     const navigation = useNavigation();
@@ -40,7 +41,8 @@ function CustomDrawerContent() {
         setIsLoading(true);
         
         const [file] = await pick({
-          type: ['application/epub+zip'],
+          type: ['*/*'],
+          //type: ['application/epub+zip'],
           mode: 'open',
         });
         
