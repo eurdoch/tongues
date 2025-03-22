@@ -31,7 +31,8 @@ function App() {
         // Directly try to check for files when app becomes active
         setTimeout(() => {
           console.log("[App] App became active, checking for files");
-          if (Platform.OS === 'android' && NativeModules.TonguesModule) {
+          // Both platforms should have TonguesModule now
+          if (NativeModules.TonguesModule && NativeModules.TonguesModule.checkPendingFiles) {
             NativeModules.TonguesModule.checkPendingFiles()
               .then((result: any) => console.log("[App] checkPendingFiles result:", result))
               .catch((error: any) => console.log("[App] checkPendingFiles error:", error));
@@ -48,100 +49,97 @@ function App() {
   useEffect(() => {
     let eventListener: EmitterSubscription | undefined;
     
-    // Set up event listener for EPUB file opens
-    if (Platform.OS === 'android') {
-      // Import DeviceEventEmitter directly to avoid NativeEventEmitter issues
-      const DeviceEventEmitter = require('react-native').DeviceEventEmitter;
+    // Setup event listeners for file opens based on platform
+    const handleEpubFileOpen = async (event: any) => {
+      console.log('[App] Received openEpubFile event:', event);
       
-      console.log('[App] Setting up openEpubFile event listener with DeviceEventEmitter');
+      const { uri } = event;
       
-      // Add a listener for the openEpubFile event
-      eventListener = DeviceEventEmitter.addListener('openEpubFile', async (event: any) => {
-        console.log('[App] Received openEpubFile event:', event);
+      if (!uri) {
+        console.error('[App] No URI received in openEpubFile event');
+        return;
+      }
+      
+      console.log(`[App] Received file URI to open: ${uri}`);
+      
+      try {
+        // Import necessary functions
+        const { parseEpub } = require('./parser/EpubLoader');
+        const { findFirstContentTag, readTextFile, copyFileToAppStorage } = require('./utils');
+        const { useNavigationContext } = require('./NavigationContext');
         
-        const { uri } = event;
+        // Process the epub file properly
+        console.log(`[App] Processing epub file: ${uri}`);
         
-        if (!uri) {
-          console.error('[App] No URI received in openEpubFile event');
-          return;
-        }
+        // Copy the file to app storage for persistence
+        const savedFilePath = await copyFileToAppStorage(uri);
         
-        console.log(`[App] Received file URI to open: ${uri}`);
-        
-        try {
-          // Import necessary functions
-          const { parseEpub } = require('./parser/EpubLoader');
-          const { findFirstContentTag, readTextFile, copyFileToAppStorage } = require('./utils');
-          const { useNavigationContext } = require('./NavigationContext');
+        if (savedFilePath) {
+          // Parse the epub file
+          const book = await parseEpub(savedFilePath);
           
-          // Process the epub file properly
-          console.log(`[App] Processing epub file: ${uri}`);
+          // Get the first content element
+          const firstContentElem = findFirstContentTag(book.navMap);
+          const firstContentPath = book.basePath + '/' + firstContentElem.getAttribute('src');
+          const firstContents = await readTextFile(firstContentPath);
           
-          // Copy the file to app storage for persistence
-          const savedFilePath = await copyFileToAppStorage(uri);
+          // Store the book data so it can be accessed by components
+          // Define global type if it doesn't exist (needed for TypeScript)
+          if (!global.pendingBook) {
+            global.pendingBook = null;
+          }
+          // Store the book data globally
+          global.pendingBook = book;
           
-          if (savedFilePath) {
-            // Parse the epub file
-            const book = await parseEpub(savedFilePath);
-            
-            // Get the first content element
-            const firstContentElem = findFirstContentTag(book.navMap);
-            const firstContentPath = book.basePath + '/' + firstContentElem.getAttribute('src');
-            const firstContents = await readTextFile(firstContentPath);
-            
-            // Store the book data so it can be accessed by components
-            // Define global type if it doesn't exist (needed for TypeScript)
-            if (!global.pendingBook) {
-              global.pendingBook = null;
-            }
-            // Store the book data globally
-            global.pendingBook = book;
-            
-            // Navigate to the reader screen
-            if (navigationRef.current && navigationRef.current.isReady()) {
-              console.log(`[App] Navigation is ready, navigating to Reader with content`);
-              navigationRef.current.navigate('Reader', {
-                content: firstContents,
-                language: book.language,
-              });
-              console.log(`[App] Navigation.navigate method called`);
-            } else {
-              console.log(`[App] Navigation not ready yet, setting timeout`);
-              // Try again after a delay if navigation isn't ready
-              setTimeout(() => {
-                if (navigationRef.current && navigationRef.current.isReady()) {
-                  console.log(`[App] Navigation ready after delay, navigating to Reader`);
-                  navigationRef.current.navigate('Reader', {
-                    content: firstContents,
-                    language: book.language,
-                  });
-                } else {
-                  console.error('[App] Navigation still not ready after delay');
-                }
-              }, 1000);
-            }
+          // Navigate to the reader screen
+          if (navigationRef.current && navigationRef.current.isReady()) {
+            console.log(`[App] Navigation is ready, navigating to Reader with content`);
+            navigationRef.current.navigate('Reader', {
+              content: firstContents,
+              language: book.language,
+            });
+            console.log(`[App] Navigation.navigate method called`);
           } else {
-            console.error('[App] Could not save file to app storage');
+            console.log(`[App] Navigation not ready yet, setting timeout`);
+            // Try again after a delay if navigation isn't ready
+            setTimeout(() => {
+              if (navigationRef.current && navigationRef.current.isReady()) {
+                console.log(`[App] Navigation ready after delay, navigating to Reader`);
+                navigationRef.current.navigate('Reader', {
+                  content: firstContents,
+                  language: book.language,
+                });
+              } else {
+                console.error('[App] Navigation still not ready after delay');
+              }
+            }, 1000);
           }
-        } catch (error) {
-          console.error('[App] Error processing epub file:', error);
+        } else {
+          console.error('[App] Could not save file to app storage');
         }
-      });
-      
-      // Try to check for pending files
-      setTimeout(() => {
-        console.log('[App] Checking for pending files');
-        try {
-          if (NativeModules.TonguesModule && NativeModules.TonguesModule.checkPendingFiles) {
-            NativeModules.TonguesModule.checkPendingFiles()
-              .then((result: any) => console.log('[App] checkPendingFiles result:', result))
-              .catch((error: any) => console.error('[App] checkPendingFiles error:', error));
-          }
-        } catch (error) {
-          console.error('[App] Error checking pending files:', error);
+      } catch (error) {
+        console.error('[App] Error processing epub file:', error);
+      }
+    };
+    
+    // Set up event listener for both platforms
+    console.log(`[App] Setting up openEpubFile event listener on ${Platform.OS}`);
+    const { DeviceEventEmitter } = require('react-native');
+    eventListener = DeviceEventEmitter.addListener('openEpubFile', handleEpubFileOpen);
+    
+    // Check for pending files on both platforms
+    setTimeout(() => {
+      console.log(`[App] Checking for pending files on ${Platform.OS}`);
+      try {
+        if (NativeModules.TonguesModule && NativeModules.TonguesModule.checkPendingFiles) {
+          NativeModules.TonguesModule.checkPendingFiles()
+            .then((result: any) => console.log('[App] checkPendingFiles result:', result))
+            .catch((error: any) => console.error('[App] checkPendingFiles error:', error));
         }
-      }, 2000);
-    }
+      } catch (error) {
+        console.error('[App] Error checking pending files:', error);
+      }
+    }, 2000);
     
     // Clean up listener on unmount
     return () => {
