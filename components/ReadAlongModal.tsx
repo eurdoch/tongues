@@ -6,6 +6,7 @@ import {
   TouchableWithoutFeedback,
   StyleSheet,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
@@ -875,73 +876,15 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                   </View>
                 )}
                 
-                {/* Playback controls */}
+                {/* All controls in a single row */}
                 {!selectionMode && (
-                  <View style={styles.controls}>
-                    {isLoading ? (
-                      <View style={styles.loadingButton}>
-                        <Text style={styles.loadingText}>Loading audio...</Text>
-                      </View>
-                    ) : (
-                      <TouchableOpacity
-                        onPress={handleTogglePlay}
-                        style={styles.controlButton}
-                        disabled={isLoading}
-                      >
-                        <Icon
-                          name={isPlaying ? 'pause' : 'play'} 
-                          color="#FFFFFF"
-                          size={18} 
-                          style={{marginRight: 6}}
-                        />
-                        <Text style={styles.controlButtonText}>
-                          {isPlaying ? 'Pause' : 'Play'}
-                        </Text>
-                      </TouchableOpacity>
-                    )}
-                    
-                    <TouchableOpacity
-                      onPress={handleRestartSentence}
-                      style={[styles.controlButton, styles.restartButton]}
-                      disabled={isLoading}
-                    >
-                      <Icon
-                        name="refresh" 
-                        color="#FFFFFF"
-                        size={18} 
-                        style={{marginRight: 6}}
-                      />
-                      <Text style={styles.controlButtonText}>
-                        Restart
-                      </Text>
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity
-                      onPress={handleSlowDown}
-                      style={[styles.controlButton, styles.speedButton]}
-                      disabled={isLoading}
-                    >
-                      <Icon
-                        name="backward" 
-                        color="#FFFFFF"
-                        size={18} 
-                        style={{marginRight: 6}}
-                      />
-                      <Text style={styles.controlButtonText}>
-                        {playbackSpeed}x
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-                
-                {/* Navigation controls - row below the main controls */}
-                {!selectionMode && (
-                  <View style={styles.navigationControls}>
+                  <View style={styles.allControls}>
+                    {/* Previous button */}
                     <TouchableOpacity
                       onPress={handlePreviousSentence}
                       style={[
-                        styles.navButton, 
-                        styles.prevButton,
+                        styles.iconButton, 
+                        styles.sideButton,
                         (isLoading || currentSentenceIndex === 0) && styles.disabledButton
                       ]}
                       disabled={isLoading || currentSentenceIndex === 0}
@@ -949,30 +892,71 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                       <Icon
                         name="chevron-left" 
                         color="#FFFFFF"
-                        size={18}
+                        size={24}
                         style={(isLoading || currentSentenceIndex === 0) && {opacity: 0.5}}
                       />
-                      <Text style={styles.navButtonText}>Previous</Text>
                     </TouchableOpacity>
                     
+                    {/* Restart button */}
+                    <TouchableOpacity
+                      onPress={handleRestartSentence}
+                      style={[styles.iconButton, styles.sideButton, styles.restartButton]}
+                      disabled={isLoading}
+                    >
+                      <Icon
+                        name="refresh" 
+                        color="#FFFFFF"
+                        size={24}
+                      />
+                    </TouchableOpacity>
+                    
+                    {/* Center Play/Pause button */}
+                    {isLoading ? (
+                      <View style={styles.playButton}>
+                        <ActivityIndicator size="large" color="#FFFFFF" />
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        onPress={handleTogglePlay}
+                        style={styles.playButton}
+                        disabled={isLoading}
+                      >
+                        <Icon
+                          name={isPlaying ? 'pause' : 'play'} 
+                          color="#FFFFFF"
+                          size={36}
+                        />
+                      </TouchableOpacity>
+                    )}
+                    
+                    {/* Speed button */}
+                    <TouchableOpacity
+                      onPress={handleSlowDown}
+                      style={[styles.iconButton, styles.sideButton, styles.speedButton]}
+                      disabled={isLoading}
+                    >
+                      <Icon
+                        name="tachometer" 
+                        color="#FFFFFF"
+                        size={24}
+                      />
+                    </TouchableOpacity>
+                    
+                    {/* Next button */}
                     <TouchableOpacity
                       onPress={handleNextSentence}
                       style={[
-                        styles.navButton, 
-                        styles.nextButton,
+                        styles.iconButton, 
+                        styles.sideButton,
                         (isLoading || currentSentenceIndex === sentences.length - 1) && styles.disabledButton
                       ]}
                       disabled={isLoading || currentSentenceIndex === sentences.length - 1}
                     >
-                      <Text style={styles.navButtonText}>Next</Text>
                       <Icon
                         name="chevron-right" 
                         color="#FFFFFF"
-                        size={18}
-                        style={[
-                          {marginLeft: 6},
-                          (isLoading || currentSentenceIndex === sentences.length - 1) && {opacity: 0.5}
-                        ]}
+                        size={24}
+                        style={(isLoading || currentSentenceIndex === sentences.length - 1) && {opacity: 0.5}}
                       />
                     </TouchableOpacity>
                   </View>
@@ -1232,72 +1216,46 @@ const styles = StyleSheet.create({
     width: '100%',
     flexWrap: 'wrap',
   },
-  controls: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    padding: 15,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  navButton: {
-    backgroundColor: 'rgba(0, 122, 255, 0.4)',
-    minWidth: 80,
-  },
-  controlButton: {
-    backgroundColor: 'rgba(0, 122, 255, 0.8)',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 20,
-    minWidth: 100,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
   speedButton: {
     backgroundColor: 'rgba(255, 193, 7, 0.8)',
   },
   restartButton: {
     backgroundColor: 'rgba(76, 175, 80, 0.8)',
   },
-  navigationGroup: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: 90,
-  },
-  navButton: {
-    backgroundColor: 'rgba(0, 122, 255, 0.8)',
-    paddingVertical: 10,
-    paddingHorizontal: 15,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    minWidth: 130,
-  },
-  prevButton: {
-    backgroundColor: 'rgba(0, 122, 255, 0.8)',
-  },
-  nextButton: {
-    backgroundColor: 'rgba(0, 122, 255, 0.8)',
-  },
-  disabledButton: {
-    backgroundColor: 'rgba(150, 150, 150, 0.5)',
-  },
-  navigationControls: {
+  allControls: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 15,
-    paddingTop: 0,
-    borderTopWidth: 0,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
   },
-  navButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '500',
-    marginLeft: 6,
-    marginRight: 6,
+  iconButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+  },
+  sideButton: {
+    backgroundColor: 'rgba(0, 122, 255, 0.6)',
+  },
+  playButton: {
+    backgroundColor: 'rgba(0, 122, 255, 0.9)',
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  disabledButton: {
+    backgroundColor: 'rgba(150, 150, 150, 0.5)',
   },
   controlButtonText: {
     color: '#FFFFFF',
