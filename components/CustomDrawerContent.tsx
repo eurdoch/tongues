@@ -1,4 +1,4 @@
-import { Text, View, StyleSheet, TouchableOpacity, ActivityIndicator, Platform } from "react-native";
+import { Text, View, StyleSheet, TouchableOpacity, ActivityIndicator, Platform, Alert } from "react-native";
 import { useNavigation, DrawerActions } from "@react-navigation/native";
 import { pick } from "@react-native-documents/picker";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -15,6 +15,7 @@ import { NativeDocumentPicker } from "@react-native-documents/picker/lib/typescr
 function CustomDrawerContent() {
     const navigation = useNavigation();
     const [isLoading, setIsLoading] = useState<boolean>(false);
+    const [isBookLoading, setIsBookLoading] = useState<boolean>(false);
     const { currentBook, setCurrentBook } = useNavigationContext();
 
     useEffect(() => {
@@ -37,7 +38,7 @@ function CustomDrawerContent() {
         // Close drawer immediately
         navigation.dispatch(DrawerActions.closeDrawer());
         
-        // Show loading indicator
+        // Show loading indicator while picking file
         setIsLoading(true);
         
         const [file] = await pick({
@@ -46,65 +47,106 @@ function CustomDrawerContent() {
           mode: 'open',
         });
         
-        console.log("Selected file:", file);
+        // Now show the book loading overlay
+        setIsLoading(false);
+        setIsBookLoading(true);
+        
+        console.log("[CustomDrawerContent] Selected file:", file);
         
         let fileSize = 0;
         try {
           const stats = await RNFS.stat(file.uri);
           fileSize = stats.size;
-          console.log(`Selected file size: ${fileSize} bytes`);
+          console.log(`[CustomDrawerContent] Selected file size: ${fileSize} bytes`);
         } catch (statError) {
-          console.log('Error getting file stats:', statError);
+          console.log('[CustomDrawerContent] Error getting file stats:', statError);
         }
         
-        // Look for existing files with the same size first
-        const existingFiles = await findExistingFiles(fileSize);
-        if (existingFiles.length > 0) {
-          console.log(`Found ${existingFiles.length} potential matches by size`);
+        try {
+          // Look for existing files with the same size first
+          const existingFiles = await findExistingFiles(fileSize);
+          if (existingFiles.length > 0) {
+            console.log(`[CustomDrawerContent] Found ${existingFiles.length} potential matches by size`);
+            
+            // Use the first one - this is likely to be the same file
+            const existingPath = existingFiles[0].path;
+            console.log(`[CustomDrawerContent] Using existing file: ${existingPath}`);
+  
+            const book = await parseEpub(existingPath);
+            
+            if (!book || !book.navMap) {
+              throw new Error("Failed to parse book navigation structure");
+            }
+  
+            setCurrentBook(book);
+            console.log(`[CustomDrawerContent] Book parsed successfully: ${book.title}`);
+            
+            const firstContentElem = findFirstContentTag(book.navMap);
+            if (!firstContentElem) {
+              throw new Error("Could not find any content in the book");
+            }
+            
+            const src = firstContentElem.getAttribute('src');
+            if (!src) {
+              throw new Error("Content element doesn't have a source attribute");
+            }
+            
+            const firstContentPath = book.basePath + '/' + src;
+            const firstContents = await readTextFile(firstContentPath);
+  
+            // Navigate to reader screen
+            navigation.navigate('Reader', { 
+              content: firstContents,
+              language: book.language,
+            });
+            return;
+          }
           
-          // Use the first one - this is likely to be the same file
-          // TODO this is terrible change to ensure sameness
-          const existingPath = existingFiles[0].path;
-          console.log(`Using existing file: ${existingPath}`);
-
-          const book = await parseEpub(existingPath);
-
-          setCurrentBook(book);
-          const firstContentElem = findFirstContentTag(book.navMap);
-          const firstContentPath = book.basePath + '/' + firstContentElem.getAttribute('src');
-          const firstContents = await readTextFile(firstContentPath);
-
-          // Navigate to reader screen
-          navigation.navigate('Reader', { 
-            content: firstContents,
-            language: book.language,
-          });
-          return;
-        }
-        
-        // Copy the file to app storage for persistence
-        const savedFilePath = await copyFileToAppStorage(file.uri);
-        
-        if (savedFilePath) {
-          const book = await parseEpub(savedFilePath);
-          setCurrentBook(book);
-          const firstContentElem = findFirstContentTag(book.navMap);
-          const firstContentPath = book.basePath + '/' + firstContentElem.getAttribute('src');
-          const firstContents = await readTextFile(firstContentPath);
-          // TODO check if language is null and if so prmpt user for language
-
-          // Navigate to reader screen
-          navigation.navigate('Reader', { 
-            content: firstContents,
-            language: book.language,
-          });
-        } else {
-          throw new Error("Could not save file.");
+          // Copy the file to app storage for persistence
+          const savedFilePath = await copyFileToAppStorage(file.uri);
+          
+          if (savedFilePath) {
+            const book = await parseEpub(savedFilePath);
+            if (!book || !book.navMap) {
+              throw new Error("Failed to parse book navigation structure");
+            }
+            
+            setCurrentBook(book);
+            console.log(`[CustomDrawerContent] Book parsed successfully: ${book.title}`);
+            
+            const firstContentElem = findFirstContentTag(book.navMap);
+            if (!firstContentElem) {
+              throw new Error("Could not find any content in the book");
+            }
+            
+            const src = firstContentElem.getAttribute('src');
+            if (!src) {
+              throw new Error("Content element doesn't have a source attribute");
+            }
+            
+            const firstContentPath = book.basePath + '/' + src;
+            const firstContents = await readTextFile(firstContentPath);
+  
+            // Navigate to reader screen
+            navigation.navigate('Reader', { 
+              content: firstContents,
+              language: book.language,
+            });
+          } else {
+            throw new Error("Could not save file.");
+          }
+        } catch (bookError: any) {
+          console.error('[CustomDrawerContent] Error processing book:', bookError);
+          Alert.alert(
+            "Error Opening Book", 
+            "There was a problem opening this book. The file may be corrupted or in an unsupported format."
+          );
         }
       } catch (e: any) {
-        console.log('pick failed: ', e);
+        console.log('[CustomDrawerContent] File picking failed: ', e);
       } finally {
         setIsLoading(false);
+        setIsBookLoading(false);
       }
     };
     
@@ -175,33 +217,45 @@ function CustomDrawerContent() {
     }
 
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.content}>
-          <TouchableOpacity 
-            style={styles.navButton}
-            onPress={goToHome}
-          >
-            <Text style={styles.navButtonText}>Home</Text>
-          </TouchableOpacity>
+      <>
+        <SafeAreaView style={styles.container}>
+          <View style={styles.content}>
+            <TouchableOpacity 
+              style={styles.navButton}
+              onPress={goToHome}
+            >
+              <Text style={styles.navButtonText}>Home</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.button}
-            onPress={selectAndReadEpub} 
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>Open Book</Text>
-            )}
-          </TouchableOpacity>
-          
-        </View>
-        { 
-          currentBook && 
-            <TableOfContents navMap={currentBook.navMap} onNavigate={handleNavigateSection} />
-        }
-      </SafeAreaView>
+            <TouchableOpacity 
+              style={styles.button}
+              onPress={selectAndReadEpub} 
+              disabled={isLoading || isBookLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Open Book</Text>
+              )}
+            </TouchableOpacity>
+            
+          </View>
+          { 
+            currentBook && 
+              <TableOfContents navMap={currentBook.navMap} onNavigate={handleNavigateSection} />
+          }
+        </SafeAreaView>
+
+        {/* Book loading overlay - shown when processing a book */}
+        {isBookLoading && (
+          <View style={styles.loadingOverlay}>
+            <View style={styles.loadingCard}>
+              <ActivityIndicator size="large" color="#1a73e8" />
+              <Text style={styles.bookLoadingText}>Opening book...</Text>
+            </View>
+          </View>
+        )}
+      </>
     );
   }
 
@@ -256,6 +310,37 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
     fontSize: 16,
+  },
+  // Loading overlay styles
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  loadingCard: {
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 200,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  bookLoadingText: {
+    marginTop: 15,
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '500',
   }
 });
 
