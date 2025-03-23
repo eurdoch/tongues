@@ -5,4 +5,5 @@ export default interface SentenceData {
   sound: Sound;
   timestamps: TimestampMark[];
   words: string[];
+  translation?: string; // Optional translation for the sentence
 }

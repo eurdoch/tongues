@@ -75,9 +75,11 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     try {
       console.log(`[ReadAlongModal] Preloading next sentence ${nextIndex}: "${sentences[nextIndex].substring(0, 30)}..."`);
       
-      const [timestamps, speech] = await Promise.all([
+      // Preload audio, timestamps, and translation simultaneously
+      const [timestamps, speech, translation] = await Promise.all([
         fetchWordTimestamps(sentences[nextIndex], language),
-        fetchSpeechAudio(sentences[nextIndex], language)
+        fetchSpeechAudio(sentences[nextIndex], language),
+        translateText(sentences[nextIndex], language)
       ]);
       
       if (speech && speech.sound) {
@@ -90,10 +92,11 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         nextSentenceData.current = {
           sound: speech.sound,
           timestamps: timestamps,
-          words: sentences[nextIndex].split(' ')
+          words: sentences[nextIndex].split(' '),
+          translation: translation // Store the preloaded translation
         };
         
-        console.log('[ReadAlongModal] Next sentence preloaded successfully');
+        console.log('[ReadAlongModal] Next sentence preloaded successfully with translation');
       }
     } catch (error) {
       console.error('[ReadAlongModal] Error preloading next sentence:', error);
@@ -124,6 +127,12 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   // Function to translate the current sentence
   const translateCurrentSentence = async () => {
     if (!sentences[currentSentenceIndex]) return;
+    
+    // If we already have a translation (e.g. from preloading), no need to translate again
+    if (sentenceTranslation && sentenceTranslation.length > 0) {
+      console.log('[ReadAlongModal] Translation already available, skipping translation request');
+      return;
+    }
     
     setIsTranslatingSentence(true);
     try {
@@ -168,6 +177,13 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         console.log('[ReadAlongModal] Using preloaded data for next sentence');
         soundRef.current = nextSentenceData.current.sound;
         currentTimestamps.current = nextSentenceData.current.timestamps;
+        
+        // If we have a preloaded translation, use it
+        if (nextSentenceData.current.translation) {
+          console.log('[ReadAlongModal] Using preloaded translation');
+          setSentenceTranslation(nextSentenceData.current.translation);
+        }
+        
         nextSentenceData.current = null; // Clear the preloaded data
         
         // Preload the sentence after this one
