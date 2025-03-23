@@ -906,34 +906,82 @@ function HomeScreen(): React.JSX.Element {
             setIsBookLoading(true);
             
             // Update last read time in metadata
-            // TODO flagged for deletion
             await updateLastRead(item.id);
             
+            // Parse the EPUB file
+            console.log(`[HomeScreen] Opening book: ${item.uri}`);
             const book = await parseEpub(item.uri);
-            setCurrentBook(book);
-
-            const storedPosition = await AsyncStorage.getItem(`${book.path}_position`);
-            let srcPath;
-            if (storedPosition) {
-              const positionJson = JSON.parse(storedPosition);
-              srcPath = book.basePath + '/' + positionJson.section.src.split('#')[0];
-            } else {
-                const firstContentElem = findFirstContentTag(book.navMap);
-                srcPath = book.basePath + '/' + firstContentElem.getAttribute('src').split('#')[0];
+            
+            if (!book || !book.navMap) {
+                throw new Error("Failed to parse book navigation structure");
             }
-            const content = await readTextFile(srcPath);
+            
+            setCurrentBook(book);
+            console.log(`[HomeScreen] Book parsed successfully: ${book.title}`);
 
-            // Navigate to reader screen
-            navigation.navigate('Reader', { 
-              content,
-              language: book.language
-            });
+            // Try to get content path - first from stored position, then from navigation
+            let srcPath;
+            try {
+                const storedPosition = await AsyncStorage.getItem(`${book.path}_position`);
+                
+                if (storedPosition) {
+                    console.log(`[HomeScreen] Found stored position for book`);
+                    const positionJson = JSON.parse(storedPosition);
+                    
+                    if (positionJson.section && positionJson.section.src) {
+                        srcPath = book.basePath + '/' + positionJson.section.src.split('#')[0];
+                        console.log(`[HomeScreen] Using stored position path: ${srcPath}`);
+                    } else {
+                        console.log(`[HomeScreen] Invalid stored position, looking for content tag instead`);
+                        // Continue to finding content tag
+                    }
+                }
+                
+                // If we don't have a valid srcPath yet, look for content tag
+                if (!srcPath) {
+                    console.log(`[HomeScreen] Looking for first content tag in book`);
+                    const firstContentElem = findFirstContentTag(book.navMap);
+                    
+                    if (!firstContentElem) {
+                        throw new Error("Could not find any content in the book");
+                    }
+                    
+                    const src = firstContentElem.getAttribute('src');
+                    if (!src) {
+                        throw new Error("Content element doesn't have a source attribute");
+                    }
+                    
+                    srcPath = book.basePath + '/' + src.split('#')[0];
+                    console.log(`[HomeScreen] Found content path: ${srcPath}`);
+                }
+                
+                // Read the content file
+                const content = await readTextFile(srcPath);
+                console.log(`[HomeScreen] Successfully read content file: ${srcPath}`);
+
+                // Navigate to reader screen
+                navigation.navigate('Reader', { 
+                    content,
+                    language: book.language
+                });
+                
+            } catch (contentError) {
+                console.error(`[HomeScreen] Error opening book content:`, contentError);
+                Alert.alert(
+                    "Error Opening Book", 
+                    "There was a problem opening this book. The file may be corrupted or in an unsupported format."
+                );
+            }
             
             // Reset loading state
             setIsBookLoading(false);
         }
       } catch (err: any) {
-        console.error(err);
+        console.error("[HomeScreen] Error opening book:", err);
+        Alert.alert(
+            "Error Opening Book", 
+            "Failed to open the book. Please try again or select a different book."
+        );
         // Make sure we reset loading state on error
         setIsBookLoading(false);
       }

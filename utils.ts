@@ -524,30 +524,65 @@ export const readTextFile = async (fileUri: string): Promise<string> => {
 
 /**
  * Recursively searches for the first element with the tag name "content"
+ * or the first navigable element with an "src" attribute if no content tag is found
  * 
  * @param node - The DOM node to start searching from
  * @returns The first content element found, or null if none exists
  */
 export function findFirstContentTag(node: any): any | null {
+  // Return null if node doesn't exist
   if (!node) {
+    console.log("[findFirstContentTag] No node provided");
     return null;
   }
   
+  // Check if this node is a content tag
   if (node.nodeName === 'content') {
+    console.log("[findFirstContentTag] Found content tag");
     return node;
   }
   
+  // If not a content tag but has src attribute, it might be usable
+  if (node.getAttribute && node.getAttribute('src')) {
+    console.log("[findFirstContentTag] Found node with src attribute:", node.nodeName);
+    return node;
+  }
+  
+  // If node has no children, return null
+  if (!node.childNodes || node.childNodes.length === 0) {
+    return null;
+  }
+  
+  // Track any potential fallback nodes (with src attribute but not content tag)
+  let fallbackNode = null;
+  
   // Recursively search child nodes
-  if (node.childNodes && node.childNodes.length > 0) {
-    for (let i = 0; i < node.childNodes.length; i++) {
-      const childNode = node.childNodes[i];
-      const contentNode = findFirstContentTag(childNode);
-      
-      // If content node found in children, return it
-      if (contentNode) {
-        return contentNode;
-      }
+  for (let i = 0; i < node.childNodes.length; i++) {
+    const childNode = node.childNodes[i];
+    
+    // Skip text nodes and empty nodes
+    if (!childNode || childNode.nodeType === 3) {
+      continue;
     }
+    
+    // Check if this child has an src attribute (potential fallback)
+    if (!fallbackNode && childNode.getAttribute && childNode.getAttribute('src')) {
+      fallbackNode = childNode;
+    }
+    
+    // Search this child for a content tag
+    const contentNode = findFirstContentTag(childNode);
+    
+    // If content node found in children, return it
+    if (contentNode) {
+      return contentNode;
+    }
+  }
+  
+  // If no content tag found but we have a fallback node with src attribute, use it
+  if (fallbackNode) {
+    console.log("[findFirstContentTag] Using fallback node with src attribute:", fallbackNode.nodeName);
+    return fallbackNode;
   }
   
   // No content tag found in this branch
@@ -561,8 +596,35 @@ export function findFirstContentTag(node: any): any | null {
  * @returns The src attribute value of the first content tag, or null if not found
  */
 export function getFirstContentSrc(node: any): string | null {
-  const contentTag = findFirstContentTag(node);
-  return contentTag ? contentTag.getAttribute('src') : null;
+  if (!node) {
+    console.error("[getFirstContentSrc] No node provided");
+    return null;
+  }
+
+  try {
+    const contentTag = findFirstContentTag(node);
+    
+    if (!contentTag) {
+      console.error("[getFirstContentSrc] No content tag found");
+      return null;
+    }
+    
+    if (!contentTag.getAttribute) {
+      console.error("[getFirstContentSrc] Content tag doesn't have getAttribute method");
+      return null;
+    }
+    
+    const src = contentTag.getAttribute('src');
+    if (!src) {
+      console.error("[getFirstContentSrc] Content tag has no src attribute");
+      return null;
+    }
+    
+    return src;
+  } catch (error) {
+    console.error("[getFirstContentSrc] Error getting src attribute:", error);
+    return null;
+  }
 }
 
 /**
