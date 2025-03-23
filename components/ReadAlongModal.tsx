@@ -554,8 +554,33 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       // Don't go below 0.5x speed
       const newSpeed = Math.max(0.5, playbackSpeed - 0.5);
       setPlaybackSpeed(newSpeed);
+      
+      // Save the current playback state
+      const wasPlaying = isPlaying;
+      
+      // If currently playing, we need to pause before changing speed
+      if (wasPlaying) {
+        soundRef.current.pause();
+      }
+      
+      // Change the speed
       soundRef.current.setSpeed(newSpeed);
       console.log(`[ReadAlongModal] Playback speed set to ${newSpeed}x`);
+      
+      // Resume playback only if it was already playing
+      if (wasPlaying) {
+        soundRef.current.play((success) => {
+          if (success) {
+            console.log('[ReadAlongModal] Sound finished playing successfully after speed change');
+            setSentenceFinished(true);
+          } else {
+            console.error('[ReadAlongModal] Sound playback encountered an error after speed change');
+            setIsPlaying(false);
+          }
+        });
+        // Make sure isPlaying state matches actual playback state
+        setIsPlaying(true);
+      }
     }
   };
   
