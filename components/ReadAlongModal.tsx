@@ -51,7 +51,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   const nextSentenceData = useRef<SentenceData | null>(null);
   const isPreloading = useRef<boolean>(false);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
+  const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0); // Default to normal speed
   const { currentBook } = useNavigationContext();
 
   const saveReadingPosition = async (index: number) => {
@@ -549,10 +549,10 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     onClose();
   }
 
-  const handleSlowDown = () => {
+  const handleToggleSpeed = () => {
     if (soundRef.current) {
-      // Don't go below 0.5x speed
-      const newSpeed = Math.max(0.5, playbackSpeed - 0.5);
+      // Toggle between normal (1.0) and slow (0.5) speed
+      const newSpeed = playbackSpeed === 1.0 ? 0.5 : 1.0;
       setPlaybackSpeed(newSpeed);
       
       // Save the current playback state
@@ -565,7 +565,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       
       // Change the speed
       soundRef.current.setSpeed(newSpeed);
-      console.log(`[ReadAlongModal] Playback speed set to ${newSpeed}x`);
+      console.log(`[ReadAlongModal] Playback speed toggled to ${newSpeed}x`);
       
       // Resume playback only if it was already playing
       if (wasPlaying) {
@@ -956,12 +956,12 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                     
                     {/* Speed button */}
                     <TouchableOpacity
-                      onPress={handleSlowDown}
+                      onPress={handleToggleSpeed}
                       style={[styles.iconButton, styles.sideButton, styles.speedButton]}
                       disabled={isLoading}
                     >
                       <Icon
-                        name="tachometer" 
+                        name={playbackSpeed === 1.0 ? "angle-double-left" : "angle-double-right"} 
                         color="#FFFFFF"
                         size={24}
                       />
