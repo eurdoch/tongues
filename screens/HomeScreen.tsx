@@ -33,12 +33,11 @@ interface EpubFile {
 function HomeScreen(): React.JSX.Element {
     const [epubFiles, setEpubFiles] = useState<EpubFile[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
-    const [isBookLoading, setIsBookLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
     const [isSelectMode, setIsSelectMode] = useState<boolean>(false);
     const [selectedBooks, setSelectedBooks] = useState<Set<string>>(new Set());
     const navigation = useNavigation();
-    const { setCurrentBook } = useNavigationContext();
+    const { setCurrentBook, isBookLoading, setIsBookLoading } = useNavigationContext();
 
     // Handle select all books
     const handleSelectAll = () => {

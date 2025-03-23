@@ -15,8 +15,12 @@ import { NativeDocumentPicker } from "@react-native-documents/picker/lib/typescr
 function CustomDrawerContent() {
     const navigation = useNavigation();
     const [isLoading, setIsLoading] = useState<boolean>(false);
-    const [isBookLoading, setIsBookLoading] = useState<boolean>(false);
-    const { currentBook, setCurrentBook } = useNavigationContext();
+    const { 
+      currentBook, 
+      setCurrentBook,
+      isBookLoading,
+      setIsBookLoading 
+    } = useNavigationContext();
 
     useEffect(() => {
       console.log('[CustomDrawerContent] Component mounted, current navMap:', currentBook?.navMap);
@@ -217,45 +221,33 @@ function CustomDrawerContent() {
     }
 
     return (
-      <>
-        <SafeAreaView style={styles.container}>
-          <View style={styles.content}>
-            <TouchableOpacity 
-              style={styles.navButton}
-              onPress={goToHome}
-            >
-              <Text style={styles.navButtonText}>Home</Text>
-            </TouchableOpacity>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.content}>
+          <TouchableOpacity 
+            style={styles.navButton}
+            onPress={goToHome}
+          >
+            <Text style={styles.navButtonText}>Home</Text>
+          </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.button}
-              onPress={selectAndReadEpub} 
-              disabled={isLoading || isBookLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.buttonText}>Open Book</Text>
-              )}
-            </TouchableOpacity>
-            
-          </View>
-          { 
-            currentBook && 
-              <TableOfContents navMap={currentBook.navMap} onNavigate={handleNavigateSection} />
-          }
-        </SafeAreaView>
-
-        {/* Book loading overlay - shown when processing a book */}
-        {isBookLoading && (
-          <View style={styles.loadingOverlay}>
-            <View style={styles.loadingCard}>
-              <ActivityIndicator size="large" color="#1a73e8" />
-              <Text style={styles.bookLoadingText}>Opening book...</Text>
-            </View>
-          </View>
-        )}
-      </>
+          <TouchableOpacity 
+            style={styles.button}
+            onPress={selectAndReadEpub} 
+            disabled={isLoading || isBookLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Open Book</Text>
+            )}
+          </TouchableOpacity>
+          
+        </View>
+        { 
+          currentBook && 
+            <TableOfContents navMap={currentBook.navMap} onNavigate={handleNavigateSection} />
+        }
+      </SafeAreaView>
     );
   }
 
@@ -310,37 +302,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
     fontSize: 16,
-  },
-  // Loading overlay styles
-  loadingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1000,
-  },
-  loadingCard: {
-    backgroundColor: 'white',
-    borderRadius: 10,
-    padding: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 200,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  bookLoadingText: {
-    marginTop: 15,
-    fontSize: 16,
-    color: '#333',
-    fontWeight: '500',
   }
 });
 
