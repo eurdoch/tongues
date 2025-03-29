@@ -20,6 +20,38 @@ import TranslationPopup from './TranslationPopup';
 import { useNavigationContext } from '../NavigationContext';
 import { NavPoint } from '../types/NavPoint';
 
+// Simple mutex lock implementation
+class Mutex {
+  private locked: boolean = false;
+  private waitQueue: Array<() => void> = [];
+
+  async acquire(): Promise<void> {
+    return new Promise<void>((resolve) => {
+      if (!this.locked) {
+        this.locked = true;
+        resolve();
+      } else {
+        this.waitQueue.push(resolve);
+      }
+    });
+  }
+
+  release(): void {
+    if (this.waitQueue.length > 0) {
+      const nextResolve = this.waitQueue.shift();
+      if (nextResolve) {
+        nextResolve();
+      }
+    } else {
+      this.locked = false;
+    }
+  }
+
+  isLocked(): boolean {
+    return this.locked;
+  }
+}
+
 interface ReadAlongModalProps {
   visible: boolean;
   onClose: () => void;
@@ -54,6 +86,9 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0); // Default to normal speed
   const { currentBook } = useNavigationContext();
+  
+  // Create a mutex for audio control operations
+  const audioControlMutex = useRef<Mutex>(new Mutex());
 
   const saveReadingPosition = async (index: number) => {
     try {
@@ -149,71 +184,49 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   };
 
   const loadNextSentence = async () => {
-    // Check if we have more sentences
-    const nextIndex = currentSentenceIndex + 1;
-    if (nextIndex >= sentences.length) {
-      console.log('[ReadAlongModal] Reached the end of all sentences');
-      return false;
-    }
+    // Acquire mutex lock for audio operations
+    await audioControlMutex.current.acquire();
+    console.log('[ReadAlongModal] Acquired mutex lock for loadNextSentence');
     
     try {
-      setIsLoading(true);
-      
-      // Reset sentence translation
-      setSentenceTranslation('');
-      
-      // Save the new position
-      await saveReadingPosition(nextIndex);
-      setCurrentSentenceIndex(nextIndex);
-      setHighlightIndex(0);
-      currentHighlightIndex.current = 0;
-      
-      // Clear the current audio
-      if (soundRef.current) {
-        soundRef.current.release();
-        soundRef.current = null;
+      // Check if we have more sentences
+      const nextIndex = currentSentenceIndex + 1;
+      if (nextIndex >= sentences.length) {
+        console.log('[ReadAlongModal] Reached the end of all sentences');
+        return false;
       }
       
-      // If we have preloaded data, use it
-      if (nextSentenceData.current) {
-        console.log('[ReadAlongModal] Using preloaded data for next sentence');
-        soundRef.current = nextSentenceData.current.sound;
-        currentTimestamps.current = nextSentenceData.current.timestamps;
+      try {
+        setIsLoading(true);
         
-        // If we have a preloaded translation, use it
-        if (nextSentenceData.current.translation) {
-          console.log('[ReadAlongModal] Using preloaded translation');
-          setSentenceTranslation(nextSentenceData.current.translation);
+        // Reset sentence translation
+        setSentenceTranslation('');
+        
+        // Save the new position
+        await saveReadingPosition(nextIndex);
+        setCurrentSentenceIndex(nextIndex);
+        setHighlightIndex(0);
+        currentHighlightIndex.current = 0;
+        
+        // Clear the current audio
+        if (soundRef.current) {
+          soundRef.current.release();
+          soundRef.current = null;
         }
         
-        nextSentenceData.current = null; // Clear the preloaded data
-        
-        // Preload the sentence after this one
-        const sentenceAfterNextIndex = nextIndex + 1;
-        if (sentenceAfterNextIndex < sentences.length) {
-          preloadNextSentence(sentenceAfterNextIndex);
-        }
-        
-        return true;
-      } else {
-        // If no preloaded data, load the next sentence now
-        console.log(`[ReadAlongModal] Loading next sentence ${nextIndex} on demand`);
-        const sentence = sentences[nextIndex];
-        
-        // Fetch timestamps and audio in parallel
-        const [timestamps, speech] = await Promise.all([
-          fetchWordTimestamps(sentence, language),
-          fetchSpeechAudio(sentence, language)
-        ]);
-        
-        // Set the timestamps
-        currentTimestamps.current = timestamps;
-        
-        // Set the sound
-        if (speech && speech.sound) {
-          soundRef.current = speech.sound;
-          soundRef.current.setVolume(1.0);
-          soundRef.current.setSpeed(playbackSpeed);
+        // If we have preloaded data, use it
+        if (nextSentenceData.current) {
+          console.log('[ReadAlongModal] Using preloaded data for next sentence');
+          soundRef.current = nextSentenceData.current.sound;
+          currentTimestamps.current = nextSentenceData.current.timestamps;
+          
+          // If we have a preloaded translation, use it
+          if (nextSentenceData.current.translation) {
+            console.log('[ReadAlongModal] Using preloaded translation');
+            setSentenceTranslation(nextSentenceData.current.translation);
+          }
+          
+          nextSentenceData.current = null; // Clear the preloaded data
           
           // Preload the sentence after this one
           const sentenceAfterNextIndex = nextIndex + 1;
@@ -222,16 +235,48 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
           }
           
           return true;
+        } else {
+          // If no preloaded data, load the next sentence now
+          console.log(`[ReadAlongModal] Loading next sentence ${nextIndex} on demand`);
+          const sentence = sentences[nextIndex];
+          
+          // Fetch timestamps and audio in parallel
+          const [timestamps, speech] = await Promise.all([
+            fetchWordTimestamps(sentence, language),
+            fetchSpeechAudio(sentence, language)
+          ]);
+          
+          // Set the timestamps
+          currentTimestamps.current = timestamps;
+          
+          // Set the sound
+          if (speech && speech.sound) {
+            soundRef.current = speech.sound;
+            soundRef.current.setVolume(1.0);
+            soundRef.current.setSpeed(playbackSpeed);
+            
+            // Preload the sentence after this one
+            const sentenceAfterNextIndex = nextIndex + 1;
+            if (sentenceAfterNextIndex < sentences.length) {
+              preloadNextSentence(sentenceAfterNextIndex);
+            }
+            
+            return true;
+          }
         }
+      } catch (error) {
+        console.error('[ReadAlongModal] Error loading next sentence:', error);
+        return false;
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      console.error('[ReadAlongModal] Error loading next sentence:', error);
+      
       return false;
     } finally {
-      setIsLoading(false);
+      // Release the mutex lock when done, regardless of success or failure
+      audioControlMutex.current.release();
+      console.log('[ReadAlongModal] Released mutex lock after loadNextSentence');
     }
-    
-    return false;
   };
 
   // Track if a sentence has just completed playing
@@ -246,32 +291,46 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       // Load and play the next sentence
       const autoAdvance = async () => {
         try {
+          // We don't need to acquire the mutex here because loadNextSentence will do so internally
           const nextLoaded = await loadNextSentence();
-          if (nextLoaded && soundRef.current) {
-            console.log('[ReadAlongModal] Saving current position');
-            const position = {
-              section,
-              readAlongIndex: currentSentenceIndex,
-            };
-            await AsyncStorage.setItem(`${currentBook!.path}_position`, JSON.stringify(position));
+          
+          // Acquire mutex before playing the next sentence
+          await audioControlMutex.current.acquire();
+          console.log('[ReadAlongModal] Acquired mutex lock for auto-advance playback');
+          
+          try {
+            if (nextLoaded && soundRef.current) {
+              console.log('[ReadAlongModal] Saving current position');
+              const position = {
+                section,
+                readAlongIndex: currentSentenceIndex,
+              };
+              await AsyncStorage.setItem(`${currentBook!.path}_position`, JSON.stringify(position));
 
-            console.log('[ReadAlongModal] Starting playback of next sentence');
-            soundRef.current.play((nextSuccess) => {
-              if (nextSuccess) {
-                console.log('[ReadAlongModal] Next sentence completed successfully');
-                // Signal another sentence has finished
-                setSentenceFinished(true);
-              } else {
-                console.error('[ReadAlongModal] Next sentence playback error');
-                setIsPlaying(false);
-                setSentenceFinished(false);
-              }
-            });
-          } else {
-            // No more sentences or loading failed
-            console.log('[ReadAlongModal] No more sentences or load failed');
-            setIsPlaying(false);
-            setSentenceFinished(false);
+              console.log('[ReadAlongModal] Starting playback of next sentence');
+              soundRef.current.play((nextSuccess) => {
+                if (nextSuccess) {
+                  console.log('[ReadAlongModal] Next sentence completed successfully');
+                  // Signal another sentence has finished
+                  setSentenceFinished(true);
+                } else {
+                  console.error('[ReadAlongModal] Next sentence playback error');
+                  setIsPlaying(false);
+                  setSentenceFinished(false);
+                }
+              });
+              
+              setIsPlaying(true);
+            } else {
+              // No more sentences or loading failed
+              console.log('[ReadAlongModal] No more sentences or load failed');
+              setIsPlaying(false);
+              setSentenceFinished(false);
+            }
+          } finally {
+            // Release the mutex after starting playback
+            audioControlMutex.current.release();
+            console.log('[ReadAlongModal] Released mutex lock after auto-advance playback');
           }
         } catch (error) {
           console.error('[ReadAlongModal] Error in auto-advance:', error);
@@ -286,7 +345,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     }
   }, [sentenceFinished, sentences, language, currentSentenceIndex, playbackSpeed]);
 
-  const handleTogglePlay = (e: any) => {
+  const handleTogglePlay = async (e: any) => {
     e.preventDefault();
     
     // Prevent play actions while loading audio
@@ -295,88 +354,104 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       return;
     }
     
-    if (soundRef.current) {
-      if (!isPlaying) {
-        // Reset highlight index when starting playback from beginning
-        if (soundRef.current.getCurrentTime) {
-          soundRef.current.getCurrentTime((seconds) => {
-            if (seconds < 0.1) {
-              // Starting from beginning
-              currentHighlightIndex.current = 0;
-              setHighlightIndex(0);
-            } else {
-              // If we're resuming from middle, find the right word to highlight
-              const milliseconds = seconds * 1000;
-              let wordIndex = 0;
-              
-              // Find the appropriate word based on current playback position
-              for (let i = 0; i < currentTimestamps.current.length; i++) {
-                const timestamp = currentTimestamps.current[i];
-                if (!timestamp) continue;
-                
-                if (timestamp.time <= milliseconds) {
-                  wordIndex = i;
+    // Acquire mutex lock for audio operations
+    await audioControlMutex.current.acquire();
+    console.log('[ReadAlongModal] Acquired mutex lock for handleTogglePlay');
+    
+    try {
+      if (soundRef.current) {
+        if (!isPlaying) {
+          // Reset highlight index when starting playback from beginning
+          if (soundRef.current.getCurrentTime) {
+            await new Promise<void>((resolve) => {
+              soundRef.current!.getCurrentTime((seconds) => {
+                if (seconds < 0.1) {
+                  // Starting from beginning
+                  currentHighlightIndex.current = 0;
+                  setHighlightIndex(0);
                 } else {
-                  break;
+                  // If we're resuming from middle, find the right word to highlight
+                  const milliseconds = seconds * 1000;
+                  let wordIndex = 0;
+                  
+                  // Find the appropriate word based on current playback position
+                  for (let i = 0; i < currentTimestamps.current.length; i++) {
+                    const timestamp = currentTimestamps.current[i];
+                    if (!timestamp) continue;
+                    
+                    if (timestamp.time <= milliseconds) {
+                      wordIndex = i;
+                    } else {
+                      break;
+                    }
+                  }
+                  
+                  currentHighlightIndex.current = wordIndex;
+                  setHighlightIndex(wordIndex);
                 }
-              }
-              
-              currentHighlightIndex.current = wordIndex;
-              setHighlightIndex(wordIndex);
-            }
-          });
-        }
-
-        // Start playback
-        soundRef.current.play((success) => {
-          if (success) {
-            console.log('[ReadAlongModal] Sound finished playing successfully');
-            // Signal that a sentence has completed
-            setSentenceFinished(true);
-          } else {
-            console.error('[ReadAlongModal] Sound playback encountered an error');
-            setIsPlaying(false);
+                resolve();
+              });
+            });
           }
-        });
-        
-        setIsPlaying(true);
-      } else {
-        // Pause playback but maintain current highlight position
-        soundRef.current.pause();
-        
-        // Get current time to make sure highlight stays at right position
-        if (soundRef.current.getCurrentTime) {
-          soundRef.current.getCurrentTime((seconds) => {
-            const milliseconds = seconds * 1000;
-            let wordIndex = currentHighlightIndex.current; // Start with current value
-            
-            // Find the appropriate word based on current playback position
-            for (let i = 0; i < currentTimestamps.current.length; i++) {
-              const timestamp = currentTimestamps.current[i];
-              if (!timestamp) continue;
-              
-              if (timestamp.time <= milliseconds) {
-                wordIndex = i;
-              } else {
-                break;
-              }
+
+          // Start playback
+          soundRef.current.play((success) => {
+            if (success) {
+              console.log('[ReadAlongModal] Sound finished playing successfully');
+              // Signal that a sentence has completed
+              setSentenceFinished(true);
+            } else {
+              console.error('[ReadAlongModal] Sound playback encountered an error');
+              setIsPlaying(false);
             }
-            
-            // Update both ref and state to ensure consistency
-            currentHighlightIndex.current = wordIndex;
-            setHighlightIndex(wordIndex);
-            
-            // Reset the sentence finished flag to prevent auto-advancing
-            setSentenceFinished(false);
           });
+          
+          setIsPlaying(true);
+        } else {
+          // Pause playback but maintain current highlight position
+          soundRef.current.pause();
+          
+          // Get current time to make sure highlight stays at right position
+          if (soundRef.current.getCurrentTime) {
+            await new Promise<void>((resolve) => {
+              soundRef.current!.getCurrentTime((seconds) => {
+                const milliseconds = seconds * 1000;
+                let wordIndex = currentHighlightIndex.current; // Start with current value
+                
+                // Find the appropriate word based on current playback position
+                for (let i = 0; i < currentTimestamps.current.length; i++) {
+                  const timestamp = currentTimestamps.current[i];
+                  if (!timestamp) continue;
+                  
+                  if (timestamp.time <= milliseconds) {
+                    wordIndex = i;
+                  } else {
+                    break;
+                  }
+                }
+                
+                // Update both ref and state to ensure consistency
+                currentHighlightIndex.current = wordIndex;
+                setHighlightIndex(wordIndex);
+                
+                // Reset the sentence finished flag to prevent auto-advancing
+                setSentenceFinished(false);
+                resolve();
+              });
+            });
+          }
+          
+          setIsPlaying(false);
         }
-        
-        setIsPlaying(false);
+      } else {
+        console.error('[ReadAlongModal] Cannot play sound - sound object not initialized');
+        // Try to reload the audio if it failed to load
+        await initializeModal();
       }
-    } else {
-      console.error('[ReadAlongModal] Cannot play sound - sound object not initialized');
-      // Try to reload the audio if it failed to load
-      initializeModal();
+    } finally {
+      // Release the mutex lock when done, regardless of success or failure
+      audioControlMutex.current.release();
+      console.log('[ReadAlongModal] Released mutex lock after handleTogglePlay');
     }
   }
   
@@ -550,150 +625,180 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     onClose();
   }
 
-  const handleToggleSpeed = () => {
+  const handleToggleSpeed = async () => {
     if (soundRef.current) {
-      // Toggle between normal (1.0) and slow (0.5) speed
-      const newSpeed = playbackSpeed === 1.0 ? 0.5 : 1.0;
-      setPlaybackSpeed(newSpeed);
+      // Acquire mutex lock for audio operations
+      await audioControlMutex.current.acquire();
+      console.log('[ReadAlongModal] Acquired mutex lock for handleToggleSpeed');
       
-      // Save the current playback state
-      const wasPlaying = isPlaying;
-      
-      // If currently playing, we need to pause before changing speed
-      if (wasPlaying) {
-        soundRef.current.pause();
-      }
-      
-      // Change the speed
-      soundRef.current.setSpeed(newSpeed);
-      console.log(`[ReadAlongModal] Playback speed toggled to ${newSpeed}x`);
-      
-      // Resume playback only if it was already playing
-      if (wasPlaying) {
-        soundRef.current.play((success) => {
-          if (success) {
-            console.log('[ReadAlongModal] Sound finished playing successfully after speed change');
-            setSentenceFinished(true);
-          } else {
-            console.error('[ReadAlongModal] Sound playback encountered an error after speed change');
-            setIsPlaying(false);
-          }
-        });
-        // Make sure isPlaying state matches actual playback state
-        setIsPlaying(true);
+      try {
+        // Toggle between normal (1.0) and slow (0.5) speed
+        const newSpeed = playbackSpeed === 1.0 ? 0.5 : 1.0;
+        setPlaybackSpeed(newSpeed);
+        
+        // Save the current playback state
+        const wasPlaying = isPlaying;
+        
+        // If currently playing, we need to pause before changing speed
+        if (wasPlaying) {
+          soundRef.current.pause();
+        }
+        
+        // Change the speed
+        soundRef.current.setSpeed(newSpeed);
+        console.log(`[ReadAlongModal] Playback speed toggled to ${newSpeed}x`);
+        
+        // Resume playback only if it was already playing
+        if (wasPlaying) {
+          soundRef.current.play((success) => {
+            if (success) {
+              console.log('[ReadAlongModal] Sound finished playing successfully after speed change');
+              setSentenceFinished(true);
+            } else {
+              console.error('[ReadAlongModal] Sound playback encountered an error after speed change');
+              setIsPlaying(false);
+            }
+          });
+          // Make sure isPlaying state matches actual playback state
+          setIsPlaying(true);
+        }
+      } finally {
+        // Release the mutex lock when done
+        audioControlMutex.current.release();
+        console.log('[ReadAlongModal] Released mutex lock after handleToggleSpeed');
       }
     }
   };
   
-  const handleRestartSentence = () => {
-    if (soundRef.current) {
-      console.log('[ReadAlongModal] Restarting current sentence from beginning');
-      
-      // Pause if currently playing
-      if (isPlaying) {
-        soundRef.current.pause();
+  const handleRestartSentence = async () => {
+    // Acquire mutex lock for audio operations
+    await audioControlMutex.current.acquire();
+    console.log('[ReadAlongModal] Acquired mutex lock for handleRestartSentence');
+    
+    try {
+      if (soundRef.current) {
+        console.log('[ReadAlongModal] Restarting current sentence from beginning');
+        
+        // Pause if currently playing
+        if (isPlaying) {
+          soundRef.current.pause();
+        }
+        
+        // Reset to beginning
+        soundRef.current.setCurrentTime(0);
+        
+        // Reset highlight index to the first word
+        setHighlightIndex(0);
+        currentHighlightIndex.current = 0;
+        
+        // Resume playing if it was playing before
+        if (isPlaying) {
+          soundRef.current.play((success) => {
+            if (success) {
+              console.log('[ReadAlongModal] Sound finished playing successfully');
+              setSentenceFinished(true);
+            } else {
+              console.error('[ReadAlongModal] Sound playback encountered an error');
+              setIsPlaying(false);
+            }
+          });
+        }
       }
-      
-      // Reset to beginning
-      soundRef.current.setCurrentTime(0);
-      
-      // Reset highlight index to the first word
-      setHighlightIndex(0);
-      currentHighlightIndex.current = 0;
-      
-      // Resume playing if it was playing before
-      if (isPlaying) {
-        soundRef.current.play((success) => {
-          if (success) {
-            console.log('[ReadAlongModal] Sound finished playing successfully');
-            setSentenceFinished(true);
-          } else {
-            console.error('[ReadAlongModal] Sound playback encountered an error');
-            setIsPlaying(false);
-          }
-        });
-      }
+    } finally {
+      // Release the mutex lock when done
+      audioControlMutex.current.release();
+      console.log('[ReadAlongModal] Released mutex lock after handleRestartSentence');
     }
   };
   
   const handlePreviousSentence = async () => {
     // Only proceed if not at the first sentence already
     if (currentSentenceIndex > 0 && !isLoading) {
-      console.log('[ReadAlongModal] Moving to previous sentence');
-      
-      // Stop current playback
-      if (soundRef.current) {
-        const wasPlaying = isPlaying;
-        
-        if (isPlaying) {
-          soundRef.current.pause();
-          setIsPlaying(false);
-        }
-        
-        // Clean up current sound
-        soundRef.current.release();
-        soundRef.current = null;
-      }
+      // Acquire mutex lock for audio operations
+      await audioControlMutex.current.acquire();
+      console.log('[ReadAlongModal] Acquired mutex lock for handlePreviousSentence');
       
       try {
-        setIsLoading(true);
+        console.log('[ReadAlongModal] Moving to previous sentence');
         
-        // Calculate the new index
-        const newIndex = currentSentenceIndex - 1;
-        
-        // Update the tracking state
-        setCurrentSentenceIndex(newIndex);
-        setHighlightIndex(0);
-        currentHighlightIndex.current = 0;
-        
-        // Reset sentence translation
-        setSentenceTranslation('');
-        
-        // Save the new position
-        await saveReadingPosition(newIndex);
-        
-        // Load the previous sentence
-        const sentence = sentences[newIndex];
-        console.log(`[ReadAlongModal] Loading previous sentence ${newIndex}: "${sentence.substring(0, 30)}..."`);
-        
-        // Fetch timestamps and audio
-        const [timestamps, speech] = await Promise.all([
-          fetchWordTimestamps(sentence, language),
-          fetchSpeechAudio(sentence, language)
-        ]);
-        
-        // Set the timestamps
-        currentTimestamps.current = timestamps;
-        
-        // Set the sound
-        if (speech && speech.sound) {
-          soundRef.current = speech.sound;
-          soundRef.current.setVolume(1.0);
-          soundRef.current.setSpeed(playbackSpeed);
+        // Stop current playback
+        if (soundRef.current) {
+          const wasPlaying = isPlaying;
           
-          // Start playing automatically
-          soundRef.current.play((success) => {
-            if (success) {
-              console.log('[ReadAlongModal] Previous sentence completed successfully');
-              setSentenceFinished(true);
-            } else {
-              console.error('[ReadAlongModal] Previous sentence playback error');
-              setIsPlaying(false);
-            }
-          });
+          if (isPlaying) {
+            soundRef.current.pause();
+            setIsPlaying(false);
+          }
           
-          // Update playing state
-          setIsPlaying(true);
-        } else {
-          console.error('[ReadAlongModal] Failed to load audio for previous sentence');
+          // Clean up current sound
+          soundRef.current.release();
+          soundRef.current = null;
         }
         
-        // Preload the sentence after this one (which is the current sentence)
-        preloadNextSentence(currentSentenceIndex);
-      } catch (error) {
-        console.error('[ReadAlongModal] Error loading previous sentence:', error);
+        try {
+          setIsLoading(true);
+          
+          // Calculate the new index
+          const newIndex = currentSentenceIndex - 1;
+          
+          // Update the tracking state
+          setCurrentSentenceIndex(newIndex);
+          setHighlightIndex(0);
+          currentHighlightIndex.current = 0;
+          
+          // Reset sentence translation
+          setSentenceTranslation('');
+          
+          // Save the new position
+          await saveReadingPosition(newIndex);
+          
+          // Load the previous sentence
+          const sentence = sentences[newIndex];
+          console.log(`[ReadAlongModal] Loading previous sentence ${newIndex}: "${sentence.substring(0, 30)}..."`);
+          
+          // Fetch timestamps and audio
+          const [timestamps, speech] = await Promise.all([
+            fetchWordTimestamps(sentence, language),
+            fetchSpeechAudio(sentence, language)
+          ]);
+          
+          // Set the timestamps
+          currentTimestamps.current = timestamps;
+          
+          // Set the sound
+          if (speech && speech.sound) {
+            soundRef.current = speech.sound;
+            soundRef.current.setVolume(1.0);
+            soundRef.current.setSpeed(playbackSpeed);
+            
+            // Start playing automatically
+            soundRef.current.play((success) => {
+              if (success) {
+                console.log('[ReadAlongModal] Previous sentence completed successfully');
+                setSentenceFinished(true);
+              } else {
+                console.error('[ReadAlongModal] Previous sentence playback error');
+                setIsPlaying(false);
+              }
+            });
+            
+            // Update playing state
+            setIsPlaying(true);
+          } else {
+            console.error('[ReadAlongModal] Failed to load audio for previous sentence');
+          }
+          
+          // Preload the sentence after this one (which is the current sentence)
+          preloadNextSentence(currentSentenceIndex);
+        } catch (error) {
+          console.error('[ReadAlongModal] Error loading previous sentence:', error);
+        } finally {
+          setIsLoading(false);
+        }
       } finally {
-        setIsLoading(false);
+        // Release the mutex lock when done
+        audioControlMutex.current.release();
+        console.log('[ReadAlongModal] Released mutex lock after handlePreviousSentence');
       }
     }
   };
@@ -702,6 +807,9 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     // Only proceed if not at the last sentence already
     if (currentSentenceIndex < sentences.length - 1 && !isLoading) {
       console.log('[ReadAlongModal] Manually advancing to next sentence without auto-play');
+      
+      // We don't need to acquire the mutex here since loadNextSentence will do it internally
+      // This ensures clean handoff between operations
       
       // Load the next sentence but don't auto-play it
       const nextLoaded = await loadNextSentence();
