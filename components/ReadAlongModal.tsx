@@ -7,9 +7,10 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
-import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+import { GestureDetector, Gesture, ScrollView } from 'react-native-gesture-handler';
 import { fetchSpeechAudio, fetchWordTimestamps, translateText, explainWord } from '../services/TranslationService';
 import Sound from 'react-native-sound';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -836,7 +837,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                       </Text>
                     </View>
                   ) : (
-                    <>
+                    <ScrollView style={styles.textContainer}>
                       <View style={styles.textSection}>
                         {sentences[currentSentenceIndex] && sentences[currentSentenceIndex].split(' ').map((word, index) => {
                           // Check if word is in selected words
@@ -874,7 +875,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                           <Text style={styles.sentenceTranslation}>{sentenceTranslation}</Text>
                         )}
                       </View>
-                    </>
+                    </ScrollView>
                   )}
                 </View>
                 
@@ -1307,6 +1308,9 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: '#007AFF',
   },
+  textContainer: {
+    maxHeight: 400, // TODO change to percentage some relative value
+  }
 });
 
 export default ReadAlongModal;
