@@ -701,24 +701,17 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   const handleNextSentence = async () => {
     // Only proceed if not at the last sentence already
     if (currentSentenceIndex < sentences.length - 1 && !isLoading) {
-      console.log('[ReadAlongModal] Manually advancing to next sentence');
+      console.log('[ReadAlongModal] Manually advancing to next sentence without auto-play');
       
-      // This is similar to automatic advancement but triggered manually
+      // Load the next sentence but don't auto-play it
       const nextLoaded = await loadNextSentence();
       
-      if (nextLoaded && soundRef.current) {
-        console.log('[ReadAlongModal] Starting playback of next sentence');
-        soundRef.current.play((success) => {
-          if (success) {
-            console.log('[ReadAlongModal] Next sentence completed successfully');
-            setSentenceFinished(true);
-          } else {
-            console.error('[ReadAlongModal] Next sentence playback error');
-            setIsPlaying(false);
-          }
-        });
-        
-        setIsPlaying(true);
+      // Don't start playback - the audio will only play when user presses play
+      // or when the current sentence finishes naturally
+      if (nextLoaded) {
+        console.log('[ReadAlongModal] Next sentence loaded but not auto-playing');
+        // Keep isPlaying false since we're not auto-playing
+        setIsPlaying(false);
       }
     }
   };
