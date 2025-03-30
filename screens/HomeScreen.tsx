@@ -907,7 +907,7 @@ function HomeScreen(): React.JSX.Element {
             // Update last read time in metadata
             await updateLastRead(item.id);
             
-            // Parse the EPUB file
+            // Parse the EPUB file - this will now parse all book content
             console.log(`[HomeScreen] Opening book: ${item.uri}`);
             const book = await parseEpub(item.uri);
             
@@ -916,52 +916,54 @@ function HomeScreen(): React.JSX.Element {
             }
             
             setCurrentBook(book);
-            console.log(`[HomeScreen] Book parsed successfully: ${book.title}`);
+            console.log(`[HomeScreen] Book parsed successfully with ${book.content?.length || 0} content elements`);
 
-            // Try to get content path - first from stored position, then from navigation
-            let srcPath;
+            // We'll still need to handle section selection for compatibility
             try {
-                const storedPosition = await AsyncStorage.getItem(`${book.path}_position`);
+                // Get a placeholder content for backward compatibility
+                let placeholderContent = "";
+                let section = null;
                 
+                // Check for stored position first
+                const storedPosition = await AsyncStorage.getItem(`${book.path}_position`);
                 if (storedPosition) {
                     console.log(`[HomeScreen] Found stored position for book`);
                     const positionJson = JSON.parse(storedPosition);
                     
                     if (positionJson.section && positionJson.section.src) {
-                        srcPath = book.basePath + '/' + positionJson.section.src.split('#')[0];
+                        const srcPath = book.basePath + '/' + positionJson.section.src.split('#')[0];
                         console.log(`[HomeScreen] Using stored position path: ${srcPath}`);
-                    } else {
-                        console.log(`[HomeScreen] Invalid stored position, looking for content tag instead`);
-                        // Continue to finding content tag
+                        placeholderContent = await readTextFile(srcPath);
+                        section = positionJson.section;
                     }
                 }
                 
-                // If we don't have a valid srcPath yet, look for content tag
-                if (!srcPath) {
-                    console.log(`[HomeScreen] Looking for first content tag in book`);
+                // If we don't have a valid position, use the first content element
+                if (!placeholderContent) {
+                    console.log(`[HomeScreen] Using first content element in book`);
                     const firstContentElem = findFirstContentTag(book.navMap);
                     
-                    if (!firstContentElem) {
-                        throw new Error("Could not find any content in the book");
+                    if (firstContentElem && firstContentElem.getAttribute) {
+                        const src = firstContentElem.getAttribute('src');
+                        if (src) {
+                            const srcPath = book.basePath + '/' + src.split('#')[0];
+                            placeholderContent = await readTextFile(srcPath);
+                            section = {
+                                src,
+                                id: firstContentElem.getAttribute('id') || 'default',
+                                label: 'Start',
+                                playOrder: '1',
+                                children: []
+                            };
+                        }
                     }
-                    
-                    const src = firstContentElem.getAttribute('src');
-                    if (!src) {
-                        throw new Error("Content element doesn't have a source attribute");
-                    }
-                    
-                    srcPath = book.basePath + '/' + src.split('#')[0];
-                    console.log(`[HomeScreen] Found content path: ${srcPath}`);
                 }
                 
-                // Read the content file
-                const content = await readTextFile(srcPath);
-                console.log(`[HomeScreen] Successfully read content file: ${srcPath}`);
-
-                // Navigate to reader screen
-                navigation.navigate('Reader', { 
-                    content,
-                    language: book.language
+                // Navigate to the reader screen - it will prioritize book.content
+                navigation.navigate('Reader', {
+                    content: placeholderContent, // For backward compatibility
+                    language: book.language,
+                    section: section
                 });
                 
             } catch (contentError) {

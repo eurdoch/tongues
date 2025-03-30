@@ -75,13 +75,8 @@ function App() {
         const savedFilePath = await copyFileToAppStorage(uri);
         
         if (savedFilePath) {
-          // Parse the epub file
+          // Parse the epub file - this now parses the entire book content
           const book = await parseEpub(savedFilePath);
-          
-          // Get the first content element
-          const firstContentElem = findFirstContentTag(book.navMap);
-          const firstContentPath = book.basePath + '/' + firstContentElem.getAttribute('src');
-          const firstContents = await readTextFile(firstContentPath);
           
           // Store the book data so it can be accessed by components
           // Define global type if it doesn't exist (needed for TypeScript)
@@ -91,11 +86,25 @@ function App() {
           // Store the book data globally
           global.pendingBook = book;
           
+          // Get a placeholder content for backward compatibility
+          // This won't actually be used since we're loading from book.content
+          let placeholderContent = "";
+          try {
+            const firstContentElem = findFirstContentTag(book.navMap);
+            if (firstContentElem && firstContentElem.getAttribute) {
+              const firstContentPath = book.basePath + '/' + firstContentElem.getAttribute('src');
+              placeholderContent = await readTextFile(firstContentPath);
+            }
+          } catch (error) {
+            console.error('[App] Error getting placeholder content:', error);
+            // Continue anyway as we have the full book content
+          }
+          
           // Navigate to the reader screen
           if (navigationRef.current && navigationRef.current.isReady()) {
-            console.log(`[App] Navigation is ready, navigating to Reader with content`);
+            console.log(`[App] Navigation is ready, navigating to Reader`);
             navigationRef.current.navigate('Reader', {
-              content: firstContents,
+              content: placeholderContent, // This is just for backward compatibility
               language: book.language,
             });
             console.log(`[App] Navigation.navigate method called`);
@@ -106,7 +115,7 @@ function App() {
               if (navigationRef.current && navigationRef.current.isReady()) {
                 console.log(`[App] Navigation ready after delay, navigating to Reader`);
                 navigationRef.current.navigate('Reader', {
-                  content: firstContents,
+                  content: placeholderContent, // This is just for backward compatibility
                   language: book.language,
                 });
               } else {

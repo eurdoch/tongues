@@ -5,6 +5,7 @@ import { readTextFile } from '../utils';
 import BookData from '../types/BookData';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { determineLanguage } from '../services/TranslationService';
+import { parseHtml } from './EpubContentParser';
 
 const ISO_TO_LANG = {
   'fr': 'French',
@@ -29,6 +30,7 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
     const unzipResult = await unzip(fileUri, extractionPath);
     console.log('Epub unzipped to:', unzipResult);
 
+    // Find navigation structure (needed for TOC)
     let navMapObj = null;
     const tocPath = await findFileWithExtension(unzipResult, 'ncx');
     
@@ -38,58 +40,46 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
       navMapObj = findNavMap(parsedToc);
     }
 
-    const lastContentNode = findLastContentTag(navMapObj);
-    if (!lastContentNode || !lastContentNode.attributes || !lastContentNode.attributes[0]) {
-      console.error('No valid content node found in navMap');
-      throw Error('No valid content node found in EPUB navigation map');
+    // Find all HTML content files in the EPUB
+    console.log('Finding all content files in EPUB...');
+    const contentFiles = await findAllContentFiles(unzipResult);
+    
+    if (contentFiles.length === 0) {
+      console.error('No content files found in EPUB');
+      throw Error('No content files found in EPUB');
     }
-
-    // Remove anchor fragment from file path if present
-    const contentPath = lastContentNode.attributes[0].value.split('#')[0];
     
-    // Try different path combinations to locate the file
-    let filePath = `${unzipResult}/${contentPath}`;
-    let fileExists = await RNFS.exists(filePath);
+    console.log(`Found ${contentFiles.length} content files in EPUB`);
     
-    if (!fileExists) {
-      // Try an alternative path structure
-      const altPath = `${unzipResult}/OEBPS/${contentPath}`;
-      const altExists = await RNFS.exists(altPath);
-      if (altExists) {
-        filePath = altPath;
-        fileExists = true;
-      } else {
-        // Try to locate the file by name in the extraction directory
-        const fileName = contentPath.split('/').pop();
-        console.log(`Searching for file by name: ${fileName}`);
-        
-        try {
-          const foundFile = await findFileRecursively(unzipResult, fileName || '');
-          if (foundFile) {
-            filePath = foundFile;
-            fileExists = true;
-            console.log(`Found file at: ${foundFile}`);
-          }
-        } catch (searchError) {
-          console.error('Error searching for file by name:', searchError);
-        }
+    // Parse all content files into ElementNode arrays
+    console.log('Parsing all content files...');
+    const allContentElements = [];
+    
+    for (const contentFile of contentFiles) {
+      try {
+        const fileContent = await readTextFile(contentFile);
+        const parsedContent = parseHtml(fileContent);
+        allContentElements.push(...parsedContent);
+      } catch (parseError) {
+        console.error(`Error parsing content file ${contentFile}:`, parseError);
+        // Continue with other files even if one fails
       }
     }
     
-    if (!fileExists) {
-      console.error(`File not found at any path variation: ${contentPath}`);
-      throw Error(`File not found in EPUB: ${contentPath}`);
-    }
+    console.log(`Successfully parsed ${allContentElements.length} ElementNodes from all content files`);
     
-    console.log(`Reading content from: ${filePath}`);
-    const lastContents = await readTextFile(filePath);
-    const determination = await determineLanguage(lastContents);
+    // Get book language
+    // Use the first content file to determine language
+    const firstContentFile = contentFiles[0];
+    const firstContents = await readTextFile(firstContentFile);
+    const determination = await determineLanguage(firstContents);
 
     return {
       language: determination.language,
       path: unzipResult,
       navMap: navMapObj,
-      basePath: tocPath ? tocPath.substring(0, tocPath.lastIndexOf('/')) : unzipResult
+      basePath: tocPath ? tocPath.substring(0, tocPath.lastIndexOf('/')) : unzipResult,
+      content: allContentElements // Add the parsed content to the BookData
     };
   } catch (error) {
     console.error('Epub parsing failed:', error);
@@ -127,6 +117,46 @@ async function findFileWithExtension(dir: string, extension: string): Promise<st
     }
   }
   return null;
+}
+
+/**
+ * Finds all HTML content files in the EPUB extraction directory
+ * 
+ * @param dir - The root directory of the extracted EPUB
+ * @returns Array of paths to all HTML content files
+ */
+async function findAllContentFiles(dir: string): Promise<string[]> {
+  const contentFiles: string[] = [];
+  
+  // Function to recursively find HTML files
+  async function findHtmlFiles(directory: string): Promise<void> {
+    try {
+      const files = await RNFS.readDir(directory);
+      
+      for (const file of files) {
+        const filePath = `${directory}/${file.name}`;
+        
+        if (file.isFile()) {
+          // Check if the file is HTML content
+          const lowerName = file.name.toLowerCase();
+          if (lowerName.endsWith('.html') || 
+              lowerName.endsWith('.xhtml') || 
+              lowerName.endsWith('.htm')) {
+            contentFiles.push(filePath);
+          }
+        } else if (file.isDirectory()) {
+          // Recursively search subdirectories
+          await findHtmlFiles(filePath);
+        }
+      }
+    } catch (error) {
+      console.error(`Error searching directory ${directory}:`, error);
+    }
+  }
+  
+  // Start the recursive search
+  await findHtmlFiles(dir);
+  return contentFiles;
 }
 
 /**

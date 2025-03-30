@@ -58,10 +58,23 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
         global.pendingBook = null;
       }
 
-      const parsedContent = parseHtml(route.params.content); 
-      setContent(parsedContent);
-      const sentences = extractSentences(parsedContent);
-      setSentences(sentences);
+      if (currentBook?.content) {
+        // Use the full content from the book data
+        console.log('[ReaderScreen] Using pre-parsed book content');
+        setContent(currentBook.content);
+        const sentences = extractSentences(currentBook.content);
+        setSentences(sentences);
+      } else if (route.params.content) {
+        // Fallback to parsing content from route params (for backward compatibility)
+        console.log('[ReaderScreen] Parsing content from route params');
+        const parsedContent = parseHtml(route.params.content);
+        setContent(parsedContent);
+        const sentences = extractSentences(parsedContent);
+        setSentences(sentences);
+      } else {
+        console.error('[ReaderScreen] No content available to display');
+        setError('No content available to display');
+      }
 
       setIsLoading(false);
 

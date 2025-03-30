@@ -76,6 +76,7 @@ function CustomDrawerContent() {
             const existingPath = existingFiles[0].path;
             console.log(`[CustomDrawerContent] Using existing file: ${existingPath}`);
   
+            // Parse the epub file to get full book content
             const book = await parseEpub(existingPath);
             
             if (!book || !book.navMap) {
@@ -83,24 +84,27 @@ function CustomDrawerContent() {
             }
   
             setCurrentBook(book);
-            console.log(`[CustomDrawerContent] Book parsed successfully: ${book.title}`);
+            console.log(`[CustomDrawerContent] Book parsed successfully with ${book.content?.length || 0} content elements`);
             
-            const firstContentElem = findFirstContentTag(book.navMap);
-            if (!firstContentElem) {
-              throw new Error("Could not find any content in the book");
+            // We'll still get placeholder content for backward compatibility
+            let placeholderContent = "";
+            try {
+              const firstContentElem = findFirstContentTag(book.navMap);
+              if (firstContentElem && firstContentElem.getAttribute) {
+                const src = firstContentElem.getAttribute('src');
+                if (src) {
+                  const firstContentPath = book.basePath + '/' + src;
+                  placeholderContent = await readTextFile(firstContentPath);
+                }
+              }
+            } catch (error) {
+              console.error('[CustomDrawerContent] Error getting placeholder content:', error);
+              // Continue anyway as we have the full book content
             }
-            
-            const src = firstContentElem.getAttribute('src');
-            if (!src) {
-              throw new Error("Content element doesn't have a source attribute");
-            }
-            
-            const firstContentPath = book.basePath + '/' + src;
-            const firstContents = await readTextFile(firstContentPath);
   
-            // Navigate to reader screen
+            // Navigate to reader screen - it will prioritize book.content
             navigation.navigate('Reader', { 
-              content: firstContents,
+              content: placeholderContent, // For backward compatibility
               language: book.language,
             });
             return;
@@ -110,30 +114,34 @@ function CustomDrawerContent() {
           const savedFilePath = await copyFileToAppStorage(file.uri);
           
           if (savedFilePath) {
+            // Parse the epub file to get full book content
             const book = await parseEpub(savedFilePath);
             if (!book || !book.navMap) {
               throw new Error("Failed to parse book navigation structure");
             }
             
             setCurrentBook(book);
-            console.log(`[CustomDrawerContent] Book parsed successfully: ${book.title}`);
+            console.log(`[CustomDrawerContent] Book parsed successfully with ${book.content?.length || 0} content elements`);
             
-            const firstContentElem = findFirstContentTag(book.navMap);
-            if (!firstContentElem) {
-              throw new Error("Could not find any content in the book");
+            // We'll still get placeholder content for backward compatibility
+            let placeholderContent = "";
+            try {
+              const firstContentElem = findFirstContentTag(book.navMap);
+              if (firstContentElem && firstContentElem.getAttribute) {
+                const src = firstContentElem.getAttribute('src');
+                if (src) {
+                  const firstContentPath = book.basePath + '/' + src;
+                  placeholderContent = await readTextFile(firstContentPath);
+                }
+              }
+            } catch (error) {
+              console.error('[CustomDrawerContent] Error getting placeholder content:', error);
+              // Continue anyway as we have the full book content
             }
-            
-            const src = firstContentElem.getAttribute('src');
-            if (!src) {
-              throw new Error("Content element doesn't have a source attribute");
-            }
-            
-            const firstContentPath = book.basePath + '/' + src;
-            const firstContents = await readTextFile(firstContentPath);
   
-            // Navigate to reader screen
+            // Navigate to reader screen - it will prioritize book.content
             navigation.navigate('Reader', { 
-              content: firstContents,
+              content: placeholderContent, // For backward compatibility
               language: book.language,
             });
           } else {
@@ -201,16 +209,24 @@ function CustomDrawerContent() {
       if (currentBook) {
         try {
           navigation.dispatch(DrawerActions.closeDrawer());
-          const sectionPathParts = item.src.split('#');
-          const sectionPath = currentBook.basePath + '/' + sectionPathParts[0];
-          const content = await readTextFile(sectionPath);
+          
+          // Save current section position
           const position = {
             section: item,
             readAlongIndex: 0,
           };
           await AsyncStorage.setItem(`${currentBook.path}_position`, JSON.stringify(position));
+          
+          // We'll still load the individual section content for backward compatibility
+          // Even though we have the full book content available in currentBook.content
+          const sectionPathParts = item.src.split('#');
+          const sectionPath = currentBook.basePath + '/' + sectionPathParts[0];
+          const content = await readTextFile(sectionPath);
+          
+          // Navigate to the Reader with the section information
+          // ReaderScreen will prioritize using currentBook.content
           navigation.navigate('Reader', {
-            content,
+            content,  // For backward compatibility
             language: currentBook.language,
             section: item,
           });
