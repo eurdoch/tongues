@@ -90,16 +90,10 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   // Create a mutex for audio control operations
   const audioControlMutex = useRef<Mutex>(new Mutex());
 
+  // Position saving removed
   const saveReadingPosition = async (index: number) => {
-    try {
-      const position = await AsyncStorage.getItem(`${currentBook!.path}_position`);
-      let positionJson = JSON.parse(position!); // position is set before entering ReaderScreen
-      positionJson.readAlongIndex = index;
-      await AsyncStorage.setItem(`${currentBook!.path}_position`, JSON.stringify(positionJson));
-      console.log(`[ReadAlongModal] Saved reading position: sentence ${index}`);
-    } catch (error) {
-      console.error('[ReadAlongModal] Error saving reading position:', error);
-    }
+    // Function kept as stub for compatibility
+    console.log(`[ReadAlongModal] Reading position tracking disabled: ${index}`);
   };
   
   // Function to preload the next sentence
@@ -464,16 +458,9 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         // Reset sentence translation
         setSentenceTranslation('');
         
-        // Get stored position or default to first sentence
-        const position = await AsyncStorage.getItem(`${currentBook!.path}_position`);
-        let index;
-        if (position) {
-          const positionJson = JSON.parse(position);
-          index = positionJson.readAlongIndex;
-          setCurrentSentenceIndex(index);
-        } else {
-          setCurrentSentenceIndex(0);
-        }
+        // Always start from the first sentence
+        const index = 0;
+        setCurrentSentenceIndex(index);
         
         setHighlightIndex(0); // Reset highlight when loading a new sentence
         if (currentHighlightIndex) {

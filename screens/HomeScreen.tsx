@@ -918,44 +918,26 @@ function HomeScreen(): React.JSX.Element {
             setCurrentBook(book);
             console.log(`[HomeScreen] Book parsed successfully with ${book.content?.length || 0} content elements`);
 
-            // We'll still need to handle section selection for compatibility
+            // Get a placeholder content to maintain compatibility
             try {
-                // Get a placeholder content for backward compatibility
+                // Always use the first content element
+                console.log(`[HomeScreen] Using first content element in book`);
+                const firstContentElem = findFirstContentTag(book.navMap);
                 let placeholderContent = "";
                 let section = null;
                 
-                // Check for stored position first
-                const storedPosition = await AsyncStorage.getItem(`${book.path}_position`);
-                if (storedPosition) {
-                    console.log(`[HomeScreen] Found stored position for book`);
-                    const positionJson = JSON.parse(storedPosition);
-                    
-                    if (positionJson.section && positionJson.section.src) {
-                        const srcPath = book.basePath + '/' + positionJson.section.src.split('#')[0];
-                        console.log(`[HomeScreen] Using stored position path: ${srcPath}`);
+                if (firstContentElem && firstContentElem.getAttribute) {
+                    const src = firstContentElem.getAttribute('src');
+                    if (src) {
+                        const srcPath = book.basePath + '/' + src.split('#')[0];
                         placeholderContent = await readTextFile(srcPath);
-                        section = positionJson.section;
-                    }
-                }
-                
-                // If we don't have a valid position, use the first content element
-                if (!placeholderContent) {
-                    console.log(`[HomeScreen] Using first content element in book`);
-                    const firstContentElem = findFirstContentTag(book.navMap);
-                    
-                    if (firstContentElem && firstContentElem.getAttribute) {
-                        const src = firstContentElem.getAttribute('src');
-                        if (src) {
-                            const srcPath = book.basePath + '/' + src.split('#')[0];
-                            placeholderContent = await readTextFile(srcPath);
-                            section = {
-                                src,
-                                id: firstContentElem.getAttribute('id') || 'default',
-                                label: 'Start',
-                                playOrder: '1',
-                                children: []
-                            };
-                        }
+                        section = {
+                            src,
+                            id: firstContentElem.getAttribute('id') || 'default',
+                            label: 'Start',
+                            playOrder: '1',
+                            children: []
+                        };
                     }
                 }
                 

@@ -210,13 +210,6 @@ function CustomDrawerContent() {
         try {
           navigation.dispatch(DrawerActions.closeDrawer());
           
-          // Save current section position
-          const position = {
-            section: item,
-            readAlongIndex: 0,
-          };
-          await AsyncStorage.setItem(`${currentBook.path}_position`, JSON.stringify(position));
-          
           // We'll still load the individual section content for backward compatibility
           // Even though we have the full book content available in currentBook.content
           const sectionPathParts = item.src.split('#');
