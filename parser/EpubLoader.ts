@@ -33,12 +33,24 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
 
     // Find navigation structure (needed for TOC)
     let navMapObj = null;
+    let tableOfContents = [];
     const tocPath = await findFileWithExtension(unzipResult, 'ncx');
     
     if (tocPath) {
       const tocContents = await RNFS.readFile(tocPath, 'utf8');
       const parsedToc = new DOMParser().parseFromString(tocContents);
       navMapObj = findNavMap(parsedToc);
+      
+      // Extract structured table of contents
+      if (navMapObj) {
+        try {
+          const { extractNavPoints } = require('../components/TableOfContents');
+          tableOfContents = extractNavPoints(navMapObj);
+          console.log(`Extracted table of contents with ${tableOfContents.length} top-level entries`);
+        } catch (tocError) {
+          console.error('Error extracting table of contents:', tocError);
+        }
+      }
     }
 
     // Find all HTML content files in the EPUB
@@ -93,13 +105,15 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
     const firstContents = await readTextFile(firstContentFile);
     const determination = await determineLanguage(firstContents);
 
+    console.debug('All content elements: ', allContentElements);
     return {
       language: determination.language,
       path: unzipResult,
-      navMap: navMapObj,
+      navMap: navMapObj, // Keep for backward compatibility
       basePath: tocPath ? tocPath.substring(0, tocPath.lastIndexOf('/')) : unzipResult,
       content: allContentElements, // Add the parsed content to the BookData
-      styleSheets: allStyleSheets // Add the parsed stylesheets to the BookData
+      styleSheets: allStyleSheets, // Add the parsed stylesheets to the BookData
+      tableOfContents: tableOfContents // Add the structured table of contents
     };
   } catch (error) {
     console.error('Epub parsing failed:', error);

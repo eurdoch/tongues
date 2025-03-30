@@ -70,16 +70,17 @@ export function extractNavPoints(navMap: any): NavPoint[] {
 }
 
 type TableOfContentsProps = {
-  navMap: any;
+  navPoints?: NavPoint[];
+  navMap?: any; // For backward compatibility
   onNavigate: (item: NavPoint) => void;
 };
 
 /**
  * Render a recursive table of contents component
  */
-const TableOfContents: React.FC<TableOfContentsProps> = ({ navMap, onNavigate }) => {
-  // Extract nav points from the navMap object
-  const navPoints = extractNavPoints(navMap);
+const TableOfContents: React.FC<TableOfContentsProps> = ({ navPoints, navMap, onNavigate }) => {
+  // Use provided navPoints or extract from navMap if not provided
+  const toc = navPoints || (navMap ? extractNavPoints(navMap) : []);
   
   // Recursive component to render nav points with their children
   const renderNavPoint = ({ item, level = 0 }: { item: NavPoint, level?: number }) => {
@@ -108,7 +109,7 @@ const TableOfContents: React.FC<TableOfContentsProps> = ({ navMap, onNavigate })
     <View style={styles.container}>
       <Text style={styles.title}>Table of Contents</Text>
       <FlatList
-        data={navPoints}
+        data={toc}
         renderItem={renderItem}
         keyExtractor={(item) => item.id || item.playOrder || item.label}
       />

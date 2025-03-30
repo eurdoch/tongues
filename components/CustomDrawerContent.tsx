@@ -253,8 +253,8 @@ function CustomDrawerContent() {
           
         </View>
         { 
-          currentBook && 
-            <TableOfContents navMap={currentBook.navMap} onNavigate={handleNavigateSection} />
+          currentBook && currentBook.tableOfContents && 
+            <TableOfContents navPoints={currentBook.tableOfContents} onNavigate={handleNavigateSection} />
         }
       </SafeAreaView>
     );
