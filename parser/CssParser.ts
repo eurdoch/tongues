@@ -107,6 +107,17 @@ function parseCssValue(property: string, value: string): any {
     return isNaN(numVal) ? value : numVal;
   }
   
+  // Handle em and rem values - convert to pixel equivalents
+  // assuming 1em = 16px as a base conversion
+  if (value.endsWith('em') || value.endsWith('rem')) {
+    const numVal = parseFloat(value);
+    if (!isNaN(numVal)) {
+      // Convert em/rem to a pixel value approximation (1em = 16px)
+      return numVal * 16;
+    }
+    return value;
+  }
+  
   // Handle unitless numbers
   if (/^-?\d+(\.\d+)?$/.test(value)) {
     return parseFloat(value);
@@ -119,7 +130,8 @@ function parseCssValue(property: string, value: string): any {
       return value;
     }
     // For other properties, just remove the % sign
-    return parseFloat(value) / 100;
+    const numVal = parseFloat(value);
+    return isNaN(numVal) ? value : numVal / 100;
   }
   
   // Handle color values
@@ -229,19 +241,28 @@ function parseCssRules(cssContent: string): CssRule[] {
 function cssRuleToReactNativeStyle(rule: CssRule): Record<string, any> {
   const rnStyle: Record<string, any> = {};
   
-  for (const [cssProperty, cssValue] of Object.entries(rule.properties)) {
-    // Skip empty values
-    if (!cssValue) continue;
-    
-    // Find the React Native property name
-    const rnProperty = cssToReactNativeMap[cssProperty];
-    if (!rnProperty) continue; // Skip unsupported properties
-    
-    // Convert the value
-    const rnValue = parseCssValue(cssProperty, cssValue);
-    if (rnValue !== undefined) {
-      rnStyle[rnProperty] = rnValue;
+  try {
+    for (const [cssProperty, cssValue] of Object.entries(rule.properties)) {
+      // Skip empty values
+      if (!cssValue) continue;
+      
+      // Find the React Native property name
+      const rnProperty = cssToReactNativeMap[cssProperty];
+      if (!rnProperty) continue; // Skip unsupported properties
+      
+      try {
+        // Convert the value
+        const rnValue = parseCssValue(cssProperty, cssValue);
+        if (rnValue !== undefined) {
+          rnStyle[rnProperty] = rnValue;
+        }
+      } catch (valueError) {
+        console.warn(`Error parsing CSS value "${cssValue}" for property "${cssProperty}":`, valueError);
+        // Continue with other properties even if one fails
+      }
     }
+  } catch (error) {
+    console.warn('Error converting CSS rule to React Native style:', error);
   }
   
   return rnStyle;
@@ -251,41 +272,61 @@ function cssRuleToReactNativeStyle(rule: CssRule): Record<string, any> {
  * Parse all CSS stylesheets into a map of selector-based styles
  */
 export function parseAllStylesheets(styleSheets: StyleSheet[]): Record<string, any> {
-  const parsedSheets: ParsedStyleSheet[] = styleSheets.map(sheet => ({
-    path: sheet.path,
-    rules: parseCssRules(sheet.content)
-  }));
+  const parsedSheets: ParsedStyleSheet[] = [];
+  
+  // Parse each stylesheet with error handling
+  for (const sheet of styleSheets) {
+    try {
+      parsedSheets.push({
+        path: sheet.path,
+        rules: parseCssRules(sheet.content)
+      });
+    } catch (parseError) {
+      console.warn(`Error parsing stylesheet ${sheet.path}:`, parseError);
+      // Continue with other stylesheets even if one fails
+    }
+  }
   
   // Combine all rules into a single selector-based map
   const allStyles: Record<string, any> = {};
   
   for (const sheet of parsedSheets) {
     for (const rule of sheet.rules) {
-      // Convert the CSS rule to a React Native style object
-      const rnStyle = cssRuleToReactNativeStyle(rule);
-      
-      // Skip empty style objects
-      if (Object.keys(rnStyle).length === 0) continue;
-      
-      // Process the selector - split multiple selectors
-      const selectors = rule.selector.split(',').map(s => s.trim());
-      
-      for (const selector of selectors) {
-        // Clean and normalize selector
-        const normalizedSelector = normalizeCssSelector(selector);
+      try {
+        // Convert the CSS rule to a React Native style object
+        const rnStyle = cssRuleToReactNativeStyle(rule);
         
-        if (!normalizedSelector) continue;
+        // Skip empty style objects
+        if (Object.keys(rnStyle).length === 0) continue;
         
-        // Store the styles for this selector
-        if (!allStyles[normalizedSelector]) {
-          allStyles[normalizedSelector] = rnStyle;
-        } else {
-          // Merge with existing styles for this selector
-          allStyles[normalizedSelector] = {
-            ...allStyles[normalizedSelector],
-            ...rnStyle
-          };
+        // Process the selector - split multiple selectors
+        const selectors = rule.selector.split(',').map(s => s.trim());
+        
+        for (const selector of selectors) {
+          try {
+            // Clean and normalize selector
+            const normalizedSelector = normalizeCssSelector(selector);
+            
+            if (!normalizedSelector) continue;
+            
+            // Store the styles for this selector
+            if (!allStyles[normalizedSelector]) {
+              allStyles[normalizedSelector] = rnStyle;
+            } else {
+              // Merge with existing styles for this selector
+              allStyles[normalizedSelector] = {
+                ...allStyles[normalizedSelector],
+                ...rnStyle
+              };
+            }
+          } catch (selectorError) {
+            console.warn(`Error processing selector "${selector}":`, selectorError);
+            // Continue with other selectors even if one fails
+          }
         }
+      } catch (ruleError) {
+        console.warn(`Error processing CSS rule:`, ruleError);
+        // Continue with other rules even if one fails
       }
     }
   }
@@ -365,9 +406,15 @@ export function createStyleSheet(styles: Record<string, any>): ReactNativeStyleS
  * Main function to process all CSS from the book and return a React Native StyleSheet
  */
 export function processBookStyles(styleSheets: StyleSheet[]): ReactNativeStyleSheet.NamedStyles<any> {
-  // Parse all stylesheets into a selector-based style map
-  const parsedStyles = parseAllStylesheets(styleSheets);
-  
-  // Convert to React Native StyleSheet
-  return createStyleSheet(parsedStyles);
+  try {
+    // Parse all stylesheets into a selector-based style map
+    const parsedStyles = parseAllStylesheets(styleSheets);
+    
+    // Convert to React Native StyleSheet
+    return createStyleSheet(parsedStyles);
+  } catch (error) {
+    console.warn('Error processing book styles:', error);
+    // Return an empty stylesheet if there's an error
+    return ReactNativeStyleSheet.create({});
+  }
 }
