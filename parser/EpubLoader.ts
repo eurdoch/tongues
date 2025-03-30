@@ -3,6 +3,7 @@ import { unzip } from 'react-native-zip-archive';
 import { DOMParser } from 'xmldom';
 import { readTextFile } from '../utils';
 import BookData from '../types/BookData';
+import StyleSheet from '../types/StyleSheet';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { determineLanguage } from '../services/TranslationService';
 import { parseHtml } from './EpubContentParser';
@@ -68,6 +69,24 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
     
     console.log(`Successfully parsed ${allContentElements.length} ElementNodes from all content files`);
     
+    // Find and extract all stylesheets
+    console.log('Finding stylesheets...');
+    // Get stylesheets from two sources and merge them
+    const [fileStylesheets, opfStylesheets] = await Promise.all([
+      findAllStylesheets(unzipResult),
+      findOpfStylesheets(unzipResult)
+    ]);
+    
+    // Combine both stylesheet sources, removing duplicates by path
+    const allStyleSheets = [...fileStylesheets];
+    for (const sheet of opfStylesheets) {
+      if (!allStyleSheets.some(s => s.path === sheet.path)) {
+        allStyleSheets.push(sheet);
+      }
+    }
+    
+    console.log(`Found ${allStyleSheets.length} stylesheets in total`);
+    
     // Get book language
     // Use the first content file to determine language
     const firstContentFile = contentFiles[0];
@@ -79,7 +98,8 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
       path: unzipResult,
       navMap: navMapObj,
       basePath: tocPath ? tocPath.substring(0, tocPath.lastIndexOf('/')) : unzipResult,
-      content: allContentElements // Add the parsed content to the BookData
+      content: allContentElements, // Add the parsed content to the BookData
+      styleSheets: allStyleSheets // Add the parsed stylesheets to the BookData
     };
   } catch (error) {
     console.error('Epub parsing failed:', error);
@@ -157,6 +177,135 @@ async function findAllContentFiles(dir: string): Promise<string[]> {
   // Start the recursive search
   await findHtmlFiles(dir);
   return contentFiles;
+}
+
+/**
+ * Finds all CSS files in the EPUB extraction directory
+ * 
+ * @param dir - The root directory of the extracted EPUB
+ * @returns Array of StyleSheet objects
+ */
+async function findAllStylesheets(dir: string): Promise<StyleSheet[]> {
+  const styleSheets: StyleSheet[] = [];
+  
+  // Function to recursively find CSS files
+  async function findCssFiles(directory: string): Promise<void> {
+    try {
+      const files = await RNFS.readDir(directory);
+      
+      for (const file of files) {
+        const filePath = `${directory}/${file.name}`;
+        
+        if (file.isFile()) {
+          // Check if the file is CSS
+          const lowerName = file.name.toLowerCase();
+          if (lowerName.endsWith('.css')) {
+            try {
+              const content = await RNFS.readFile(filePath, 'utf8');
+              styleSheets.push({ path: filePath, content });
+              console.log('Found stylesheet:', filePath);
+            } catch (error) {
+              console.error(`Error reading CSS file ${filePath}:`, error);
+            }
+          } else if (lowerName.endsWith('.html') || lowerName.endsWith('.xhtml') || lowerName.endsWith('.htm')) {
+            // Also check HTML files for embedded styles
+            try {
+              const content = await RNFS.readFile(filePath, 'utf8');
+              const styleMatches = content.match(/<style[^>]*>([\s\S]*?)<\/style>/g);
+              if (styleMatches) {
+                styleMatches.forEach((match, index) => {
+                  const styleContent = match.replace(/<style[^>]*>|<\/style>/g, '');
+                  styleSheets.push({ 
+                    path: `${filePath}#style-${index}`, 
+                    content: styleContent 
+                  });
+                  console.log(`Found inline style #${index} in:`, filePath);
+                });
+              }
+            } catch (error) {
+              console.error(`Error checking for inline styles in ${filePath}:`, error);
+            }
+          }
+        } else if (file.isDirectory()) {
+          // Recursively search subdirectories
+          await findCssFiles(filePath);
+        }
+      }
+    } catch (error) {
+      console.error(`Error searching directory ${directory}:`, error);
+    }
+  }
+  
+  // Start the recursive search
+  await findCssFiles(dir);
+  return styleSheets;
+}
+
+/**
+ * Find stylesheets referenced in the container.opf manifest
+ * 
+ * @param extractionPath - The EPUB extraction directory
+ * @returns Array of StyleSheet objects
+ */
+async function findOpfStylesheets(extractionPath: string): Promise<StyleSheet[]> {
+  const stylesheets: StyleSheet[] = [];
+  
+  try {
+    // First find the OPF file
+    const opfPath = await findFileWithExtension(extractionPath, 'opf');
+    if (!opfPath) {
+      console.log('No OPF file found');
+      return stylesheets;
+    }
+    
+    // Read the OPF file content
+    const opfContent = await RNFS.readFile(opfPath, 'utf8');
+    const basePath = opfPath.substring(0, opfPath.lastIndexOf('/'));
+    
+    // Extract manifest items
+    const manifestItems: Record<string, {href: string, mediaType: string}> = {};
+    const manifestRegex = /<manifest[^>]*>([\s\S]*?)<\/manifest>/;
+    const manifestMatch = opfContent.match(manifestRegex);
+    
+    if (manifestMatch) {
+      const manifestContent = manifestMatch[1];
+      // We need to use multiple passes to handle different attribute ordering in item tags
+      const items = manifestContent.match(/<item[^>]+>/g) || [];
+      
+      items.forEach(item => {
+        const idMatch = item.match(/id="([^"]*)"/);
+        const hrefMatch = item.match(/href="([^"]*)"/);
+        const mediaTypeMatch = item.match(/media-type="([^"]*)"/);
+        
+        if (idMatch && hrefMatch) {
+          const id = idMatch[1];
+          const href = hrefMatch[1];
+          const mediaType = mediaTypeMatch ? mediaTypeMatch[1] : '';
+          manifestItems[id] = { href, mediaType };
+        }
+      });
+      
+      // Find CSS files in the manifest
+      for (const [id, item] of Object.entries(manifestItems)) {
+        if (item.mediaType === 'text/css' || 
+            item.href.toLowerCase().endsWith('.css')) {
+          try {
+            const cssPath = `${basePath}/${item.href}`;
+            const content = await RNFS.readFile(cssPath, 'utf8');
+            stylesheets.push({ path: cssPath, content });
+            console.log('Found stylesheet in OPF:', item.href);
+          } catch (error) {
+            console.error(`Error reading CSS file ${item.href}:`, error);
+          }
+        }
+      }
+    }
+    
+    return stylesheets;
+  } catch (error) {
+    console.error('Error extracting stylesheets from OPF:', error);
+    return stylesheets;
+  }
 }
 
 /**
