@@ -4,13 +4,14 @@ import { ElementNode } from '../types/ElementNode';
  * Parses HTML content from an EPUB file into a structure that can be rendered
  */
 export function parseHtml(html: string): ElementNode[] {
-  // Clean the HTML by removing doctype, html, head, and script tags
+  // Clean the HTML by removing doctype, html, head, script tags, and comments
   const cleanedHtml = html
     .replace(/<\!DOCTYPE[^>]*>/gi, '')
     .replace(/<html[^>]*>([\s\S]*?)<\/html>/gi, '$1')
     .replace(/<head[^>]*>([\s\S]*?)<\/head>/gi, '')
     .replace(/<script[^>]*>([\s\S]*?)<\/script>/gi, '')
-    .replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, '');
+    .replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, '')
+    .replace(/<!--[\s\S]*?-->/g, ''); // Remove HTML comments
 
   // Split content into body sections if they exist
   const bodyMatches = cleanedHtml.match(/<body[^>]*>([\s\S]*?)<\/body>/gi);
@@ -28,9 +29,9 @@ function parseElements(html: string): ElementNode[] {
   const result: ElementNode[] = [];
   let currentIndex = 0;
   
-  // Simple regex for matching HTML tags
+  // Regex for matching HTML tags, ignoring comments
   // This is a simplified approach and won't handle all HTML cases correctly
-  const tagRegex = /<(\/?)([\w-]+)([^>]*)>|([^<]+)/g;
+  const tagRegex = /<!--[\s\S]*?-->|<(\/?)([\w-]+)([^>]*)>|([^<]+)/g;
   
   const elementStack: ElementNode[] = [];
   let currentElement: ElementNode | null = null;
@@ -38,6 +39,11 @@ function parseElements(html: string): ElementNode[] {
   let match;
   while ((match = tagRegex.exec(html)) !== null) {
     const [fullMatch, isClosing, tagName, attributes, textContent] = match;
+    
+    // Skip HTML comments
+    if (fullMatch.startsWith('<!--') && fullMatch.endsWith('-->')) {
+      continue;
+    }
     
     if (textContent) {
       // This is a text node
