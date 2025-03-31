@@ -36,6 +36,7 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
   const [languageSelectorVisible, setLanguageSelectorVisible] = useState<boolean>(false);
   const [content, setContent] = useState<ElementNode[]>([]);
   const [sentences, setSentences] = useState<string[]>([]);
+  const [contentStylesheets, setContentStylesheets] = useState<any>(null);
   const [readAlongVisible, setReadAlongVisible] = useState<boolean>(false);
   const { currentBook, setCurrentBook } = useNavigationContext();
 
@@ -60,6 +61,7 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
         setContent(route.params.book.content);
         const sentences = extractSentences(route.params.book.content);
         setSentences(sentences);
+        setContentStylesheets(route.params.book.styleSheets);
         if (!route.params.book.language) {
           setLanguageSelectorVisible(true);
         }
@@ -70,6 +72,8 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
 
       setIsLoading(false);
     }
+
+    console.log('DEBUG book: ', route.params.book);
 
     updateReader();
   }, [route.params.book]);
