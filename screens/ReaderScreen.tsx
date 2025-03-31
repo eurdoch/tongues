@@ -10,13 +10,13 @@ import Sound from 'react-native-sound';
 import { RootStackParamList } from '../App';
 import { ElementNode } from '../types/ElementNode';
 import GestureText from '../GestureText';
-import { EpubHtmlRenderer } from '../ElementRenderer';
 import TranslationModal from '../components/TranslationModal';
 import { useNavigationContext } from '../NavigationContext';
 import { NavigationProp, RouteProp } from '@react-navigation/native';
 import ReadAlongModal from '../components/ReadAlongModal';
 import { extractSentences } from '../parser/Sentences';
 import LanguageSelectorModal from '../components/LanguageSelectorModal';
+import ContentRenderer from '../ContentRenderer';
 
 type ReaderScreenRouteProp = RouteProp<RootStackParamList, 'Reader'>;
 type ReaderScreenNavigationProp = NavigationProp<RootStackParamList, 'Reader'>;
@@ -56,25 +56,23 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
         global.pendingBook = null;
       }
 
-      if (currentBook?.content) {
-        console.log('[ReaderScreen] Using pre-parsed book content');
-        setContent(currentBook.content);
-        const sentences = extractSentences(currentBook.content);
+      if (route.params.book.content) {
+        setContent(route.params.book.content);
+        const sentences = extractSentences(route.params.book.content);
         setSentences(sentences);
+        if (!route.params.book.language) {
+          setLanguageSelectorVisible(true);
+        }
       } else {
         console.error('[ReaderScreen] No content available to display');
         setError('No content available to display');
       }
 
       setIsLoading(false);
-
-      if (currentBook && !currentBook.language) {
-        setLanguageSelectorVisible(true);
-      }
     }
 
     updateReader();
-  }, [route.params.book, currentBook, setCurrentBook]);
+  }, [route.params.book]);
 
   const handleLanguageSelect = (language: string) => {
     setCurrentBook({
@@ -149,7 +147,7 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
 
   return (
     <View style={styles.container}>
-      <EpubHtmlRenderer content={content} />
+      <ContentRenderer content={content} />
       
       { currentBook &&
         <TranslationModal
