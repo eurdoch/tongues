@@ -19,6 +19,7 @@ import SentenceData from '../types/SentenceData';
 import TranslationPopup from './TranslationPopup';
 import { useNavigationContext } from '../NavigationContext';
 import { NavPoint } from '../types/NavPoint';
+import BookData from '../types/BookData';
 
 // Simple mutex lock implementation
 class Mutex {
@@ -58,7 +59,7 @@ interface ReadAlongModalProps {
   language: string;
   sentences: string[];
   initialSentenceIndex?: number;
-  section: NavPoint;
+  book: BookData,
 }
 
 const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
@@ -66,7 +67,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   language,
   onClose,
   sentences,
-  section,
+  book,
 }) => {
   const [highlightIndex, setHighlightIndex] = useState<number>(0);
   const [selectedWord, setSelectedWord] = useState<string>('');
@@ -356,16 +357,15 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       if (soundRef.current) {
         if (!isPlaying) {
           // Reset highlight index when starting playback from beginning
-          if (soundRef.current.getCurrentTime) {
-            await new Promise<void>((resolve) => {
-              soundRef.current!.getCurrentTime((seconds) => {
-                if (seconds < 0.1) {
-                  // Starting from beginning
-                  currentHighlightIndex.current = 0;
-                  setHighlightIndex(0);
-                } else {
-                  // If we're resuming from middle, find the right word to highlight
-                  const milliseconds = seconds * 1000;
+          await new Promise<void>((resolve) => {
+            soundRef.current!.getCurrentTime((seconds) => {
+              if (seconds < 0.1) {
+                // Starting from beginning
+                currentHighlightIndex.current = 0;
+                setHighlightIndex(0);
+              } else {
+                // If we're resuming from middle, find the right word to highlight
+                const milliseconds = seconds * 1000;
                   let wordIndex = 0;
                   
                   // Find the appropriate word based on current playback position
@@ -406,11 +406,10 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
           soundRef.current.pause();
           
           // Get current time to make sure highlight stays at right position
-          if (soundRef.current.getCurrentTime) {
-            await new Promise<void>((resolve) => {
-              soundRef.current!.getCurrentTime((seconds) => {
-                const milliseconds = seconds * 1000;
-                let wordIndex = currentHighlightIndex.current; // Start with current value
+          await new Promise<void>((resolve) => {
+            soundRef.current!.getCurrentTime((seconds) => {
+              const milliseconds = seconds * 1000;
+              let wordIndex = currentHighlightIndex.current; // Start with current value
                 
                 // Find the appropriate word based on current playback position
                 for (let i = 0; i < currentTimestamps.current.length; i++) {
@@ -1130,16 +1129,6 @@ const styles = StyleSheet.create({
     opacity: 0.8,
     textAlign: 'center',
   },
-  loadingContainer: {
-    padding: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
-  },
-  loadingText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-  },
   sentenceTranslationContainer: {
     marginTop: 15,
     padding: 10,
@@ -1211,11 +1200,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 20,
-  },
-  playButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: 'bold',
   },
   loadingContainer: {
     padding: 20,
