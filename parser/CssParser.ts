@@ -151,6 +151,26 @@ function parseCssValue(property: string, value: string): any {
     return fontWeightMap[value] || value;
   }
   
+  // Handle font-size keywords
+  if (property === 'font-size') {
+    // Map font-size keywords to pixel values
+    const fontSizeMap: Record<string, number> = {
+      'xx-small': 8,
+      'x-small': 10,
+      'small': 12,
+      'medium': 14,
+      'large': 18,
+      'x-large': 24,
+      'xx-large': 32,
+      'smaller': 12, // Relative, but we'll use fixed values
+      'larger': 18,  // Relative, but we'll use fixed values
+    };
+    
+    if (fontSizeMap[value]) {
+      return fontSizeMap[value];
+    }
+  }
+  
   // Handle display property
   if (property === 'display') {
     if (value === 'flex' || value === 'none') {
@@ -183,6 +203,20 @@ function parseCssValue(property: string, value: string): any {
       return 'none';
     }
     return undefined;
+  }
+  
+  // Handle font-family - extract the first font in the list and strip quotes
+  if (property === 'font-family') {
+    // Extract first font family, handling quotes and commas
+    let fontFamily = value.split(',')[0].trim();
+    // Remove quotes if present
+    fontFamily = fontFamily.replace(/^['"]|['"]$/g, '');
+    return fontFamily;
+  }
+  
+  // Handle line-height without units for React Native (must be a number)
+  if (property === 'line-height' && !value.match(/[a-z%]/i)) {
+    return parseFloat(value);
   }
   
   // For all other values, return as is
@@ -254,7 +288,17 @@ function cssRuleToReactNativeStyle(rule: CssRule): Record<string, any> {
         // Convert the value
         const rnValue = parseCssValue(cssProperty, cssValue);
         if (rnValue !== undefined) {
-          rnStyle[rnProperty] = rnValue;
+          // Additional safety check to ensure we're not passing strings to numeric properties
+          if ((rnProperty === 'fontSize' || rnProperty === 'lineHeight') && 
+              typeof rnValue === 'string' && 
+              !/^\d+(\.\d+)?$/.test(rnValue)) {
+            // For these properties, if the value is still a non-numeric string after
+            // parsing, use a default value instead
+            console.warn(`Cannot use non-numeric value "${rnValue}" for property "${rnProperty}", using default`);
+            rnStyle[rnProperty] = rnProperty === 'fontSize' ? 14 : 1.2; // Default values
+          } else {
+            rnStyle[rnProperty] = rnValue;
+          }
         }
       } catch (valueError) {
         console.warn(`Error parsing CSS value "${cssValue}" for property "${cssProperty}":`, valueError);
