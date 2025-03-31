@@ -6,17 +6,16 @@ import HomeScreen from './screens/HomeScreen';
 import ReaderScreen from './screens/ReaderScreen';
 import CustomDrawerContent from './components/CustomDrawerContent';
 import { NavigationProvider } from './NavigationContext';
-import { NavPoint } from './types/NavPoint';
+import BookData from './types/BookData';
 
 const Drawer = createDrawerNavigator();
 
 export type RootStackParamList = {
   Home: {};
   Reader: { 
-    content: string;
-    language: string;
-    section: NavPoint;
+    book: BookData,
   };
+  CustomDrawerContent: {};
 };
 
 function App() {
@@ -86,26 +85,11 @@ function App() {
           // Store the book data globally
           global.pendingBook = book;
           
-          // Get a placeholder content for backward compatibility
-          // This won't actually be used since we're loading from book.content
-          let placeholderContent = "";
-          try {
-            const firstContentElem = findFirstContentTag(book.navMap);
-            if (firstContentElem && firstContentElem.getAttribute) {
-              const firstContentPath = book.basePath + '/' + firstContentElem.getAttribute('src');
-              placeholderContent = await readTextFile(firstContentPath);
-            }
-          } catch (error) {
-            console.error('[App] Error getting placeholder content:', error);
-            // Continue anyway as we have the full book content
-          }
-          
           // Navigate to the reader screen
           if (navigationRef.current && navigationRef.current.isReady()) {
             console.log(`[App] Navigation is ready, navigating to Reader`);
             navigationRef.current.navigate('Reader', {
-              content: placeholderContent, // This is just for backward compatibility
-              language: book.language,
+              book,
             });
             console.log(`[App] Navigation.navigate method called`);
           } else {
@@ -115,8 +99,7 @@ function App() {
               if (navigationRef.current && navigationRef.current.isReady()) {
                 console.log(`[App] Navigation ready after delay, navigating to Reader`);
                 navigationRef.current.navigate('Reader', {
-                  content: placeholderContent, // This is just for backward compatibility
-                  language: book.language,
+                  book,
                 });
               } else {
                 console.error('[App] Navigation still not ready after delay');
@@ -175,8 +158,11 @@ function App() {
           <Drawer.Screen name="Home" component={HomeScreen} />
           <Drawer.Screen 
             name="Reader" 
-            component={ReaderScreen}
-            options={{ unmountOnBlur: false }} // Ensure component doesn't unmount between navigations
+            component={ReaderScreen as React.ComponentType<any>}
+            options={{ 
+              headerShown: true,
+              // Remove unmountOnBlur as it's not a valid option for DrawerNavigator
+            }} 
           />
         </Drawer.Navigator>
       </NavigationContainer>

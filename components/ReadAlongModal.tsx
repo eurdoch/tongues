@@ -58,8 +58,6 @@ interface ReadAlongModalProps {
   onClose: () => void;
   language: string;
   sentences: string[];
-  initialSentenceIndex?: number;
-  book: BookData,
 }
 
 const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
@@ -67,7 +65,6 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   language,
   onClose,
   sentences,
-  book,
 }) => {
   const [highlightIndex, setHighlightIndex] = useState<number>(0);
   const [selectedWord, setSelectedWord] = useState<string>('');
@@ -297,7 +294,6 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
             if (nextLoaded && soundRef.current) {
               console.log('[ReadAlongModal] Saving current position');
               const position = {
-                section,
                 readAlongIndex: currentSentenceIndex,
               };
               await AsyncStorage.setItem(`${currentBook!.path}_position`, JSON.stringify(position));
@@ -366,27 +362,26 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
               } else {
                 // If we're resuming from middle, find the right word to highlight
                 const milliseconds = seconds * 1000;
-                  let wordIndex = 0;
+                let wordIndex = 0;
+                
+                // Find the appropriate word based on current playback position
+                for (let i = 0; i < currentTimestamps.current.length; i++) {
+                  const timestamp = currentTimestamps.current[i];
+                  if (!timestamp) continue;
                   
-                  // Find the appropriate word based on current playback position
-                  for (let i = 0; i < currentTimestamps.current.length; i++) {
-                    const timestamp = currentTimestamps.current[i];
-                    if (!timestamp) continue;
-                    
-                    if (timestamp.time <= milliseconds) {
-                      wordIndex = i;
-                    } else {
-                      break;
-                    }
+                  if (timestamp.time <= milliseconds) {
+                    wordIndex = i;
+                  } else {
+                    break;
                   }
-                  
-                  currentHighlightIndex.current = wordIndex;
-                  setHighlightIndex(wordIndex);
                 }
-                resolve();
-              });
+                
+                currentHighlightIndex.current = wordIndex;
+                setHighlightIndex(wordIndex);
+              }
+              resolve();
             });
-          }
+          });
 
           // Start playback
           soundRef.current.play((success) => {
@@ -403,7 +398,9 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
           setIsPlaying(true);
         } else {
           // Pause playback but maintain current highlight position
-          soundRef.current.pause();
+          if (soundRef.current) {
+            soundRef.current.pause();
+          }
           
           // Get current time to make sure highlight stays at right position
           await new Promise<void>((resolve) => {
@@ -411,28 +408,27 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
               const milliseconds = seconds * 1000;
               let wordIndex = currentHighlightIndex.current; // Start with current value
                 
-                // Find the appropriate word based on current playback position
-                for (let i = 0; i < currentTimestamps.current.length; i++) {
-                  const timestamp = currentTimestamps.current[i];
-                  if (!timestamp) continue;
-                  
-                  if (timestamp.time <= milliseconds) {
-                    wordIndex = i;
-                  } else {
-                    break;
-                  }
+              // Find the appropriate word based on current playback position
+              for (let i = 0; i < currentTimestamps.current.length; i++) {
+                const timestamp = currentTimestamps.current[i];
+                if (!timestamp) continue;
+                
+                if (timestamp.time <= milliseconds) {
+                  wordIndex = i;
+                } else {
+                  break;
                 }
-                
-                // Update both ref and state to ensure consistency
-                currentHighlightIndex.current = wordIndex;
-                setHighlightIndex(wordIndex);
-                
-                // Reset the sentence finished flag to prevent auto-advancing
-                setSentenceFinished(false);
-                resolve();
-              });
+              }
+              
+              // Update both ref and state to ensure consistency
+              currentHighlightIndex.current = wordIndex;
+              setHighlightIndex(wordIndex);
+              
+              // Reset the sentence finished flag to prevent auto-advancing
+              setSentenceFinished(false);
+              resolve();
             });
-          }
+          });
           
           setIsPlaying(false);
         }
@@ -446,7 +442,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       audioControlMutex.current.release();
       console.log('[ReadAlongModal] Released mutex lock after handleTogglePlay');
     }
-  }
+  };
   
   // Extract initialization to a named function so it can be called from handleTogglePlay
   const initializeModal = async () => {
@@ -974,14 +970,14 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                         setSelectionMode(false);
                         setSelectedWords([]);
                       }}
-                      style={[styles.controlButton, styles.cancelButton]}
+                      style={[styles.iconButton, styles.cancelButton]}
                     >
                       <Text style={styles.controlButtonText}>Cancel</Text>
                     </TouchableOpacity>
                     
                     <TouchableOpacity
                       onPress={handleTranslateSelected}
-                      style={styles.controlButton}
+                      style={styles.iconButton}
                       disabled={selectedWords.length === 0}
                     >
                       <Text style={styles.controlButtonText}>Translate Selected</Text>
@@ -1195,12 +1191,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
-  playButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-  },
+  //playButton: {
+  //  backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  //  paddingVertical: 8,
+  //  paddingHorizontal: 16,
+  //  borderRadius: 20,
+  //},
   loadingContainer: {
     padding: 20,
     alignItems: 'center',
@@ -1359,6 +1355,14 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '500',
+  },
+  controlButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0, 122, 255, 0.8)',
   },
   progressSection: {
     marginBottom: 15,

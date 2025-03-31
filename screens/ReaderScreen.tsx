@@ -9,23 +9,21 @@ import {
 import Sound from 'react-native-sound';
 import { RootStackParamList } from '../App';
 import { ElementNode } from '../types/ElementNode';
-import { parseHtml } from '../parser/EpubContentParser';
 import GestureText from '../GestureText';
 import { EpubHtmlRenderer } from '../ElementRenderer';
 import TranslationModal from '../components/TranslationModal';
 import { useNavigationContext } from '../NavigationContext';
-import { RouteProp } from '@react-navigation/native';
+import { NavigationProp, RouteProp } from '@react-navigation/native';
 import ReadAlongModal from '../components/ReadAlongModal';
 import { extractSentences } from '../parser/Sentences';
 import LanguageSelectorModal from '../components/LanguageSelectorModal';
-import { SupportedLanguages } from '../types/Language';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type ReaderScreenRouteProp = RouteProp<RootStackParamList, 'Reader'>;
+type ReaderScreenNavigationProp = NavigationProp<RootStackParamList, 'Reader'>;
 
 type ReaderProps = {
   route: ReaderScreenRouteProp;
-  navigation: any,
+  navigation: ReaderScreenNavigationProp;
 };
 
 function ReaderScreen({ route, navigation }: ReaderProps) {
@@ -59,17 +57,9 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
       }
 
       if (currentBook?.content) {
-        // Use the full content from the book data
         console.log('[ReaderScreen] Using pre-parsed book content');
         setContent(currentBook.content);
         const sentences = extractSentences(currentBook.content);
-        setSentences(sentences);
-      } else if (route.params.content) {
-        // Fallback to parsing content from route params (for backward compatibility)
-        console.log('[ReaderScreen] Parsing content from route params');
-        const parsedContent = parseHtml(route.params.content);
-        setContent(parsedContent);
-        const sentences = extractSentences(parsedContent);
         setSentences(sentences);
       } else {
         console.error('[ReaderScreen] No content available to display');
@@ -84,7 +74,7 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
     }
 
     updateReader();
-  }, [route.params.content, currentBook, setCurrentBook]);
+  }, [route.params.book, currentBook, setCurrentBook]);
 
   const handleLanguageSelect = (language: string) => {
     setCurrentBook({
@@ -109,7 +99,7 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
         </TouchableOpacity>
       )
     })
-  }, [route.params.content]);
+  }, [route.params.book]);
 
   // Play the audio file
   const playAudio = () => {
@@ -181,14 +171,13 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
             onClose={() => setReadAlongVisible(false)}
             language={currentBook.language}
             sentences={sentences}
-            section={route.params.section}
           />
       }
+
 
       { currentBook &&
         <LanguageSelectorModal
           visible={languageSelectorVisible}
-          supportedLanguages={SupportedLanguages}
           onClose={() => {
             if (currentBook.language) {
               setLanguageSelectorVisible(false);

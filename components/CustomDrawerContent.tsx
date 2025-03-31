@@ -1,4 +1,4 @@
-import { Text, View, StyleSheet, TouchableOpacity, ActivityIndicator, Platform, Alert } from "react-native";
+import { Text, View, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from "react-native";
 import { useNavigation, DrawerActions } from "@react-navigation/native";
 import { pick } from "@react-native-documents/picker";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -7,13 +7,16 @@ import RNFS from "react-native-fs";
 import { parseEpub } from "../parser/EpubLoader";
 import TableOfContents from "./TableOfContents";
 import { useNavigationContext } from "../NavigationContext";
-import { findFirstContentTag, readTextFile, copyFileToAppStorage, checkIfFileExists } from "../utils";
+import { findFirstContentTag, readTextFile, copyFileToAppStorage } from "../utils";
 import { NavPoint } from "../types/NavPoint";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { NativeDocumentPicker } from "@react-native-documents/picker/lib/typescript/spec/NativeDocumentPicker";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RootStackParamList } from "../App";
+
+type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'CustomDrawerContent'>;
 
 function CustomDrawerContent() {
-    const navigation = useNavigation();
+    const navigation = useNavigation<NavigationProp>();
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const { 
       currentBook, 
@@ -25,6 +28,7 @@ function CustomDrawerContent() {
     useEffect(() => {
       console.log('[CustomDrawerContent] Component mounted, current navMap:', currentBook?.navMap);
       
+      // TODO is this needed?
       // Check for pending book from direct file open
       if (global.pendingBook && !currentBook) {
         console.log('[CustomDrawerContent] Found pending book, setting in context');
@@ -45,6 +49,7 @@ function CustomDrawerContent() {
         // Show loading indicator while picking file
         setIsLoading(true);
         
+        // TODO set type to application/epub+zip
         const [file] = await pick({
           type: ['*/*'],
           //type: ['application/epub+zip'],
@@ -86,27 +91,11 @@ function CustomDrawerContent() {
             setCurrentBook(book);
             console.log(`[CustomDrawerContent] Book parsed successfully with ${book.content?.length || 0} content elements`);
             
-            // We'll still get placeholder content for backward compatibility
-            let placeholderContent = "";
-            try {
-              const firstContentElem = findFirstContentTag(book.navMap);
-              if (firstContentElem && firstContentElem.getAttribute) {
-                const src = firstContentElem.getAttribute('src');
-                if (src) {
-                  const firstContentPath = book.basePath + '/' + src;
-                  placeholderContent = await readTextFile(firstContentPath);
-                }
-              }
-            } catch (error) {
-              console.error('[CustomDrawerContent] Error getting placeholder content:', error);
-              // Continue anyway as we have the full book content
-            }
-  
             // Navigate to reader screen - it will prioritize book.content
             navigation.navigate('Reader', { 
-              content: placeholderContent, // For backward compatibility
-              language: book.language,
+              book,
             });
+
             return;
           }
           
@@ -141,8 +130,7 @@ function CustomDrawerContent() {
   
             // Navigate to reader screen - it will prioritize book.content
             navigation.navigate('Reader', { 
-              content: placeholderContent, // For backward compatibility
-              language: book.language,
+              book,
             });
           } else {
             throw new Error("Could not save file.");
@@ -199,35 +187,32 @@ function CustomDrawerContent() {
 
     const goToHome = () => {
       AsyncStorage.removeItem("current_book").then(() => {
-        navigation.navigate('Home');
+        navigation.navigate('Home', {});
         navigation.dispatch(DrawerActions.closeDrawer());
         setCurrentBook(null);
       });
     };
     
-    const handleNavigateSection = async (item: NavPoint) => {
-      if (currentBook) {
-        try {
-          navigation.dispatch(DrawerActions.closeDrawer());
-          
-          // We'll still load the individual section content for backward compatibility
-          // Even though we have the full book content available in currentBook.content
-          const sectionPathParts = item.src.split('#');
-          const sectionPath = currentBook.basePath + '/' + sectionPathParts[0];
-          const content = await readTextFile(sectionPath);
-          
-          // Navigate to the Reader with the section information
-          // ReaderScreen will prioritize using currentBook.content
-          navigation.navigate('Reader', {
-            content,  // For backward compatibility
-            language: currentBook.language,
-            section: item,
-          });
-        } catch (e) {
-          console.error(e);
-        }
-      }
-    }
+    //const handleNavigateSection = async (item: NavPoint) => {
+    //  if (currentBook) {
+    //    try {
+    //      navigation.dispatch(DrawerActions.closeDrawer());
+    //      
+    //      // We'll still load the individual section content for backward compatibility
+    //      // Even though we have the full book content available in currentBook.content
+    //      const sectionPathParts = item.src.split('#');
+    //      const sectionPath = currentBook.basePath + '/' + sectionPathParts[0];
+    //      const content = await readTextFile(sectionPath);
+    //      // Navigate to the Reader with the section information
+    //      // ReaderScreen will prioritize using currentBook.content
+    //      navigation.navigate('Reader', {
+
+    //      });
+    //    } catch (e) {
+    //      console.error(e);
+    //    }
+    //  }
+    //}
 
     return (
       <SafeAreaView style={styles.container}>
@@ -254,7 +239,15 @@ function CustomDrawerContent() {
         </View>
         { 
           currentBook && currentBook.tableOfContents && 
-            <TableOfContents navPoints={currentBook.tableOfContents} onNavigate={handleNavigateSection} />
+            <TableOfContents 
+              navPoints={currentBook.tableOfContents} 
+              onNavigate={(item: NavPoint) => {
+                if (currentBook) {
+                  navigation.dispatch(DrawerActions.closeDrawer());
+                  navigation.navigate('Reader', { book: currentBook });
+                }
+              }} 
+            />
         }
       </SafeAreaView>
     );

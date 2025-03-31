@@ -12,14 +12,12 @@ import { SupportedLanguages } from '../types/Language';
 
 interface LanguageSelectorModalProps {
   visible: boolean;
-  supportedLanguages: SupportedLanguages,
   onClose: () => void;
   onSelectLanguage: (language: string) => void;
 }
 
 const LanguageSelectorModal: React.FC<LanguageSelectorModalProps> = ({
   visible,
-  supportedLanguages,
   onClose,
   onSelectLanguage,
 }) => {
@@ -77,7 +75,7 @@ const LanguageSelectorModal: React.FC<LanguageSelectorModalProps> = ({
                 </Text>
                 
                 <FlatList
-                  data={supportedLanguages}
+                  data={Object.keys(SupportedLanguages)}
                   renderItem={renderLanguageItem}
                   keyExtractor={(item) => item}
                   style={styles.languageList}

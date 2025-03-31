@@ -2,8 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { View, Image, StyleSheet } from 'react-native';
 import RNFS from 'react-native-fs';
 
-const ImageFromUri = ({ uri }) => {
-  const [imageUri, setImageUri] = useState(null);
+interface ImageFromUriProps {
+  uri: string;
+}
+
+const ImageFromUri: React.FC<ImageFromUriProps> = ({ uri }) => {
+  const [imageUri, setImageUri] = useState<string | null>(null);
 
   useEffect(() => {
     const loadImage = async () => {

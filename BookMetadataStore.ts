@@ -2,6 +2,20 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import RNFS from 'react-native-fs';
 import { extractEpubMetadata } from './utils';
 
+/**
+ * Helper function to safely get timestamp from mtime which could be a Date or number
+ * @param mtime The modification time from file stats
+ * @returns A Unix timestamp in milliseconds
+ */
+function getMtimeValue(mtime: any): number {
+  if (typeof mtime === 'object' && mtime !== null && 'getTime' in mtime) {
+    return mtime.getTime();
+  } else if (typeof mtime === 'number') {
+    return mtime;
+  }
+  return Date.now(); // Fallback
+}
+
 export interface BookMetadata {
   id: string;          // Unique identifier for the book (typically filename or path hash)
   filePath: string;    // Path to the actual EPUB file
@@ -168,7 +182,7 @@ export const processBookFile = async (filePath: string, firstChapterId?: string)
         filePath,
         title: titleFallback,
         coverPath: coverUri,
-        lastModified: stats.mtime?.getTime() || Date.now(),
+        lastModified: getMtimeValue(stats.mtime),
         fileSize: stats.size,
         lastRead: Date.now(),
         ...(firstChapterId ? { firstChapterId } : {})
@@ -184,7 +198,7 @@ export const processBookFile = async (filePath: string, firstChapterId?: string)
       filePath,
       title,
       coverPath: coverUri,
-      lastModified: stats.mtime?.getTime() || Date.now(),
+      lastModified: getMtimeValue(stats.mtime),
       fileSize: stats.size,
       lastRead: Date.now(),
       ...(firstChapterId ? { firstChapterId } : {})

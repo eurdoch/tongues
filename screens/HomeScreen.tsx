@@ -526,9 +526,14 @@ function HomeScreen(): React.JSX.Element {
                         
                         // Generate a unique ID for the file
                         // Handle mtime which might be a Date or a number
-                        const mtimeValue = typeof stat.mtime === 'object' && stat.mtime 
-                            ? stat.mtime.getTime() 
-                            : (typeof stat.mtime === 'number' ? stat.mtime : 0);
+                        let mtimeValue = 0;
+                        if (typeof stat.mtime === 'object' && stat.mtime !== null) {
+                            // It's a Date object
+                            mtimeValue = (stat.mtime as Date).getTime();
+                        } else if (typeof stat.mtime === 'number') {
+                            // It's already a timestamp
+                            mtimeValue = stat.mtime;
+                        }
                         
                         const uniqueId = `${file.path}_${stat.size}_${mtimeValue}`;
                         
