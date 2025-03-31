@@ -3,6 +3,7 @@ import RNFS from 'react-native-fs';
 import * as ZipArchive from 'react-native-zip-archive';
 import TOCItem from './types/TOCItem';
 import { NavPoint } from './types/NavPoint';
+import StyleSheet from './types/StyleSheet';
 
 const languages = [
   { label: 'French', value: 'French' },
@@ -779,14 +780,13 @@ export const checkIfFileExists = async (sourceUri: string): Promise<string | nul
         sourceUri.startsWith('document:') || sourceUri.includes('document%3A'))) {
       
       try {
-        // Try to read a small sample of the source file to create a fingerprint
-        const sourceContent = await RNFS.readFile(sourceUri, 'base64', 1024); // Read first 1KB
+        const sourceContent = await RNFS.readFile(sourceUri, 'base64');
         console.log(`Read source file sample: ${sourceContent.substring(0, 20)}...`);
         
         // Check each epub file by reading the same byte range
         for (const file of epubFiles) {
           try {
-            const localContent = await RNFS.readFile(file.path, 'base64', 1024);
+            const localContent = await RNFS.readFile(file.path, 'base64');
             if (sourceContent === localContent) {
               console.log(`Found matching file content: ${file.path}`);
               return file.path;
