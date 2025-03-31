@@ -151,7 +151,10 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
 
   return (
     <View style={styles.container}>
-      <ContentRenderer content={content} />
+      <ContentRenderer 
+        content={content} 
+        contentStylesheets={contentStylesheets} 
+      />
       
       { currentBook &&
         <TranslationModal

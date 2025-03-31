@@ -2,6 +2,8 @@ import React, { useMemo } from 'react';
 import { FlatList, View, Text, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+import { StyleSheet as BookStyleSheet } from './types/StyleSheet';
+import { processBookStyles } from './parser/CssParser';
 
 // Create a gesture-enabled Text component
 const GestureText = ({ children, style, selectable = false }) => {
@@ -17,7 +19,25 @@ const GestureText = ({ children, style, selectable = false }) => {
   );
 };
 
-const ContentRenderer = ({ content, bookStyles = {} }) => {
+interface ContentRendererProps {
+  content: any;
+  contentStylesheets?: BookStyleSheet[];
+  bookStyles?: Record<string, any>;
+}
+
+const ContentRenderer = ({ 
+  content, 
+  contentStylesheets = [],
+  bookStyles = {}
+}: ContentRendererProps) => {
+  // Process CSS stylesheets into React Native styles
+  const processedStyles = useMemo(() => {
+    if (contentStylesheets && contentStylesheets.length > 0) {
+      return processBookStyles(contentStylesheets);
+    }
+    return {};
+  }, [contentStylesheets]);
+
   // Convert the content object into a flat array for FlatList
   const flattenedContent = useMemo(() => {
     const items = [];
@@ -40,10 +60,40 @@ const ContentRenderer = ({ content, bookStyles = {} }) => {
   const renderNode = (node, index, bookStyles) => {
     if (!node) return null;
     
+    // Get inline styles from node props
     const cssStyles = node.props?.style ? node.props.style : {};
+    
+    // Get CSS class styles if available
+    let cssClassStyles = {};
+    if (node.props?.className && processedStyles) {
+      // Handle multiple classes
+      const classNames = node.props.className.split(/\s+/);
+      for (const className of classNames) {
+        if (processedStyles[className]) {
+          cssClassStyles = { ...cssClassStyles, ...processedStyles[className] };
+        }
+      }
+    }
+    
+    // Get element type styles from CSS
+    let elementTypeStyles = {};
+    if (node.type && processedStyles && processedStyles[node.type]) {
+      elementTypeStyles = processedStyles[node.type];
+    }
+    
+    // Get ID-based styles if available
+    let idStyles = {};
+    if (node.props?.id && processedStyles) {
+      const idSelector = node.props.id;
+      if (processedStyles[idSelector]) {
+        idStyles = processedStyles[idSelector];
+      }
+    }
+    
+    // Extract non-style props as before
     const styleProps = node.props && typeof node.props === 'object' 
       ? Object.keys(node.props)
-        .filter(key => key !== 'style' && key !== 'id')
+        .filter(key => key !== 'style' && key !== 'id' && key !== 'className')
         .reduce((obj, key) => {
           obj[key] = node.props[key];
           return obj;
@@ -64,7 +114,7 @@ const ContentRenderer = ({ content, bookStyles = {} }) => {
         return (
           <GestureText
             key={`p-${index}`}
-            style={[styles.paragraph, cssStyles, styleProps]}
+            style={[styles.paragraph, elementTypeStyles, cssClassStyles, idStyles, cssStyles, styleProps]}
             selectable={true}
           >
             {renderChildren(node.children)}
@@ -73,21 +123,21 @@ const ContentRenderer = ({ content, bookStyles = {} }) => {
 
       case 'h1':
         return (
-          <Text key={`h1-${index}`} style={[styles.h1, cssStyles, styleProps]}>
+          <Text key={`h1-${index}`} style={[styles.h1, elementTypeStyles, cssClassStyles, idStyles, cssStyles, styleProps]}>
             {renderChildren(node.children)}
           </Text>
         );
 
       case 'h2':
         return (
-          <GestureText selectable={true} key={`h2-${index}`} style={[styles.h2, cssStyles, styleProps]}>
+          <GestureText selectable={true} key={`h2-${index}`} style={[styles.h2, elementTypeStyles, cssClassStyles, idStyles, cssStyles, styleProps]}>
             {renderChildren(node.children)}
           </GestureText>
         );
 
       case 'h3':
         return (
-          <Text key={`h3-${index}`} style={[styles.h3, cssStyles, styleProps]}>
+          <Text key={`h3-${index}`} style={[styles.h3, elementTypeStyles, cssClassStyles, idStyles, cssStyles, styleProps]}>
             {renderChildren(node.children)}
           </Text>
         );
@@ -96,7 +146,7 @@ const ContentRenderer = ({ content, bookStyles = {} }) => {
       case 'h5':
       case 'h6':
         return (
-          <Text key={`h4-6-${index}`} style={[styles.h4, cssStyles, styleProps]}>
+          <Text key={`h4-6-${index}`} style={[styles.h4, elementTypeStyles, cssClassStyles, idStyles, cssStyles, styleProps]}>
             {renderChildren(node.children)}
           </Text>
         );
@@ -105,7 +155,7 @@ const ContentRenderer = ({ content, bookStyles = {} }) => {
       case 'section':
       case 'article':
         return (
-          <View key={`container-${index}`} style={[cssStyles, styleProps]}>
+          <View key={`container-${index}`} style={[elementTypeStyles, cssClassStyles, idStyles, cssStyles, styleProps]}>
             {node.children?.map((child, childIndex) =>
               typeof child === 'string'
                 ? <Text key={`text-in-container-${childIndex}`}>{child}</Text>
@@ -117,7 +167,7 @@ const ContentRenderer = ({ content, bookStyles = {} }) => {
       case 'strong':
       case 'b':
         return (
-          <Text key={`bold-${index}`} style={[styles.bold, cssStyles, styleProps]}>
+          <Text key={`bold-${index}`} style={[styles.bold, elementTypeStyles, cssClassStyles, idStyles, cssStyles, styleProps]}>
             {renderChildren(node.children)}
           </Text>
         );
@@ -125,7 +175,7 @@ const ContentRenderer = ({ content, bookStyles = {} }) => {
       case 'em':
       case 'i':
         return (
-          <Text key={`italic-${index}`} style={[styles.italic, cssStyles, styleProps]}>
+          <Text key={`italic-${index}`} style={[styles.italic, elementTypeStyles, cssClassStyles, idStyles, cssStyles, styleProps]}>
             {renderChildren(node.children)}
           </Text>
         );
@@ -134,7 +184,7 @@ const ContentRenderer = ({ content, bookStyles = {} }) => {
         return (
           <Text
             key={`link-${index}`}
-            style={[styles.link, cssStyles, styleProps]}
+            style={[styles.link, elementTypeStyles, cssClassStyles, idStyles, cssStyles, styleProps]}
             // You might want to add onPress handler here
           >
             {renderChildren(node.children)}
@@ -142,18 +192,18 @@ const ContentRenderer = ({ content, bookStyles = {} }) => {
         );
 
       case 'img':
-        return <Text key={`img-${index}`} style={[styles.h1, cssStyles, styleProps]}>Image Placeholder</Text>;
+        return <Text key={`img-${index}`} style={[styles.h1, elementTypeStyles, cssClassStyles, idStyles, cssStyles, styleProps]}>Image Placeholder</Text>;
 
       case 'br':
         return <Text key={`br-${index}`}>{"\n"}</Text>;
 
       case 'hr':
-        return <View key={`hr-${index}`} style={[styles.horizontalRule, cssStyles, styleProps]} />;
+        return <View key={`hr-${index}`} style={[styles.horizontalRule, elementTypeStyles, cssClassStyles, idStyles, cssStyles, styleProps]} />;
 
       case 'ul':
       case 'ol':
         return (
-          <View key={`list-${index}`} style={[styles.list, cssStyles, styleProps]}>
+          <View key={`list-${index}`} style={[styles.list, elementTypeStyles, cssClassStyles, idStyles, cssStyles, styleProps]}>
             {node.children?.map((child, childIndex) =>
               typeof child === 'string'
                 ? <Text key={`text-in-list-${childIndex}`}>{child}</Text>
@@ -167,7 +217,7 @@ const ContentRenderer = ({ content, bookStyles = {} }) => {
         const bulletOrNumber = isOrderedList ? `${index + 1}. ` : '• ';
 
         return (
-          <View key={`li-${index}`} style={[styles.listItem, cssStyles, styleProps]}>
+          <View key={`li-${index}`} style={[styles.listItem, elementTypeStyles, cssClassStyles, idStyles, cssStyles, styleProps]}>
             <Text style={styles.bulletOrNumber}>{bulletOrNumber}</Text>
             <View style={styles.listItemContent}>
               {node.children?.map((child, childIndex) =>
@@ -186,7 +236,7 @@ const ContentRenderer = ({ content, bookStyles = {} }) => {
       default:
         // Generic handler for unsupported elements
         return (
-          <View key={`unknown-${index}`} style={[cssStyles, styleProps]}>
+          <View key={`unknown-${index}`} style={[elementTypeStyles, cssClassStyles, idStyles, cssStyles, styleProps]}>
             {node.children?.map((child, childIndex) =>
               typeof child === 'string'
                 ? <Text key={`text-in-unknown-${childIndex}`}>{child}</Text>
