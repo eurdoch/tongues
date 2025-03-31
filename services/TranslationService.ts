@@ -294,7 +294,7 @@ export async function loadFileToBlob(filePath: string) {
     const base64Data = await RNFS.readFile(filePath, 'base64');
     
     // Determine MIME type based on file extension (you can expand this)
-    const extension = filePath.split('.').pop().toLowerCase();
+    const extension = filePath.split('.').pop()?.toLowerCase() || '';
     let mimeType = 'application/octet-stream'; // Default
     
     // Set common MIME types
