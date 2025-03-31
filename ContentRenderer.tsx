@@ -54,7 +54,7 @@ const ContentRenderer = ({ content, bookStyles = {} }) => {
       if (!children) return null;
       return children.map((child, childIndex) =>
         typeof child === 'string' 
-          ? child 
+          ? <Text key={`text-${index}-${childIndex}`}>{child}</Text>
           : renderNode(child, `${index}-${childIndex}`, bookStyles)
       );
     };
@@ -180,8 +180,8 @@ const ContentRenderer = ({ content, bookStyles = {} }) => {
         );
 
       case 'text':
-        // Directly render text node content
-        return node.children?.[0] || null;
+        // Wrap text node content in Text component
+        return <Text key={`text-node-${index}`}>{node.children?.[0] || ''}</Text>;
 
       default:
         // Generic handler for unsupported elements
