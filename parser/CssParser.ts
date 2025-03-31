@@ -214,9 +214,30 @@ function parseCssValue(property: string, value: string): any {
     return fontFamily;
   }
   
-  // Handle line-height without units for React Native (must be a number)
-  if (property === 'line-height' && !value.match(/[a-z%]/i)) {
-    return parseFloat(value);
+  // Handle line-height for React Native (must be a number)
+  if (property === 'line-height') {
+    // Handle 'normal' value (default line height)
+    if (value === 'normal') {
+      return 1.2; // Standard approximation of 'normal' line height
+    }
+    // Handle numeric values without units
+    if (!value.match(/[a-z%]/i)) {
+      return parseFloat(value);
+    }
+    // Handle values with units (px, em, rem)
+    if (value.endsWith('px')) {
+      // For line-height in pixels, we need to convert to a unitless number
+      // This is approximate but better than failing
+      return parseFloat(value) / 16; // Dividing by base font size to get relative value
+    }
+    if (value.endsWith('em') || value.endsWith('rem')) {
+      return parseFloat(value);
+    }
+    if (value.endsWith('%')) {
+      return parseFloat(value) / 100; // Convert percentage to decimal
+    }
+    // Default for unrecognized formats
+    return 1.2;
   }
   
   // For all other values, return as is
@@ -287,16 +308,39 @@ function cssRuleToReactNativeStyle(rule: CssRule): Record<string, any> {
       try {
         // Convert the value
         const rnValue = parseCssValue(cssProperty, cssValue);
+        
         if (rnValue !== undefined) {
-          // Additional safety check to ensure we're not passing strings to numeric properties
-          if ((rnProperty === 'fontSize' || rnProperty === 'lineHeight') && 
-              typeof rnValue === 'string' && 
-              !/^\d+(\.\d+)?$/.test(rnValue)) {
-            // For these properties, if the value is still a non-numeric string after
-            // parsing, use a default value instead
-            console.warn(`Cannot use non-numeric value "${rnValue}" for property "${rnProperty}", using default`);
-            rnStyle[rnProperty] = rnProperty === 'fontSize' ? 14 : 1.2; // Default values
+          // List of properties that must be numeric in React Native
+          const numericProperties = ['fontSize', 'lineHeight', 'flex', 'opacity', 'zIndex', 
+            'borderRadius', 'borderWidth', 'borderTopWidth', 'borderRightWidth', 
+            'borderBottomWidth', 'borderLeftWidth', 'margin', 'marginTop', 'marginRight', 
+            'marginBottom', 'marginLeft', 'padding', 'paddingTop', 'paddingRight', 
+            'paddingBottom', 'paddingLeft', 'top', 'right', 'bottom', 'left'];
+          
+          // Check if this property needs to be numeric
+          if (numericProperties.includes(rnProperty)) {
+            // If value is not a number, convert or use default
+            if (typeof rnValue !== 'number') {
+              // Try to convert string numbers
+              if (typeof rnValue === 'string' && /^-?\d+(\.\d+)?$/.test(rnValue)) {
+                rnStyle[rnProperty] = parseFloat(rnValue);
+              } else {
+                // Use property-specific defaults
+                let defaultValue = 0;
+                
+                if (rnProperty === 'fontSize') defaultValue = 14;
+                else if (rnProperty === 'lineHeight') defaultValue = 1.2;
+                else if (rnProperty === 'opacity') defaultValue = 1;
+                else if (rnProperty === 'flex') defaultValue = 1;
+                
+                console.warn(`Cannot use non-numeric value "${rnValue}" for property "${rnProperty}", using default ${defaultValue}`);
+                rnStyle[rnProperty] = defaultValue;
+              }
+            } else {
+              rnStyle[rnProperty] = rnValue;
+            }
           } else {
+            // For non-numeric properties, use the value as is
             rnStyle[rnProperty] = rnValue;
           }
         }
