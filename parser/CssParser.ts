@@ -101,10 +101,17 @@ function parseCssValue(property: string, value: string): any {
   // Remove !important flags
   value = value.replace(/\s*!important\s*$/, '').trim();
   
+  // Handle common CSS units
   // Handle pixel values
   if (value.endsWith('px')) {
     const numVal = parseFloat(value);
     return isNaN(numVal) ? value : numVal;
+  }
+  
+  // Handle point values (1pt = 1.333px)
+  if (value.endsWith('pt')) {
+    const numVal = parseFloat(value);
+    return isNaN(numVal) ? value : numVal * 1.333;
   }
   
   // Handle em and rem values - convert to pixel equivalents
@@ -116,6 +123,31 @@ function parseCssValue(property: string, value: string): any {
       return numVal * 16;
     }
     return value;
+  }
+  
+  // Handle other CSS units
+  if (value.endsWith('cm')) {
+    // 1cm = 37.8px
+    const numVal = parseFloat(value);
+    return isNaN(numVal) ? value : numVal * 37.8;
+  }
+  
+  if (value.endsWith('mm')) {
+    // 1mm = 3.78px
+    const numVal = parseFloat(value);
+    return isNaN(numVal) ? value : numVal * 3.78;
+  }
+  
+  if (value.endsWith('in')) {
+    // 1in = 96px
+    const numVal = parseFloat(value);
+    return isNaN(numVal) ? value : numVal * 96;
+  }
+  
+  if (value.endsWith('pc')) {
+    // 1pc = 16px
+    const numVal = parseFloat(value);
+    return isNaN(numVal) ? value : numVal * 16;
   }
   
   // Handle unitless numbers
@@ -238,6 +270,33 @@ function parseCssValue(property: string, value: string): any {
     }
     // Default for unrecognized formats
     return 1.2;
+  }
+  
+  // Generic handler for various CSS units when we can't determine the specific unit
+  // This extracts numeric values from strings like "10pt", "5vw", etc.
+  const unitMatch = value.match(/^(-?\d+(\.\d+)?)(pt|px|em|rem|%|vh|vw|vmin|vmax|ex|ch|cm|mm|in|pc)$/);
+  if (unitMatch) {
+    const numVal = parseFloat(unitMatch[1]);
+    const unit = unitMatch[3];
+    
+    // For layout properties that need number values in React Native
+    const layoutProperties = [
+      'margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+      'padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+      'width', 'height', 'min-width', 'min-height', 'max-width', 'max-height',
+      'top', 'right', 'bottom', 'left', 'border-width', 'border-radius',
+      'font-size', 'line-height'
+    ];
+    
+    if (layoutProperties.includes(property)) {
+      // For percent values in width/height, keep the string format
+      if (unit === '%' && ['width', 'height', 'max-width', 'max-height', 'min-width', 'min-height'].includes(property)) {
+        return value;
+      }
+      
+      // For other properties, return the number value
+      return numVal;
+    }
   }
   
   // For all other values, return as is
