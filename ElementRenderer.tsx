@@ -1,5 +1,5 @@
-import React, { useContext } from 'react';
-import { Text, View, StyleSheet, FlatList, ListRenderItem } from 'react-native';
+import React, { useContext, useEffect } from 'react';
+import { Text, View, StyleSheet, FlatList, ListRenderItem, ScrollView } from 'react-native';
 import { ElementNode } from './types/ElementNode';
 import GestureText from './GestureText';
 import { useNavigationContext } from './NavigationContext';
@@ -188,8 +188,6 @@ export const renderNode = (node: ElementNode, index: number, bookStyles: any = {
         </View>
       );
     
-    // Add more HTML element handlers as needed
-      
     default:
       // Generic handler for unsupported elements
       return (
@@ -425,7 +423,7 @@ export const EpubHtmlRenderer: React.FC<{
     // Then get the top-level nodes
     return getTopLevelNodes(processedContent);
   }, [content]);
-  
+
   // Ensure we have content to display
   if (!prepareNodes || prepareNodes.length === 0) {
     console.warn('No content to display in EpubHtmlRenderer');
@@ -440,21 +438,35 @@ export const EpubHtmlRenderer: React.FC<{
     );
   }
   
+  // Calculate total content length for logging
+  const totalContentLength = React.useMemo(() => {
+    let charCount = 0;
+    const countChars = (node: ElementNode | string) => {
+      if (typeof node === 'string') {
+        charCount += node.length;
+      } else if (node.children) {
+        node.children.forEach(countChars);
+      }
+    };
+    
+    prepareNodes.forEach(countChars);
+    return charCount;
+  }, [prepareNodes]);
+  
+  console.log(`Total content character count: ${totalContentLength}`);
+  console.log(`Rendering ${prepareNodes.length} nodes in FlatList`);
+  
   return (
     <BookStylesContext.Provider value={bookStyles}>
-      <FlatList
-        data={prepareNodes}
-        renderItem={renderItemWithStyles}
-        keyExtractor={(_, index) => `node-${index}`}
-        style={[{ flex: 1 }, containerStyle]}
-        removeClippedSubviews={false} // Changed to false to fix rendering issues
-        initialNumToRender={50} // Increased to show more content initially
-        maxToRenderPerBatch={20} // Increased for smoother scrolling
-        windowSize={21} // Increased (21 means ~10 screens above and below)
-        ListHeaderComponent={() => (
-          <View style={{ height: 10 }} /> // Add some padding at the top
-        )}
-      />
+      <View style={{ flex: 1 }}>
+        <FlatList
+          data={prepareNodes}
+          renderItem={renderItemWithStyles}
+          keyExtractor={(_, index) => `node-${index}`}
+          style={[{ flex: 1 }, containerStyle]}
+          contentContainerStyle={{ paddingBottom: 100 }}
+        />
+      </View>
     </BookStylesContext.Provider>
   );
 };
