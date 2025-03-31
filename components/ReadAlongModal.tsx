@@ -470,6 +470,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         currentTimestamps.current = [];
         
         const sentence = sentences[index];
+        console.log('DEBUG sentence: ', sentence);
         console.log(`[ReadAlongModal] Loading sentence ${index}: "${sentence.substring(0, 30)}..."`);
         
         const [timestamps, speech] = await Promise.all([

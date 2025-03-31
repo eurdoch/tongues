@@ -101,11 +101,10 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
     
     // Get book language
     // Use the first content file to determine language
-    const firstContentFile = contentFiles[0];
-    const firstContents = await readTextFile(firstContentFile);
-    const determination = await determineLanguage(firstContents);
+    const lastContentFile = contentFiles[contentFiles.length-1];
+    const lastContents = await readTextFile(lastContentFile);
+    const determination = await determineLanguage(lastContents);
 
-    console.debug('All content elements: ', allContentElements);
     return {
       language: determination.language,
       path: unzipResult,

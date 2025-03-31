@@ -316,6 +316,7 @@ export async function loadFileToBlob(filePath: string) {
 }
 
 export const determineLanguage = async (excerpt: string) => {
+  console.log('DEBUG excerpt: ', excerpt);
   const response = await fetch('https://tongues.directto.link/language', {
     method: 'POST',
     headers: {
@@ -328,8 +329,7 @@ export const determineLanguage = async (excerpt: string) => {
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => 'No error details');
-    console.error('Timestamp API error:', errorText);
-    throw new Error(`Word timestamps request failed with status: ${response.status}`);
+    throw new Error(`Language request failed with status: ${response.status} ${errorText}`);
   }
 
   const jsonResponse = await response.json();

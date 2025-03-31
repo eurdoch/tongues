@@ -41,8 +41,12 @@ function parseElements(html: string): ElementNode[] {
     
     if (textContent) {
       // This is a text node
-      const decodedText = decodeHtmlEntities(textContent.trim());
-      if (decodedText) {
+      // Keep whitespace but normalize multiple spaces
+      const normalizedText = textContent.replace(/\s+/g, ' ');
+      const decodedText = decodeHtmlEntities(normalizedText);
+      
+      // Add text even if it's just whitespace, to preserve layout
+      if (decodedText || decodedText === ' ') {
         if (currentElement) {
           if (!currentElement.children) currentElement.children = [];
           currentElement.children.push(decodedText);

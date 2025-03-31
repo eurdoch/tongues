@@ -7,7 +7,7 @@ import RNFS from "react-native-fs";
 import { parseEpub } from "../parser/EpubLoader";
 import TableOfContents from "./TableOfContents";
 import { useNavigationContext } from "../NavigationContext";
-import { findFirstContentTag, readTextFile, copyFileToAppStorage } from "../utils";
+import { copyFileToAppStorage } from "../utils";
 import { NavPoint } from "../types/NavPoint";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -28,7 +28,6 @@ function CustomDrawerContent() {
     useEffect(() => {
       console.log('[CustomDrawerContent] Component mounted, current navMap:', currentBook?.navMap);
       
-      // TODO is this needed?
       // Check for pending book from direct file open
       if (global.pendingBook && !currentBook) {
         console.log('[CustomDrawerContent] Found pending book, setting in context');
@@ -112,22 +111,6 @@ function CustomDrawerContent() {
             setCurrentBook(book);
             console.log(`[CustomDrawerContent] Book parsed successfully with ${book.content?.length || 0} content elements`);
             
-            // We'll still get placeholder content for backward compatibility
-            let placeholderContent = "";
-            try {
-              const firstContentElem = findFirstContentTag(book.navMap);
-              if (firstContentElem && firstContentElem.getAttribute) {
-                const src = firstContentElem.getAttribute('src');
-                if (src) {
-                  const firstContentPath = book.basePath + '/' + src;
-                  placeholderContent = await readTextFile(firstContentPath);
-                }
-              }
-            } catch (error) {
-              console.error('[CustomDrawerContent] Error getting placeholder content:', error);
-              // Continue anyway as we have the full book content
-            }
-  
             // Navigate to reader screen - it will prioritize book.content
             navigation.navigate('Reader', { 
               book,

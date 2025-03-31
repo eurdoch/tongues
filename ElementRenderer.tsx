@@ -149,6 +149,7 @@ export const renderNode = (node: ElementNode, index: number, bookStyles: any = {
         </Text>
       );
       
+    // TODO render image
     case 'img':
       return <Text key={`img-${index}`} style={[styles.h1, cssStyles, styleProps]}>Image Placeholder</Text>;
       
@@ -221,10 +222,28 @@ export const renderNode = (node: ElementNode, index: number, bookStyles: any = {
  * @returns Array of top-level ElementNode objects
  */
 export const getTopLevelNodes = (nodes: ElementNode[]): ElementNode[] => {
-  return nodes.filter(node => 
+  // First, make sure we're working with a valid array
+  if (!nodes || !Array.isArray(nodes)) {
+    console.warn('getTopLevelNodes received invalid nodes:', nodes);
+    return [];
+  }
+  
+  // Log the number of total nodes and first few nodes for debugging
+  console.log(`Total nodes before filtering: ${nodes.length}`);
+  if (nodes.length > 0) {
+    console.log(`First node type: ${typeof nodes[0] === 'string' ? 'string' : nodes[0].type}`);
+  }
+  
+  // Filter to get only the node types we want to display at the top level
+  const filtered = nodes.filter(node => 
     typeof node !== 'string' && 
-    ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div', 'section', 'article', 'ul', 'ol', 'img', 'hr'].includes(node.type)
+    ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div', 'section', 'article', 'ul', 'ol', 'img', 'hr', 'span', 'pre', 'code', 'table', 'tr', 'td', 'th', 'thead', 'tbody'].includes(node.type)
   );
+  
+  // Log the number of nodes after filtering
+  console.log(`Nodes after filtering: ${filtered.length}`);
+  
+  return filtered;
 };
 
 /**
@@ -357,25 +376,84 @@ export const EpubHtmlRenderer: React.FC<{
     }
   }, [currentBook?.styleSheets]);
   
+  // Log content for debugging
+  React.useEffect(() => {
+    console.log(`EpubHtmlRenderer received ${content?.length || 0} nodes`);
+    if (content && content.length > 0) {
+      // Log the first few nodes to help with debugging
+      for (let i = 0; i < Math.min(3, content.length); i++) {
+        const node = content[i];
+        if (typeof node === 'string') {
+          const strNode = node as string;
+          console.log(`Node ${i} is string: "${strNode.substring(0, 50)}${strNode.length > 50 ? '...' : ''}"`);
+        } else if (node && typeof node === 'object') {
+          const objNode = node as ElementNode;
+          console.log(`Node ${i} is type: ${objNode.type}, with ${objNode.children?.length || 0} children`);
+        } else {
+          console.log(`Node ${i} has unexpected type: ${typeof node}`);
+        }
+      }
+    }
+  }, [content]);
+  
   // Custom renderer that passes the book styles
   const renderItemWithStyles: ListRenderItem<ElementNode> = ({ item, index }) => {
     return renderNode(item, index, bookStyles);
   };
   
-  // Extract top-level nodes for better FlatList performance
-  const topLevelNodes = getTopLevelNodes(content);
+  // Prepare content for FlatList:
+  // 1. Ensure any text nodes are wrapped in paragraph elements
+  // 2. Extract top-level nodes for better performance
+  const prepareNodes = React.useMemo(() => {
+    if (!content || !Array.isArray(content)) {
+      console.warn('EpubHtmlRenderer received invalid content:', content);
+      return [];
+    }
+    
+    // First, process and wrap standalone text nodes in paragraphs
+    const processedContent = content.map(node => {
+      if (typeof node === 'string') {
+        // Wrap text nodes in paragraph nodes for proper rendering
+        return {
+          type: 'p',
+          children: [node]
+        };
+      }
+      return node;
+    });
+    
+    // Then get the top-level nodes
+    return getTopLevelNodes(processedContent);
+  }, [content]);
+  
+  // Ensure we have content to display
+  if (!prepareNodes || prepareNodes.length === 0) {
+    console.warn('No content to display in EpubHtmlRenderer');
+    return (
+      <BookStylesContext.Provider value={bookStyles}>
+        <View style={[{ flex: 1, padding: 20 }, containerStyle]}>
+          <Text style={{ fontSize: 16, color: '#666' }}>
+            No content to display. The book may be in an unsupported format.
+          </Text>
+        </View>
+      </BookStylesContext.Provider>
+    );
+  }
   
   return (
     <BookStylesContext.Provider value={bookStyles}>
       <FlatList
-        data={topLevelNodes}
+        data={prepareNodes}
         renderItem={renderItemWithStyles}
         keyExtractor={(_, index) => `node-${index}`}
         style={[{ flex: 1 }, containerStyle]}
-        removeClippedSubviews={true}
-        initialNumToRender={20}
-        maxToRenderPerBatch={10}
-        windowSize={10}
+        removeClippedSubviews={false} // Changed to false to fix rendering issues
+        initialNumToRender={50} // Increased to show more content initially
+        maxToRenderPerBatch={20} // Increased for smoother scrolling
+        windowSize={21} // Increased (21 means ~10 screens above and below)
+        ListHeaderComponent={() => (
+          <View style={{ height: 10 }} /> // Add some padding at the top
+        )}
       />
     </BookStylesContext.Provider>
   );
