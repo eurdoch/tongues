@@ -12,13 +12,14 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import RNFS from "react-native-fs";
-import { useNavigation } from "@react-navigation/native";
+import { NavigationProp, useNavigation } from "@react-navigation/native";
 import * as ZipArchive from 'react-native-zip-archive';
 import { BookMetadata, getAllBookMetadata, processBookFile, updateLastRead, removeBookMetadata } from '../BookMetadataStore';
 import { parseEpub } from "../parser/EpubLoader";
 import { findFirstContentTag, readTextFile } from "../utils";
 import { useNavigationContext } from "../NavigationContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { RootStackParamList } from "../App";
 
 interface EpubFile {
     id: string;
@@ -30,16 +31,17 @@ interface EpubFile {
     lastModified?: number;
 }
 
+type HomeScreenNavigationProps = NavigationProp<RootStackParamList, 'Home'>;
+
 function HomeScreen(): React.JSX.Element {
     const [epubFiles, setEpubFiles] = useState<EpubFile[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [isSelectMode, setIsSelectMode] = useState<boolean>(false);
     const [selectedBooks, setSelectedBooks] = useState<Set<string>>(new Set());
-    const navigation = useNavigation();
+    const navigation = useNavigation<HomeScreenNavigationProps>();
     const { setCurrentBook, isBookLoading, setIsBookLoading } = useNavigationContext();
 
-    // Handle select all books
     const handleSelectAll = () => {
         const allBookIds = new Set(epubFiles.map(book => book.id));
         setSelectedBooks(allBookIds);
@@ -523,7 +525,12 @@ function HomeScreen(): React.JSX.Element {
                         const stat = await RNFS.stat(file.path);
                         
                         // Generate a unique ID for the file
-                        const uniqueId = `${file.path}_${stat.size}_${stat.mtime?.getTime() || 0}`;
+                        // Handle mtime which might be a Date or a number
+                        const mtimeValue = typeof stat.mtime === 'object' && stat.mtime 
+                            ? stat.mtime.getTime() 
+                            : (typeof stat.mtime === 'number' ? stat.mtime : 0);
+                        
+                        const uniqueId = `${file.path}_${stat.size}_${mtimeValue}`;
                         
                         results.push({
                             id: uniqueId,
@@ -532,7 +539,7 @@ function HomeScreen(): React.JSX.Element {
                             title: file.name.replace(/\.epub$/i, ""), // Default to filename, will update with real title later
                             coverUri: null,
                             size: stat.size,
-                            lastModified: stat.mtime?.getTime()
+                            lastModified: mtimeValue
                         });
                     } catch (statError) {
                         console.error(`Error getting stats for ${file.path}:`, statError);
@@ -943,9 +950,7 @@ function HomeScreen(): React.JSX.Element {
                 
                 // Navigate to the reader screen - it will prioritize book.content
                 navigation.navigate('Reader', {
-                    content: placeholderContent, // For backward compatibility
-                    language: book.language,
-                    section: section
+                  book,
                 });
                 
             } catch (contentError) {
