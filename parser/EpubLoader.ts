@@ -7,6 +7,7 @@ import StyleSheet from '../types/StyleSheet';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { determineLanguage } from '../services/TranslationService';
 import { parseHtml } from './EpubContentParser';
+import { ElementNode } from '../types/ElementNode';
 
 export async function parseEpub(fileUri: string): Promise<BookData> {
   try {
@@ -65,6 +66,13 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
       try {
         const fileContent = await readTextFile(contentFile);
         const parsedContent = parseHtml(fileContent);
+        
+        // Get the directory of the current content file for resolving relative paths
+        const contentFileDir = contentFile.substring(0, contentFile.lastIndexOf('/'));
+        
+        // Process image tags in this content file to convert relative paths to absolute
+        processImagePaths(parsedContent, contentFileDir);
+        
         allContentElements.push(...parsedContent);
       } catch (parseError) {
         console.error(`Error parsing content file ${contentFile}:`, parseError);
@@ -320,6 +328,43 @@ async function findOpfStylesheets(extractionPath: string): Promise<StyleSheet[]>
  * @param node - The DOM node to start searching from
  * @returns The last content element found, or null if none exists
  */
+/**
+ * Processes a collection of element nodes to convert relative image paths to absolute paths
+ * 
+ * @param elements - Array of ElementNode objects to process
+ * @param basePath - The base directory path to resolve relative image paths against
+ */
+function processImagePaths(elements: ElementNode[], basePath: string): void {
+  // Function to recursively process an element and its children
+  function processElement(element: ElementNode): void {
+    // Check if this is an image element with a src attribute
+    if (element.type === 'img' && element.props?.src) {
+      const src = element.props.src;
+      
+      // Only process if it's a relative path and not already absolute or external
+      if (!src.startsWith('http') && !src.startsWith('file://') && !src.startsWith('/')) {
+        // Resolve the relative path against the base path
+        element.props.src = `${basePath}/${src}`;
+        console.log(`Converted image path from ${src} to ${element.props.src}`);
+      }
+    }
+    
+    // Process children recursively
+    if (element.children && element.children.length > 0) {
+      for (const child of element.children) {
+        if (typeof child !== 'string') {
+          processElement(child);
+        }
+      }
+    }
+  }
+  
+  // Process each top-level element
+  for (const element of elements) {
+    processElement(element);
+  }
+}
+
 export function findLastContentTag(node: any): any | null {
   if (!node) {
     return null;
