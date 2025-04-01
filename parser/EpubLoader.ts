@@ -8,13 +8,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { determineLanguage } from '../services/TranslationService';
 import { parseHtml } from './EpubContentParser';
 
-const ISO_TO_LANG = {
-  'fr': 'French',
-  'es': 'Spanish',
-  'de': 'German',
-  'nl': 'Dutch',
-}
-
 export async function parseEpub(fileUri: string): Promise<BookData> {
   try {
     console.log('Starting to unzip epub file:', fileUri);
@@ -105,7 +98,6 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
     const lastContents = await readTextFile(lastContentFile);
     const determination = await determineLanguage(lastContents);
 
-    console.log('DEBUG content: ', allContentElements);
     return {
       language: determination.language,
       path: unzipResult,

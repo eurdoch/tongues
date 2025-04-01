@@ -316,7 +316,6 @@ export async function loadFileToBlob(filePath: string) {
 }
 
 export const determineLanguage = async (excerpt: string) => {
-  console.log('DEBUG excerpt: ', excerpt);
   const response = await fetch('https://tongues.directto.link/language', {
     method: 'POST',
     headers: {

@@ -5,14 +5,6 @@ import TOCItem from './types/TOCItem';
 import { NavPoint } from './types/NavPoint';
 import StyleSheet from './types/StyleSheet';
 
-const languages = [
-  { label: 'French', value: 'French' },
-  { label: 'Spanish', value: 'Spanish' },
-  { label: 'German', value: 'German' },
-  { label: 'Italian', value: 'Italian' },
-  { label: 'Dutch', value: 'Dutch' },
-];
-
 /**
  * Recursively searches for an OPF file in the given directory
  * @param {string} directoryPath - The directory to search in
@@ -120,82 +112,6 @@ const extractTitle = async (filePath: string): Promise<string> => {
   } catch (error) {
     console.error('Error reading file for title:', error);
     return filePath.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'Untitled';
-  }
-};
-
-// TODO flagged for deletion
-const readContentOpf = async (opfPath: string) => {
-  try {
-    console.log('Reading OPF file from path:', opfPath);
-    const content = await RNFS.readFile(opfPath, 'utf8');
-    
-    const manifestSection = content.match(/<manifest[^>]*>([\s\S]*?)<\/manifest>/);
-    if (!manifestSection) {
-      console.error('No manifest section found');
-      return [];
-    }
-
-    const manifestItems: { [key: string]: string } = {};
-    const manifestContent = manifestSection[1];
-    const itemMatches = manifestContent.match(/<item[^>]+>/g) || [];
-    
-    console.log('\nParsing manifest items...');
-    itemMatches.forEach(item => {
-      const idMatch = item.match(/id="([^"]+)"/);
-      const hrefMatch = item.match(/href="([^"]+)"/);
-      
-      if (idMatch && hrefMatch) {
-        const id = idMatch[1];
-        const href = hrefMatch[1];
-        manifestItems[id] = href;
-        console.log('Found manifest item:', { id, href });
-      }
-    });
-
-    // Find and store stylesheets
-    const sheets = await findStyleSheets(opfPath, manifestItems);
-    
-    //setStyleSheets(sheets);
-    console.log('Found', sheets.length, 'stylesheets');
-
-    const spineSection = content.match(/<spine[^>]*>([\s\S]*?)<\/spine>/);
-    if (!spineSection) {
-      console.error('No spine section found');
-      return [];
-    }
-
-    const tocItems: TOCItem[] = [];
-    const spineContent = spineSection[1];
-    const spineMatches = spineContent.match(/<itemref[^>]+>/g) || [];
-
-    console.log('\nParsing spine items...');
-    
-    const tocPromises = spineMatches.map(async (item) => {
-      const idrefMatch = item.match(/idref="([^"]+)"/);
-      if (idrefMatch && manifestItems[idrefMatch[1]]) {
-        const id = idrefMatch[1];
-        const href = manifestItems[id];
-        const fullPath = `${opfPath.substring(0, opfPath.lastIndexOf('/'))}/${href}`;
-        
-        const title = await extractTitle(fullPath);
-        
-        return {
-          label: title,
-          href: href,
-          path: fullPath,
-        };
-      }
-      return null;
-    });
-    
-    const resolvedItems = await Promise.all(tocPromises);
-    tocItems.push(...resolvedItems.filter((item): item is TOCItem => item !== null));
-
-    console.log(`\nFinal TOC items: ${tocItems.length}`);
-    return tocItems;
-  } catch (error) {
-    console.error('Error reading content.opf:', error);
-    return [];
   }
 };
 
@@ -628,40 +544,6 @@ export function getFirstContentSrc(node: any): string | null {
   }
 }
 
-/**
- * Finds a navigation point by its ID
- * @param navStructure - The navigation structure to search through
- * @param targetId - The ID of the navigation point to find
- * @returns The found NavPoint or null if not found
- */
-// TODO marked for deletion
-function findNavPointById(navStructure: Record<string, NavPoint> | NavPoint[], targetId: string): NavPoint | null {
-  // Handle array or object structure
-  const navPoints = Array.isArray(navStructure) 
-    ? navStructure 
-    : Object.values(navStructure);
-  
-  // Search through the current level
-  for (const navPoint of navPoints) {
-    // Check if current point matches target ID
-    if (navPoint.id === targetId) {
-      return navPoint;
-    }
-    
-    // If this point has children, search through them recursively
-    if (navPoint.children && navPoint.children.length > 0) {
-      const found = findNavPointById(navPoint.children, targetId);
-      if (found) {
-        return found;
-      }
-    }
-  }
-  
-  // Not found at this level or any children
-  return null;
-}
-
-// Function to copy the file to app storage
 export const copyFileToAppStorage = async (sourceUri: string): Promise<string | null> => {
   try {
     console.log("Original source URI:", sourceUri);
