@@ -295,6 +295,7 @@ export const extractEpubMetadata = async (epubUri: string): Promise<{ title: str
                 console.log('Decoded cover path:', decodedCoverPath);
                 
                 const basePath = opfPath.substring(0, opfPath.lastIndexOf('/'));
+                console.log('Base path:', basePath);
                 
                 // Normalize path separators and handle relative paths
                 let normalizedPath = decodedCoverPath;
@@ -304,7 +305,14 @@ export const extractEpubMetadata = async (epubUri: string): Promise<{ title: str
                     normalizedPath = normalizedPath.substring(2);
                 }
                 
-                // Handle parent directory references (../path)
+                // Extract the cover filename
+                const coverFilename = normalizedPath.split('/').pop() || '';
+                console.log('Cover filename:', coverFilename);
+                
+                // List of possible cover paths to try
+                const potentialPaths = [];
+                
+                // 1. Handle parent directory references (../path)
                 if (normalizedPath.includes('../')) {
                     const basePathParts = basePath.split('/');
                     const coverPathParts = normalizedPath.split('/');
@@ -318,78 +326,118 @@ export const extractEpubMetadata = async (epubUri: string): Promise<{ title: str
                         }
                     }
                     
-                    const fullCoverPath = resultParts.join('/');
-                    console.log('Full cover image path (resolved relative):', fullCoverPath);
-                    
-                    // Check if cover file exists
-                    try {
-                        const coverExists = await RNFS.exists(fullCoverPath);
-                        if (!coverExists) {
-                            console.error('Cover file does not exist at resolved path:', fullCoverPath);
-                        } else {
-                            // Create a stable book ID from the EPUB path
-                            const bookId = epubUri.split('/').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'unknown';
-                            // Create a cached copy of the cover image with a stable filename
-                            const coverExt = decodedCoverPath.split('.').pop() || 'jpg';
-                            const cachedCoverPath = `${RNFS.CachesDirectoryPath}/book_cover_${bookId}.${coverExt}`;
-                            console.log('Copying cover to cache with stable ID:', cachedCoverPath);
-                            await RNFS.copyFile(fullCoverPath, cachedCoverPath);
-                            coverUri = cachedCoverPath;
-                            console.log('Successfully cached cover image at:', cachedCoverPath);
-                        }
-                    } catch (existsError) {
-                        console.error('Error checking cover file existence:', existsError);
+                    const resolvedPath = resultParts.join('/');
+                    console.log('Potential cover path (resolved relative):', resolvedPath);
+                    potentialPaths.push(resolvedPath);
+                } 
+                
+                // 2. Regular path without parent directory references
+                const directPath = `${basePath}/${normalizedPath}`;
+                console.log('Potential cover path (direct):', directPath);
+                potentialPaths.push(directPath);
+                
+                // 3. Try with OEBPS prefix (common in EPUBs)
+                if (!directPath.includes('/OEBPS/') && !normalizedPath.startsWith('/')) {
+                    const oebpsPath = `${extractedPath}/OEBPS/${normalizedPath}`;
+                    console.log('Potential cover path (OEBPS):', oebpsPath);
+                    potentialPaths.push(oebpsPath);
+                }
+                
+                // 4. Try looking in common image directories
+                const commonImageDirs = ['Images', 'images', 'Image', 'image', 'IMAGES', 'img', 'IMG'];
+                for (const imgDir of commonImageDirs) {
+                    if (coverFilename && !normalizedPath.includes(`/${imgDir}/`)) {
+                        const imgDirPath = `${extractedPath}/${imgDir}/${coverFilename}`;
+                        console.log(`Potential cover path (${imgDir}):`, imgDirPath);
+                        potentialPaths.push(imgDirPath);
+                        
+                        // Also try with OEBPS
+                        const oebpsImgPath = `${extractedPath}/OEBPS/${imgDir}/${coverFilename}`;
+                        console.log(`Potential cover path (OEBPS/${imgDir}):`, oebpsImgPath);
+                        potentialPaths.push(oebpsImgPath);
                     }
-                } else {
-                    // Regular path without parent directory references
-                    const fullCoverPath = `${basePath}/${normalizedPath}`;
-                    console.log('Full cover image path (direct):', fullCoverPath);
-                    
-                    // Check if cover file exists
+                }
+                
+                // Try all potential paths
+                let coverFound = false;
+                let foundCoverPath = '';
+                
+                for (const path of potentialPaths) {
                     try {
-                        const coverExists = await RNFS.exists(fullCoverPath);
-                        if (!coverExists) {
-                            console.error('Cover file does not exist at direct path:', fullCoverPath);
+                        console.log('Checking if cover exists at:', path);
+                        const exists = await RNFS.exists(path);
+                        if (exists) {
+                            console.log('Cover file found at:', path);
+                            foundCoverPath = path;
+                            coverFound = true;
+                            break;
+                        }
+                    } catch (error) {
+                        console.warn(`Error checking path ${path}:`, error);
+                        // Continue to next path
+                    }
+                }
+                
+                // If no cover found by direct paths, try a file search
+                if (!coverFound && coverFilename) {
+                    try {
+                        console.log('No cover found in expected locations, searching by filename:', coverFilename);
+                        const foundFile = await findFileByName(extractedPath, coverFilename);
+                        if (foundFile) {
+                            console.log('Found cover file by name search:', foundFile);
+                            foundCoverPath = foundFile;
+                            coverFound = true;
+                        }
+                    } catch (searchError) {
+                        console.error('Error searching for cover file by name:', searchError);
+                    }
+                    
+                    // Try searching for any image that might be a cover
+                    if (!coverFound) {
+                        try {
+                            console.log('Searching for any cover image file');
+                            // Common cover image names
+                            const coverNames = ['cover.jpg', 'cover.jpeg', 'cover.png', 
+                                              'Cover.jpg', 'Cover.jpeg', 'Cover.png',
+                                              'COVER.jpg', 'COVER.jpeg', 'COVER.png'];
                             
-                            // Try alternative file resolution approaches
-                            const coverFilename = normalizedPath.split('/').pop() || '';
-                            console.log('Attempting to find cover by filename:', coverFilename);
-                            
-                            // Search for the file by name in the extraction directory
-                            if (coverFilename) {
-                                try {
-                                    const foundFile = await findFileByName(extractedPath, coverFilename);
-                                    if (foundFile) {
-                                        console.log('Found cover file by name search:', foundFile);
-                                        
-                                        // Create a stable book ID from the EPUB path
-                                        const bookId = epubUri.split('/').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'unknown';
-                                        // Create a cached copy of the cover image with a stable filename
-                                        const coverExt = coverFilename.split('.').pop() || 'jpg';
-                                        const cachedCoverPath = `${RNFS.CachesDirectoryPath}/book_cover_${bookId}.${coverExt}`;
-                                        console.log('Copying found cover to cache with stable ID:', cachedCoverPath);
-                                        await RNFS.copyFile(foundFile, cachedCoverPath);
-                                        coverUri = cachedCoverPath;
-                                        console.log('Successfully cached found cover image at:', cachedCoverPath);
-                                    }
-                                } catch (searchError) {
-                                    console.error('Error searching for cover file by name:', searchError);
+                            for (const name of coverNames) {
+                                const coverByName = await findFileByName(extractedPath, name);
+                                if (coverByName) {
+                                    console.log('Found cover image by common name:', coverByName);
+                                    foundCoverPath = coverByName;
+                                    coverFound = true;
+                                    break;
                                 }
                             }
-                        } else {
-                            // Create a stable book ID from the EPUB path
-                            const bookId = epubUri.split('/').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'unknown';
-                            // Create a cached copy of the cover image with a stable filename
-                            const coverExt = normalizedPath.split('.').pop() || 'jpg';
-                            const cachedCoverPath = `${RNFS.CachesDirectoryPath}/book_cover_${bookId}.${coverExt}`;
-                            console.log('Copying cover to cache with stable ID:', cachedCoverPath);
-                            await RNFS.copyFile(fullCoverPath, cachedCoverPath);
-                            coverUri = cachedCoverPath;
-                            console.log('Successfully cached cover image at:', cachedCoverPath);
+                        } catch (genericSearchError) {
+                            console.error('Error in generic cover search:', genericSearchError);
                         }
-                    } catch (existsError) {
-                        console.error('Error checking cover file existence:', existsError);
                     }
+                }
+                
+                // If a cover was found, cache it
+                if (coverFound && foundCoverPath) {
+                    try {
+                        // Create a stable book ID from the EPUB path
+                        const bookId = epubUri.split('/').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'unknown';
+                        
+                        // Determine file extension from the found path
+                        const pathParts = foundCoverPath.split('.');
+                        const coverExt = pathParts.length > 1 ? pathParts.pop() || 'jpg' : 'jpg';
+                        
+                        // Create a cached copy of the cover image with a stable filename
+                        const cachedCoverPath = `${RNFS.CachesDirectoryPath}/book_cover_${bookId}.${coverExt}`;
+                        console.log('Copying cover to cache with stable ID:', cachedCoverPath);
+                        
+                        await RNFS.copyFile(foundCoverPath, cachedCoverPath);
+                        coverUri = cachedCoverPath;
+                        console.log('Successfully cached cover image at:', cachedCoverPath);
+                    } catch (cacheError) {
+                        console.error('Error caching cover image:', cacheError);
+                    }
+                } else {
+                    console.warn('No cover image found after trying all potential paths');
                 }
             } catch (coverError) {
                 console.error('Error processing cover image:', coverError);
