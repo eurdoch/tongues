@@ -1,12 +1,20 @@
 import React, { useMemo } from 'react';
-import { FlatList, View, Text, StyleSheet } from 'react-native';
+import { FlatList, View, Text, StyleSheet, TextStyle, ViewStyle } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { StyleSheet as BookStyleSheet } from './types/StyleSheet';
 import { processBookStyles } from './parser/CssParser';
+import { ElementNode } from './types/ElementNode';
+import ImageFromUri from './components/ImageFromUri';
+
+interface GestureTextProps {
+  children: React.ReactNode;
+  style?: TextStyle | TextStyle[];
+  selectable?: boolean;
+}
 
 // Create a gesture-enabled Text component
-const GestureText = ({ children, style, selectable = false }) => {
+const GestureText = ({ children, style, selectable = false }: GestureTextProps) => {
   const tap = Gesture.Tap()
     .onStart(() => {
       // Handle tap gestures if needed
@@ -57,7 +65,7 @@ const ContentRenderer = ({
   }, [content]);
 
   // Render a single node item
-  const renderNode = (node, index, bookStyles) => {
+  const renderNode = (node: ElementNode, index: string | number, bookStyles: Record<string, any>) => {
     if (!node) return null;
     
     // Get inline styles from node props
@@ -94,13 +102,13 @@ const ContentRenderer = ({
     const styleProps = node.props && typeof node.props === 'object' 
       ? Object.keys(node.props)
         .filter(key => key !== 'style' && key !== 'id' && key !== 'className')
-        .reduce((obj, key) => {
-          obj[key] = node.props[key];
+        .reduce((obj: Record<string, any>, key: string) => {
+          obj[key] = node.props?.[key];
           return obj;
         }, {})
       : {};
 
-    const renderChildren = (children) => {
+    const renderChildren = (children: (ElementNode | string)[] | undefined) => {
       if (!children) return null;
       return children.map((child, childIndex) =>
         typeof child === 'string' 
@@ -156,7 +164,7 @@ const ContentRenderer = ({
       case 'article':
         return (
           <View key={`container-${index}`} style={[elementTypeStyles, cssClassStyles, idStyles, cssStyles, styleProps]}>
-            {node.children?.map((child, childIndex) =>
+            {node.children?.map((child, childIndex: number) =>
               typeof child === 'string'
                 ? <Text key={`text-in-container-${childIndex}`}>{child}</Text>
                 : renderNode(child, `${index}-${childIndex}`, bookStyles)
@@ -192,7 +200,12 @@ const ContentRenderer = ({
         );
 
       case 'img':
-        return <Text key={`img-${index}`} style={[styles.h1, elementTypeStyles, cssClassStyles, idStyles, cssStyles, styleProps]}>Image Placeholder</Text>;
+        const imgSrc = node.props?.src || '';
+        return (
+          <View key={`img-${index}`} style={[styles.imageContainer, elementTypeStyles, cssClassStyles, idStyles, cssStyles, styleProps]}>
+            {imgSrc ? <ImageFromUri uri={imgSrc} /> : <Text style={styles.placeholderText}>Image Missing</Text>}
+          </View>
+        );
 
       case 'br':
         return <Text key={`br-${index}`}>{"\n"}</Text>;
@@ -204,7 +217,7 @@ const ContentRenderer = ({
       case 'ol':
         return (
           <View key={`list-${index}`} style={[styles.list, elementTypeStyles, cssClassStyles, idStyles, cssStyles, styleProps]}>
-            {node.children?.map((child, childIndex) =>
+            {node.children?.map((child, childIndex: number) =>
               typeof child === 'string'
                 ? <Text key={`text-in-list-${childIndex}`}>{child}</Text>
                 : renderNode(child, `${index}-${childIndex}`, bookStyles)
@@ -214,13 +227,15 @@ const ContentRenderer = ({
 
       case 'li':
         const isOrderedList = node.parent?.type === 'ol';
-        const bulletOrNumber = isOrderedList ? `${index + 1}. ` : '• ';
+        // Convert index to number if it's a string
+        const indexNum = typeof index === 'string' ? parseInt(index, 10) : index;
+        const bulletOrNumber = isOrderedList ? `${indexNum + 1}. ` : '• ';
 
         return (
           <View key={`li-${index}`} style={[styles.listItem, elementTypeStyles, cssClassStyles, idStyles, cssStyles, styleProps]}>
             <Text style={styles.bulletOrNumber}>{bulletOrNumber}</Text>
             <View style={styles.listItemContent}>
-              {node.children?.map((child, childIndex) =>
+              {node.children?.map((child, childIndex: number) =>
                 typeof child === 'string'
                   ? <Text key={`text-in-li-${childIndex}`}>{child}</Text>
                   : renderNode(child, `${index}-${childIndex}`, bookStyles)
@@ -231,13 +246,14 @@ const ContentRenderer = ({
 
       case 'text':
         // Wrap text node content in Text component
-        return <Text key={`text-node-${index}`}>{node.children?.[0] || ''}</Text>;
+        const textContent = typeof node.children?.[0] === 'string' ? node.children[0] : '';
+        return <Text key={`text-node-${index}`}>{textContent}</Text>;
 
       default:
         // Generic handler for unsupported elements
         return (
           <View key={`unknown-${index}`} style={[elementTypeStyles, cssClassStyles, idStyles, cssStyles, styleProps]}>
-            {node.children?.map((child, childIndex) =>
+            {node.children?.map((child, childIndex: number) =>
               typeof child === 'string'
                 ? <Text key={`text-in-unknown-${childIndex}`}>{child}</Text>
                 : renderNode(child, `${index}-${childIndex}`, bookStyles)
@@ -248,12 +264,12 @@ const ContentRenderer = ({
   };
 
   // Render a single item for FlatList
-  const renderItem = ({ item }) => {
+  const renderItem = ({ item }: { item: ElementNode & { key: string } }) => {
     return renderNode(item, item.key, bookStyles);
   };
 
   // Optimize FlatList with keyExtractor
-  const keyExtractor = (item) => item.key;
+  const keyExtractor = (item: ElementNode & { key: string }) => item.key;
 
   return (
     <GestureHandlerRootView style={styles.container}>
@@ -337,6 +353,17 @@ const styles = StyleSheet.create({
   },
   listItemContent: {
     flex: 1,
+  },
+  imageContainer: {
+    width: '100%',
+    marginVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  placeholderText: {
+    color: '#999',
+    fontStyle: 'italic',
+    padding: 20,
   },
 });
 
