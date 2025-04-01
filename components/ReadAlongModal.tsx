@@ -397,7 +397,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
           
           setIsPlaying(true);
         } else {
-          // Pause playback but maintain current highlight position
+          // First pause playback
           if (soundRef.current) {
             soundRef.current.pause();
           }
@@ -406,7 +406,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
           await new Promise<void>((resolve) => {
             soundRef.current!.getCurrentTime((seconds) => {
               const milliseconds = seconds * 1000;
-              let wordIndex = currentHighlightIndex.current; // Start with current value
+              let wordIndex = 0; // Start from the beginning
                 
               // Find the appropriate word based on current playback position
               for (let i = 0; i < currentTimestamps.current.length; i++) {
@@ -419,6 +419,8 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
                   break;
                 }
               }
+              
+              console.log('[ReadAlongModal] Paused at position:', milliseconds, 'ms, word index:', wordIndex);
               
               // Update both ref and state to ensure consistency
               currentHighlightIndex.current = wordIndex;
@@ -513,7 +515,8 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     
     if (visible) {
       // Only reset highlight when first becoming visible, not on every isPlaying change
-      if (!currentInterval.current) {
+      if (!currentInterval.current && currentHighlightIndex.current === 0) {
+        // Only reset highlight position when we're at the beginning
         setHighlightIndex(0);
         currentHighlightIndex.current = 0;
       }
@@ -662,8 +665,11 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       if (soundRef.current) {
         console.log('[ReadAlongModal] Restarting current sentence from beginning');
         
+        // Store current playing state
+        const wasPlaying = isPlaying;
+        
         // Pause if currently playing
-        if (isPlaying) {
+        if (wasPlaying) {
           soundRef.current.pause();
         }
         
@@ -675,7 +681,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         currentHighlightIndex.current = 0;
         
         // Resume playing if it was playing before
-        if (isPlaying) {
+        if (wasPlaying) {
           soundRef.current.play((success) => {
             if (success) {
               console.log('[ReadAlongModal] Sound finished playing successfully');
@@ -685,6 +691,10 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
               setIsPlaying(false);
             }
           });
+        } else {
+          // Make sure the highlight remains at the beginning when not playing
+          setHighlightIndex(0);
+          currentHighlightIndex.current = 0;
         }
       }
     } finally {
