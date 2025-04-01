@@ -101,6 +101,107 @@ function parseCssValue(property: string, value: string): any {
   // Remove !important flags
   value = value.replace(/\s*!important\s*$/, '').trim();
   
+  // Handle multi-value properties like margin and padding
+  if (['margin', 'padding'].includes(property) && value.includes(' ')) {
+    // Check if this is a multi-value property (1-4 values separated by spaces)
+    const parts = value.trim().split(/\s+/);
+    
+    // If this is a multi-value property, handle each value separately
+    if (parts.length >= 2 && parts.length <= 4) {
+      // Convert each part to a number if possible
+      const convertedParts = parts.map(part => {
+        // Use a simpler conversion process for each part
+        let numValue = 0;
+        
+        if (part.endsWith('px')) {
+          numValue = parseFloat(part);
+        } else if (part.endsWith('em') || part.endsWith('rem')) {
+          numValue = parseFloat(part) * 16; // 1em = 16px
+        } else if (part.endsWith('pt')) {
+          numValue = parseFloat(part) * 1.333; // 1pt = 1.333px
+        } else if (part === '0') {
+          numValue = 0;
+        } else {
+          // Try to parse as a number
+          const parsed = parseFloat(part);
+          if (!isNaN(parsed)) {
+            numValue = parsed;
+          } else {
+            console.warn(`Cannot parse value "${part}" in "${property}: ${value}"`);
+            numValue = 0; // Default to 0 for unparseable values
+          }
+        }
+        
+        return numValue;
+      });
+      
+      // For margin and padding in React Native, we need to set individual properties
+      // instead of using CSS-style shorthand
+      if (property === 'margin') {
+        const result: Record<string, number> = {};
+        
+        // CSS shorthand: 1 value = all sides
+        if (convertedParts.length === 1) {
+          return convertedParts[0]; // Single value can be used directly in RN
+        }
+        // CSS shorthand: 2 values = vertical, horizontal
+        else if (convertedParts.length === 2) {
+          result.marginVertical = convertedParts[0];
+          result.marginHorizontal = convertedParts[1];
+          return result;
+        }
+        // CSS shorthand: 3 values = top, horizontal, bottom
+        else if (convertedParts.length === 3) {
+          result.marginTop = convertedParts[0];
+          result.marginHorizontal = convertedParts[1];
+          result.marginBottom = convertedParts[2];
+          return result;
+        }
+        // CSS shorthand: 4 values = top, right, bottom, left
+        else if (convertedParts.length === 4) {
+          result.marginTop = convertedParts[0];
+          result.marginRight = convertedParts[1];
+          result.marginBottom = convertedParts[2];
+          result.marginLeft = convertedParts[3];
+          return result;
+        }
+      }
+      
+      // Similar handling for padding
+      if (property === 'padding') {
+        const result: Record<string, number> = {};
+        
+        // CSS shorthand: 1 value = all sides
+        if (convertedParts.length === 1) {
+          return convertedParts[0]; // Single value can be used directly in RN
+        }
+        // CSS shorthand: 2 values = vertical, horizontal
+        else if (convertedParts.length === 2) {
+          result.paddingVertical = convertedParts[0];
+          result.paddingHorizontal = convertedParts[1];
+          return result;
+        }
+        // CSS shorthand: 3 values = top, horizontal, bottom
+        else if (convertedParts.length === 3) {
+          result.paddingTop = convertedParts[0];
+          result.paddingHorizontal = convertedParts[1];
+          result.paddingBottom = convertedParts[2];
+          return result;
+        }
+        // CSS shorthand: 4 values = top, right, bottom, left
+        else if (convertedParts.length === 4) {
+          result.paddingTop = convertedParts[0];
+          result.paddingRight = convertedParts[1];
+          result.paddingBottom = convertedParts[2];
+          result.paddingLeft = convertedParts[3];
+          return result;
+        }
+      }
+    }
+  }
+  
+  // Continue with regular value parsing for other cases
+  
   // Handle common CSS units
   // Handle pixel values
   if (value.endsWith('px')) {
@@ -376,8 +477,13 @@ function cssRuleToReactNativeStyle(rule: CssRule): Record<string, any> {
             'marginBottom', 'marginLeft', 'padding', 'paddingTop', 'paddingRight', 
             'paddingBottom', 'paddingLeft', 'top', 'right', 'bottom', 'left'];
           
+          // Check if the value is a complex object (for multi-value properties like margin/padding)
+          if (typeof rnValue === 'object' && rnValue !== null) {
+            // Merge the object properties into the style object directly
+            Object.assign(rnStyle, rnValue);
+          }
           // Check if this property needs to be numeric
-          if (numericProperties.includes(rnProperty)) {
+          else if (numericProperties.includes(rnProperty)) {
             // If value is not a number, convert or use default
             if (typeof rnValue !== 'number') {
               // Try to convert string numbers
