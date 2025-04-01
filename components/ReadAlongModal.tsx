@@ -18,8 +18,6 @@ import TimestampMark from '../types/TimestampMark';
 import SentenceData from '../types/SentenceData';
 import TranslationPopup from './TranslationPopup';
 import { useNavigationContext } from '../NavigationContext';
-import { NavPoint } from '../types/NavPoint';
-import BookData from '../types/BookData';
 
 // Simple mutex lock implementation
 class Mutex {
