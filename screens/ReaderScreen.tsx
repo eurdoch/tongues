@@ -73,8 +73,6 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
       setIsLoading(false);
     }
 
-    console.log('DEBUG book: ', route.params.book);
-
     updateReader();
   }, [route.params.book]);
 

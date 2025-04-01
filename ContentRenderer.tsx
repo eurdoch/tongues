@@ -200,7 +200,6 @@ const ContentRenderer = ({
         );
 
       case 'img':
-        console.log('DEBUG image node: ', node);
         const imgSrc = node.props?.src || '';
         return (
           <View key={`img-${index}`} style={[styles.imageContainer, elementTypeStyles, cssClassStyles, idStyles, cssStyles, styleProps]}>
