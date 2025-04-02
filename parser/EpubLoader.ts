@@ -41,46 +41,109 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
           const { extractNavPoints } = require('../components/TableOfContents');
           tableOfContents = extractNavPoints(navMapObj);
           console.log(`Extracted table of contents with ${tableOfContents.length} top-level entries`);
+          console.log('DEBUG tableOfContents: ', tableOfContents);
         } catch (tocError) {
           console.error('Error extracting table of contents:', tocError);
         }
       }
     }
 
-    // Find all HTML content files in the EPUB
-    console.log('Finding all content files in EPUB...');
-    const contentFiles = await findAllContentFiles(unzipResult);
-    
-    if (contentFiles.length === 0) {
-      console.error('No content files found in EPUB');
-      throw Error('No content files found in EPUB');
-    }
-    
-    console.log(`Found ${contentFiles.length} content files in EPUB`);
-    
-    // Parse all content files into ElementNode arrays
-    console.log('Parsing all content files...');
+    // Parse content files based on table of contents if available
+    console.log('Parsing content files...');
     const allContentElements = [];
     
-    for (const contentFile of contentFiles) {
-      try {
-        const fileContent = await readTextFile(contentFile);
-        const parsedContent = parseHtml(fileContent);
+    // Use table of contents to identify content files if available
+    if (tableOfContents && tableOfContents.length > 0) {
+      console.log('Using table of contents to identify content files');
+      
+      // Helper function to extract src from NavPoints recursively
+      const extractSrcs = (navPoints: any[]): string[] => {
+        let srcs: string[] = [];
         
-        // Get the directory of the current content file for resolving relative paths
-        const contentFileDir = contentFile.substring(0, contentFile.lastIndexOf('/'));
+        for (const navPoint of navPoints) {
+          if (navPoint.src) {
+            // Handle fragment identifiers in the src attribute
+            const srcPath = navPoint.src.split('#')[0];
+            if (srcPath && !srcs.includes(srcPath)) {
+              srcs.push(srcPath);
+            }
+          }
+          
+          // Process children recursively
+          if (navPoint.children && navPoint.children.length > 0) {
+            srcs = [...srcs, ...extractSrcs(navPoint.children)];
+          }
+        }
         
-        // Process image tags in this content file to convert relative paths to absolute
-        processImagePaths(parsedContent, contentFileDir);
-        
-        allContentElements.push(...parsedContent);
-      } catch (parseError) {
-        console.error(`Error parsing content file ${contentFile}:`, parseError);
-        // Continue with other files even if one fails
+        return srcs;
+      };
+      
+      // Extract all unique src paths from the table of contents
+      const tocPaths = extractSrcs(tableOfContents);
+      console.log(`Found ${tocPaths.length} unique paths in table of contents`);
+      
+      // Base path for resolving relative paths in toc entries
+      const basePath = tocPath ? tocPath.substring(0, tocPath.lastIndexOf('/')) : unzipResult;
+      
+      // Process each content file from the table of contents
+      for (const relativePath of tocPaths) {
+        try {
+          // Resolve the full path to the content file
+          const fullPath = `${basePath}/${relativePath}`;
+          console.log(`Processing TOC content file: ${fullPath}`);
+          
+          const fileContent = await readTextFile(fullPath);
+          const parsedContent = parseHtml(fileContent);
+          
+          // Get the directory of the current content file for resolving relative paths
+          const contentFileDir = fullPath.substring(0, fullPath.lastIndexOf('/'));
+          
+          // Process image tags in this content file to convert relative paths to absolute
+          processImagePaths(parsedContent, contentFileDir);
+          
+          allContentElements.push(...parsedContent);
+        } catch (parseError) {
+          console.error(`Error parsing TOC content file ${relativePath}:`, parseError);
+          // Continue with other files even if one fails
+        }
+      }
+    }
+    
+    // Fallback to scanning all content files if table of contents is unavailable or empty
+    if (allContentElements.length === 0) {
+      console.log('No content from TOC or TOC not available. Falling back to scanning all content files...');
+      const contentFiles = await findAllContentFiles(unzipResult);
+      console.log('DEBUG contentFiles: ', contentFiles);
+      
+      if (contentFiles.length === 0) {
+        console.error('No content files found in EPUB');
+        throw Error('No content files found in EPUB');
+      }
+      
+      console.log(`Found ${contentFiles.length} content files in EPUB`);
+      
+      // Parse all content files into ElementNode arrays
+      for (const contentFile of contentFiles) {
+        try {
+          const fileContent = await readTextFile(contentFile);
+          const parsedContent = parseHtml(fileContent);
+          
+          // Get the directory of the current content file for resolving relative paths
+          const contentFileDir = contentFile.substring(0, contentFile.lastIndexOf('/'));
+          
+          // Process image tags in this content file to convert relative paths to absolute
+          processImagePaths(parsedContent, contentFileDir);
+          
+          allContentElements.push(...parsedContent);
+        } catch (parseError) {
+          console.error(`Error parsing content file ${contentFile}:`, parseError);
+          // Continue with other files even if one fails
+        }
       }
     }
     
     console.log(`Successfully parsed ${allContentElements.length} ElementNodes from all content files`);
+    console.log('DEBUG allContentElements: ', allContentElements);
     
     // Find and extract all stylesheets
     console.log('Finding stylesheets...');
@@ -101,10 +164,26 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
     console.log(`Found ${allStyleSheets.length} stylesheets in total`);
     
     // Get book language
-    // Use the first content file to determine language
-    const lastContentFile = contentFiles[contentFiles.length-1];
-    const lastContents = await readTextFile(lastContentFile);
-    const determination = await determineLanguage(lastContents);
+    // Use a content file to determine language
+    let contentToAnalyze = '';
+    
+    // First try using the last content element if we have any
+    if (allContentElements.length > 0) {
+      // Extract text content from the parsed elements (just enough for language detection)
+      contentToAnalyze = extractTextExcerpt(allContentElements, 500);
+    } else {
+      // Fallback: find any content file to analyze
+      const contentFiles = await findAllContentFiles(unzipResult);
+      if (contentFiles.length > 0) {
+        const lastContentFile = contentFiles[contentFiles.length-1];
+        const fullContent = await readTextFile(lastContentFile);
+        // Extract a reasonable excerpt (first 500 chars is usually enough for language detection)
+        contentToAnalyze = fullContent.slice(0, 500);
+      }
+    }
+    
+    console.log(`Using ${contentToAnalyze.length} characters for language detection`);
+    const determination = await determineLanguage(contentToAnalyze);
 
     return {
       language: determination.language,
@@ -447,6 +526,60 @@ function findNavMap(parsedXml: any): any {
   }
 
   return null;
+}
+
+/**
+ * Extracts a limited excerpt of text from an array of ElementNode objects
+ * Stops collecting text once the character limit is reached
+ * 
+ * @param elements - Array of ElementNode objects
+ * @param charLimit - Maximum number of characters to extract
+ * @returns Limited excerpt of text content
+ */
+function extractTextExcerpt(elements: ElementNode[], charLimit: number): string {
+  let text = '';
+  let charsCollected = 0;
+  let done = false;
+  
+  function extractFromElement(element: ElementNode): void {
+    if (done) return;
+    
+    // If element has children, extract from them
+    if (element.children && element.children.length > 0) {
+      for (const child of element.children) {
+        if (done) return;
+        
+        if (typeof child === 'string') {
+          // Add text content but respect the character limit
+          const remainingChars = charLimit - charsCollected;
+          if (remainingChars <= 0) {
+            done = true;
+            return;
+          }
+          
+          const textToAdd = child.slice(0, remainingChars);
+          text += textToAdd + ' ';
+          charsCollected += textToAdd.length + 1; // +1 for the space
+          
+          if (charsCollected >= charLimit) {
+            done = true;
+            return;
+          }
+        } else {
+          // Recursively extract from child elements
+          extractFromElement(child);
+        }
+      }
+    }
+  }
+  
+  // Extract text from elements until we hit the character limit
+  for (const element of elements) {
+    if (done) break;
+    extractFromElement(element);
+  }
+  
+  return text.trim();
 }
 
 /**
