@@ -56,8 +56,14 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
     if (tableOfContents && tableOfContents.length > 0) {
       console.log('Using table of contents to identify content files');
       
-      // Helper function to extract src from NavPoints recursively
-      const extractSrcs = (navPoints: any[]): string[] => {
+      // Track which nav point IDs we've processed to assign them to content elements
+      const processedNavPoints = new Map<string, boolean>();
+      
+      // Map to keep track of which file paths correspond to which nav points
+      const navPointMap = new Map<string, string>();
+      
+      // Helper function to extract src and ID from NavPoints recursively
+      const extractNavPointsInfo = (navPoints: any[]): string[] => {
         let srcs: string[] = [];
         
         for (const navPoint of navPoints) {
@@ -66,12 +72,17 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
             const srcPath = navPoint.src.split('#')[0];
             if (srcPath && !srcs.includes(srcPath)) {
               srcs.push(srcPath);
+              
+              // Associate this path with the navPoint's ID
+              if (navPoint.id) {
+                navPointMap.set(srcPath, navPoint.id);
+              }
             }
           }
           
           // Process children recursively
           if (navPoint.children && navPoint.children.length > 0) {
-            srcs = [...srcs, ...extractSrcs(navPoint.children)];
+            srcs = [...srcs, ...extractNavPointsInfo(navPoint.children)];
           }
         }
         
@@ -79,7 +90,7 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
       };
       
       // Extract all unique src paths from the table of contents
-      const tocPaths = extractSrcs(tableOfContents);
+      const tocPaths = extractNavPointsInfo(tableOfContents);
       console.log(`Found ${tocPaths.length} unique paths in table of contents`);
       
       // Base path for resolving relative paths in toc entries
@@ -100,6 +111,21 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
           
           // Process image tags in this content file to convert relative paths to absolute
           processImagePaths(parsedContent, contentFileDir);
+          
+          // Assign navId to the first element of this section if applicable
+          const navId = navPointMap.get(relativePath);
+          if (navId && parsedContent.length > 0 && !processedNavPoints.has(navId)) {
+            // Assign navId to the first element
+            parsedContent[0].navId = navId;
+            console.log(`Assigned navId ${navId} to first element of ${relativePath}`);
+            // Mark this navId as processed so we don't assign it again
+            processedNavPoints.set(navId, true);
+          } else {
+            // Set navId to null for all elements to ensure the field exists
+            parsedContent.forEach(element => {
+              element.navId = null;
+            });
+          }
           
           allContentElements.push(...parsedContent);
         } catch (parseError) {
@@ -133,6 +159,11 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
           
           // Process image tags in this content file to convert relative paths to absolute
           processImagePaths(parsedContent, contentFileDir);
+          
+          // Set navId to null for all elements in fallback mode
+          parsedContent.forEach(element => {
+            element.navId = null;
+          });
           
           allContentElements.push(...parsedContent);
         } catch (parseError) {
