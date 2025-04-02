@@ -66,8 +66,17 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
         
         // Check if we have a navId to scroll to from route params
         if (route.params.navId) {
-          console.log(`[ReaderScreen] Setting scroll to navId: ${route.params.navId}`);
-          setScrollToNavId(route.params.navId);
+          // Store navId in a variable to ensure it's not undefined later
+          const navIdToScrollTo = route.params.navId;
+          
+          // Clear current value first to ensure the change is detected even if navigating to same ID
+          setScrollToNavId(null);
+          
+          // Use a small delay to ensure state update has propagated
+          setTimeout(() => {
+            console.log(`[ReaderScreen] Setting scroll to navId: ${navIdToScrollTo}`);
+            setScrollToNavId(navIdToScrollTo);
+          }, 50);
         }
         
         if (!route.params.book.language) {

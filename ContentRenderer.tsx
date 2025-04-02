@@ -57,13 +57,32 @@ const ContentRenderer = ({
       .filter(key => !isNaN(parseInt(key)))
       .map(key => parseInt(key))
       .sort((a, b) => a - b);
+    
+    // Keep track of which items have navIds for debugging
+    const navIdItems = [];
 
     for (const key of keys) {
-      items.push({
+      const item = {
         ...content[key],
         key: key.toString(),
-      });
+      };
+      
+      // Log items with navIds for easier debugging
+      if (item.navId) {
+        navIdItems.push({ index: key, navId: item.navId });
+      }
+      
+      items.push(item);
     }
+    
+    // Log navigation points for debugging
+    if (navIdItems.length > 0) {
+      console.log(`Found ${navIdItems.length} elements with navIds:`, 
+        navIdItems.slice(0, 5).map(i => `${i.navId}@${i.index}`).join(', ') + 
+        (navIdItems.length > 5 ? ` ... and ${navIdItems.length - 5} more` : '')
+      );
+    }
+    
     return items;
   }, [content]);
 
@@ -283,19 +302,61 @@ const ContentRenderer = ({
     return index;
   }, [flattenedContent, scrollToNavId]);
   
+  // Track scroll attempts to handle retries
+  const scrollAttempts = useRef(0);
+  const maxScrollAttempts = 5;
+  
   // Scroll to the element with the matching navId when it changes
   useEffect(() => {
-    if (scrollToIndex !== -1 && flatListRef.current) {
-      console.log(`Scrolling to index ${scrollToIndex}`);
-      // Wait a bit to ensure the list is rendered
-      setTimeout(() => {
+    if (scrollToIndex === -1 || !flatListRef.current) return;
+    
+    console.log(`Attempting to scroll to index ${scrollToIndex}, attempt ${scrollAttempts.current + 1}`);
+    
+    // Progressive backoff for multiple attempts
+    const attemptScroll = () => {
+      // Reset attempts when scrollToIndex changes
+      if (scrollAttempts.current === 0) {
+        console.log(`First attempt to scroll to index ${scrollToIndex}`);
+      }
+      
+      // Increment attempt counter
+      scrollAttempts.current += 1;
+      
+      try {
+        // Try to scroll to the target index
         flatListRef.current?.scrollToIndex({
           index: scrollToIndex,
           animated: true,
           viewPosition: 0, // position at the top of the screen
         });
-      }, 100);
-    }
+        console.log(`Scroll attempt ${scrollAttempts.current} completed`);
+      } catch (error) {
+        console.warn(`Scroll attempt ${scrollAttempts.current} failed with error:`, error);
+      }
+      
+      // If we haven't reached max attempts, schedule another try with increased delay
+      if (scrollAttempts.current < maxScrollAttempts) {
+        const delay = 300 * scrollAttempts.current; // Progressive backoff
+        console.log(`Scheduling next scroll attempt in ${delay}ms`);
+        setTimeout(attemptScroll, delay);
+      } else {
+        console.log(`Maximum scroll attempts (${maxScrollAttempts}) reached`);
+        // Reset for next navigation
+        scrollAttempts.current = 0;
+      }
+    };
+    
+    // Reset counter when scrollToIndex changes
+    scrollAttempts.current = 0;
+    
+    // Start with a small delay to ensure the list is rendered first
+    setTimeout(attemptScroll, 200);
+    
+    // Cleanup function
+    return () => {
+      // Reset the attempt counter
+      scrollAttempts.current = 0;
+    };
   }, [scrollToIndex]);
   
   // Handle scroll error (out of bounds)
@@ -305,16 +366,32 @@ const ContentRenderer = ({
     averageItemLength: number;
   }) => {
     console.warn(`Scroll to index failed: ${JSON.stringify(info)}`);
-    const wait = new Promise(resolve => setTimeout(resolve, 500));
-    wait.then(() => {
-      if (flatListRef.current) {
-        flatListRef.current.scrollToIndex({
-          index: info.index,
-          animated: true,
-          viewPosition: 0,
-        });
-      }
-    });
+    
+    // Get approximate distance to scroll to get to the item
+    const estimatedPosition = info.index * info.averageItemLength;
+    
+    // Scroll to an estimated position, then try again
+    if (flatListRef.current) {
+      flatListRef.current.scrollToOffset({
+        offset: estimatedPosition,
+        animated: false,
+      });
+      
+      // Try to scroll exactly after a delay
+      setTimeout(() => {
+        if (flatListRef.current) {
+          try {
+            flatListRef.current.scrollToIndex({
+              index: info.index,
+              animated: true,
+              viewPosition: 0,
+            });
+          } catch (error) {
+            console.warn('Secondary scrollToIndex attempt failed:', error);
+          }
+        }
+      }, 200);
+    }
   };
 
   return (
@@ -326,6 +403,18 @@ const ContentRenderer = ({
         keyExtractor={keyExtractor}
         contentContainerStyle={styles.contentContainer}
         onScrollToIndexFailed={handleScrollToIndexFailed}
+        
+        // Improve scrolling performance with these props
+        initialNumToRender={30}
+        maxToRenderPerBatch={20}
+        windowSize={21} // 10 screens worth of content above and below
+        removeClippedSubviews={true}
+        
+        // Maintain scroll position
+        maintainVisibleContentPosition={{
+          minIndexForVisible: 0,
+          autoscrollToTopThreshold: 10,
+        }}
       />
     </GestureHandlerRootView>
   );
