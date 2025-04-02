@@ -710,12 +710,10 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       console.log('[ReadAlongModal] Acquired mutex lock for handlePreviousSentence');
       
       try {
-        console.log('[ReadAlongModal] Moving to previous sentence');
+        console.log('[ReadAlongModal] Moving to previous sentence without auto-play');
         
         // Stop current playback
         if (soundRef.current) {
-          const wasPlaying = isPlaying;
-          
           if (isPlaying) {
             soundRef.current.pause();
             setIsPlaying(false);
@@ -762,19 +760,11 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
             soundRef.current.setVolume(1.0);
             soundRef.current.setSpeed(playbackSpeed);
             
-            // Start playing automatically
-            soundRef.current.play((success) => {
-              if (success) {
-                console.log('[ReadAlongModal] Previous sentence completed successfully');
-                setSentenceFinished(true);
-              } else {
-                console.error('[ReadAlongModal] Previous sentence playback error');
-                setIsPlaying(false);
-              }
-            });
+            // Do NOT start playing automatically - keep paused until user presses play
+            console.log('[ReadAlongModal] Previous sentence loaded but not auto-playing');
             
-            // Update playing state
-            setIsPlaying(true);
+            // Keep isPlaying false since we're not auto-playing
+            setIsPlaying(false);
           } else {
             console.error('[ReadAlongModal] Failed to load audio for previous sentence');
           }
