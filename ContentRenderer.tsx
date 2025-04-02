@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { FlatList, View, Text, StyleSheet, TextStyle, ViewStyle } from 'react-native';
+import React, { useMemo, useRef, useEffect } from 'react';
+import { FlatList, View, Text, StyleSheet, TextStyle, ViewStyle, findNodeHandle } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { StyleSheet as BookStyleSheet } from './types/StyleSheet';
@@ -31,13 +31,16 @@ interface ContentRendererProps {
   content: any;
   contentStylesheets?: BookStyleSheet[];
   bookStyles?: Record<string, any>;
+  scrollToNavId?: string | null;
 }
 
 const ContentRenderer = ({ 
   content, 
   contentStylesheets = [],
-  bookStyles = {}
+  bookStyles = {},
+  scrollToNavId = null
 }: ContentRendererProps) => {
+  const flatListRef = useRef<FlatList>(null);
   // Process CSS stylesheets into React Native styles
   const processedStyles = useMemo(() => {
     if (contentStylesheets && contentStylesheets.length > 0) {
@@ -270,14 +273,59 @@ const ContentRenderer = ({
 
   // Optimize FlatList with keyExtractor
   const keyExtractor = (item: ElementNode & { key: string }) => item.key;
+  
+  // Find the index of the element with the scrollToNavId
+  const scrollToIndex = useMemo(() => {
+    if (!scrollToNavId) return -1;
+    
+    const index = flattenedContent.findIndex(item => item.navId === scrollToNavId);
+    console.log(`Attempting to scroll to element with navId ${scrollToNavId}, found at index ${index}`);
+    return index;
+  }, [flattenedContent, scrollToNavId]);
+  
+  // Scroll to the element with the matching navId when it changes
+  useEffect(() => {
+    if (scrollToIndex !== -1 && flatListRef.current) {
+      console.log(`Scrolling to index ${scrollToIndex}`);
+      // Wait a bit to ensure the list is rendered
+      setTimeout(() => {
+        flatListRef.current?.scrollToIndex({
+          index: scrollToIndex,
+          animated: true,
+          viewPosition: 0, // position at the top of the screen
+        });
+      }, 100);
+    }
+  }, [scrollToIndex]);
+  
+  // Handle scroll error (out of bounds)
+  const handleScrollToIndexFailed = (info: {
+    index: number;
+    highestMeasuredFrameIndex: number;
+    averageItemLength: number;
+  }) => {
+    console.warn(`Scroll to index failed: ${JSON.stringify(info)}`);
+    const wait = new Promise(resolve => setTimeout(resolve, 500));
+    wait.then(() => {
+      if (flatListRef.current) {
+        flatListRef.current.scrollToIndex({
+          index: info.index,
+          animated: true,
+          viewPosition: 0,
+        });
+      }
+    });
+  };
 
   return (
     <GestureHandlerRootView style={styles.container}>
       <FlatList
+        ref={flatListRef}
         data={flattenedContent}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
         contentContainerStyle={styles.contentContainer}
+        onScrollToIndexFailed={handleScrollToIndexFailed}
       />
     </GestureHandlerRootView>
   );

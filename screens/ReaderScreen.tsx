@@ -38,6 +38,7 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
   const [sentences, setSentences] = useState<string[]>([]);
   const [contentStylesheets, setContentStylesheets] = useState<any>(null);
   const [readAlongVisible, setReadAlongVisible] = useState<boolean>(false);
+  const [scrollToNavId, setScrollToNavId] = useState<string | null>(null);
   const { currentBook, setCurrentBook } = useNavigationContext();
 
   useEffect(() => {
@@ -62,6 +63,13 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
         const sentences = extractSentences(route.params.book.content);
         setSentences(sentences);
         setContentStylesheets(route.params.book.styleSheets);
+        
+        // Check if we have a navId to scroll to from route params
+        if (route.params.navId) {
+          console.log(`[ReaderScreen] Setting scroll to navId: ${route.params.navId}`);
+          setScrollToNavId(route.params.navId);
+        }
+        
         if (!route.params.book.language) {
           setLanguageSelectorVisible(true);
         }
@@ -74,7 +82,7 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
     }
 
     updateReader();
-  }, [route.params.book]);
+  }, [route.params.book, route.params.navId]);
 
   const handleLanguageSelect = (language: string) => {
     setCurrentBook({
@@ -151,7 +159,8 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
     <View style={styles.container}>
       <ContentRenderer 
         content={content} 
-        contentStylesheets={contentStylesheets} 
+        contentStylesheets={contentStylesheets}
+        scrollToNavId={scrollToNavId}
       />
       
       { currentBook &&

@@ -226,8 +226,12 @@ function CustomDrawerContent() {
               navPoints={currentBook.tableOfContents} 
               onNavigate={(item: NavPoint) => {
                 if (currentBook) {
+                  console.log(`[CustomDrawerContent] Navigating to section with id: ${item.id}`);
                   navigation.dispatch(DrawerActions.closeDrawer());
-                  navigation.navigate('Reader', { book: currentBook });
+                  navigation.navigate('Reader', { 
+                    book: currentBook,
+                    navId: item.id 
+                  });
                 }
               }} 
             />

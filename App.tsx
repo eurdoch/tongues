@@ -14,6 +14,7 @@ export type RootStackParamList = {
   Home: {};
   Reader: { 
     book: BookData,
+    navId?: string | null
   };
   CustomDrawerContent: {};
 };
