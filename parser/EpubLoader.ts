@@ -139,7 +139,6 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
     if (allContentElements.length === 0) {
       console.log('No content from TOC or TOC not available. Falling back to scanning all content files...');
       const contentFiles = await findAllContentFiles(unzipResult);
-      console.log('DEBUG contentFiles: ', contentFiles);
       
       if (contentFiles.length === 0) {
         console.error('No content files found in EPUB');
