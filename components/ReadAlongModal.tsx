@@ -186,6 +186,13 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     console.log(`[ReadAlongModal] Acquired mutex lock for loadSentenceByIndex(${targetIndex})`);
     
     try {
+      // Force isPlaying to false to prevent auto-start
+      // This fixes the issue where previous/next buttons would auto-play
+      setIsPlaying(false);
+      
+      // Clear the sentence finished flag to prevent auto-advance
+      setSentenceFinished(false);
+      
       setIsLoading(true);
       
       // Reset sentence translation
@@ -201,6 +208,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
       
       // Clear the current audio
       if (soundRef.current) {
+        soundRef.current.pause(); // Ensure it's paused before releasing
         soundRef.current.release();
         soundRef.current = null;
       }
@@ -727,6 +735,9 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         setIsPlaying(false);
       }
       
+      // VERY IMPORTANT: Clear any auto-advance flags
+      setSentenceFinished(false);
+      
       // Calculate the new index
       const prevIndex = currentSentenceIndex - 1;
       
@@ -737,6 +748,11 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         console.log('[ReadAlongModal] Previous sentence loaded but not auto-playing');
         // Ensure playback remains stopped
         setIsPlaying(false);
+        
+        // Make sure any pending audio is paused
+        if (soundRef.current) {
+          soundRef.current.pause();
+        }
       }
     }
   };
@@ -752,6 +768,9 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         setIsPlaying(false);
       }
       
+      // VERY IMPORTANT: Clear any auto-advance flags
+      setSentenceFinished(false);
+      
       // Use the generic function to load the next sentence
       const nextIndex = currentSentenceIndex + 1;
       const loaded = await loadSentenceByIndex(nextIndex);
@@ -760,6 +779,11 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         console.log('[ReadAlongModal] Next sentence loaded but not auto-playing');
         // Ensure playback remains stopped
         setIsPlaying(false);
+        
+        // Make sure any pending audio is paused
+        if (soundRef.current) {
+          soundRef.current.pause();
+        }
       }
     }
   };
