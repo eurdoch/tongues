@@ -82,7 +82,14 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
           
           // Process children recursively
           if (navPoint.children && navPoint.children.length > 0) {
-            srcs = [...srcs, ...extractNavPointsInfo(navPoint.children)];
+            const childSrcs = extractNavPointsInfo(navPoint.children);
+            
+            // Only add child sources that aren't already in our list
+            for (const childSrc of childSrcs) {
+              if (!srcs.includes(childSrc)) {
+                srcs.push(childSrc);
+              }
+            }
           }
         }
         
@@ -90,18 +97,32 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
       };
       
       // Extract all unique src paths from the table of contents
-      const tocPaths = extractNavPointsInfo(tableOfContents);
+      const tocPaths = [...new Set(extractNavPointsInfo(tableOfContents))];
       console.log(`Found ${tocPaths.length} unique paths in table of contents`);
+      
+      // Log the paths for debugging
+      console.log('TOC paths:', tocPaths);
       
       // Base path for resolving relative paths in toc entries
       const basePath = tocPath ? tocPath.substring(0, tocPath.lastIndexOf('/')) : unzipResult;
+      
+      // Keep track of processed file paths to avoid duplicates
+      const processedPaths = new Set<string>();
       
       // Process each content file from the table of contents
       for (const relativePath of tocPaths) {
         try {
           // Resolve the full path to the content file
           const fullPath = `${basePath}/${relativePath}`;
+          
+          // Skip if we've already processed this path
+          if (processedPaths.has(fullPath)) {
+            console.log(`Skipping duplicate TOC content file: ${fullPath}`);
+            continue;
+          }
+          
           console.log(`Processing TOC content file: ${fullPath}`);
+          processedPaths.add(fullPath);
           
           const fileContent = await readTextFile(fullPath);
           const parsedContent = parseHtml(fileContent);
@@ -135,7 +156,9 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
       }
     }
     
-    // Fallback to scanning all content files if table of contents is unavailable or empty
+    console.log('DEBUG allContentElements: ', allContentElements);
+    // Fallback to scanning all content files ONLY if table of contents is unavailable or empty
+    // and no content elements were loaded from the TOC
     if (allContentElements.length === 0) {
       console.log('No content from TOC or TOC not available. Falling back to scanning all content files...');
       const contentFiles = await findAllContentFiles(unzipResult);
@@ -147,9 +170,21 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
       
       console.log(`Found ${contentFiles.length} content files in EPUB`);
       
+      // Create a set to track which files we've processed (for fallback mode)
+      const processedFiles = new Set<string>();
+      
       // Parse all content files into ElementNode arrays
       for (const contentFile of contentFiles) {
         try {
+          // Skip if we've already processed this file
+          if (processedFiles.has(contentFile)) {
+            console.log(`Skipping duplicate content file: ${contentFile}`);
+            continue;
+          }
+          
+          processedFiles.add(contentFile);
+          console.log(`Processing content file: ${contentFile}`);
+          
           const fileContent = await readTextFile(contentFile);
           const parsedContent = parseHtml(fileContent);
           
@@ -170,6 +205,8 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
           // Continue with other files even if one fails
         }
       }
+    } else {
+      console.log(`Content successfully loaded from TOC with ${allContentElements.length} elements. Skipping fallback content loading.`);
     }
     
     console.log(`Successfully parsed ${allContentElements.length} ElementNodes from all content files`);
