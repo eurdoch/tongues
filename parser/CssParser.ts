@@ -121,6 +121,9 @@ function parseCssValue(property: string, value: string): any {
           numValue = parseFloat(part) * 1.333; // 1pt = 1.333px
         } else if (part === '0') {
           numValue = 0;
+        } else if (part === 'auto') {
+          // Special handling for 'auto' in margin
+          return 'auto';
         } else {
           // Try to parse as a number
           const parsed = parseFloat(part);
@@ -138,7 +141,7 @@ function parseCssValue(property: string, value: string): any {
       // For margin and padding in React Native, we need to set individual properties
       // instead of using CSS-style shorthand
       if (property === 'margin') {
-        const result: Record<string, number> = {};
+        const result: Record<string, any> = {}; // Change to any to allow 'auto' value
         
         // CSS shorthand: 1 value = all sides
         if (convertedParts.length === 1) {
@@ -169,7 +172,7 @@ function parseCssValue(property: string, value: string): any {
       
       // Similar handling for padding
       if (property === 'padding') {
-        const result: Record<string, number> = {};
+        const result: Record<string, any> = {}; // Change to any to allow 'auto' value
         
         // CSS shorthand: 1 value = all sides
         if (convertedParts.length === 1) {
@@ -484,8 +487,12 @@ function cssRuleToReactNativeStyle(rule: CssRule): Record<string, any> {
           }
           // Check if this property needs to be numeric
           else if (numericProperties.includes(rnProperty)) {
+            // Special case for 'auto' value in margin properties
+            if (rnValue === 'auto' && rnProperty.startsWith('margin')) {
+              rnStyle[rnProperty] = 'auto';
+            }
             // If value is not a number, convert or use default
-            if (typeof rnValue !== 'number') {
+            else if (typeof rnValue !== 'number') {
               // Try to convert string numbers
               if (typeof rnValue === 'string' && /^-?\d+(\.\d+)?$/.test(rnValue)) {
                 rnStyle[rnProperty] = parseFloat(rnValue);
