@@ -157,7 +157,6 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
       }
     }
     
-    console.log('DEBUG allContentElements: ', allContentElements);
     // Fallback to scanning all content files ONLY if table of contents is unavailable or empty
     // and no content elements were loaded from the TOC
     if (allContentElements.length === 0) {
