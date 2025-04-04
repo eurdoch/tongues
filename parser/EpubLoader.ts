@@ -18,6 +18,7 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
       await RNFS.unlink(extractionPath);
     }
 
+    // TODO this should not be here, it is not part of parsing logic!
     await AsyncStorage.setItem("current_book", fileUri);
     console.log(`[Async Storage]: Saved current book: ${fileUri}`);
 
