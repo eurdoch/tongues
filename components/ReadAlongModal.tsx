@@ -86,10 +86,38 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
   // Create a mutex for audio control operations
   const audioControlMutex = useRef<Mutex>(new Mutex());
 
-  // Position saving removed
+  // Save current sentence position
   const saveReadingPosition = async (index: number) => {
-    // Function kept as stub for compatibility
-    console.log(`[ReadAlongModal] Reading position tracking disabled: ${index}`);
+    if (!currentBook) return;
+    
+    try {
+      // Create a unique key for this book using the book's path
+      const storageKey = `SENTENCE_POSITION_${currentBook.path}`;
+      await AsyncStorage.setItem(storageKey, index.toString());
+      console.log(`[ReadAlongModal] Saved reading position: ${index} for book: ${currentBook.path}`);
+    } catch (error) {
+      console.error('[ReadAlongModal] Error saving reading position:', error);
+    }
+  };
+  
+  // Load saved sentence position
+  const loadReadingPosition = async (): Promise<number> => {
+    if (!currentBook) return 0;
+    
+    try {
+      const storageKey = `SENTENCE_POSITION_${currentBook.path}`;
+      const savedPosition = await AsyncStorage.getItem(storageKey);
+      
+      if (savedPosition) {
+        const position = parseInt(savedPosition, 10);
+        console.log(`[ReadAlongModal] Loaded reading position: ${position} for book: ${currentBook.path}`);
+        return position;
+      }
+    } catch (error) {
+      console.error('[ReadAlongModal] Error loading reading position:', error);
+    }
+    
+    return 0; // Default to first sentence if nothing is saved
   };
   
   // Function to preload the next sentence
@@ -319,6 +347,9 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
             
             try {
               console.log('[ReadAlongModal] Starting playback of next sentence');
+              // Save position after successfully loading the next sentence
+              await saveReadingPosition(nextIndex);
+              
               soundRef.current.play((nextSuccess) => {
                 if (nextSuccess) {
                   console.log('[ReadAlongModal] Next sentence completed successfully');
@@ -372,6 +403,9 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     try {
       if (soundRef.current) {
         if (!isPlaying) {
+          // Save current position when starting playback
+          await saveReadingPosition(currentSentenceIndex);
+          
           // Reset highlight index when starting playback from beginning
           await new Promise<void>((resolve) => {
             soundRef.current!.getCurrentTime((seconds) => {
@@ -475,8 +509,13 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         // Reset sentence translation
         setSentenceTranslation('');
         
-        // Always start from the first sentence
-        const index = 0;
+        // Load saved position for this book
+        const savedIndex = await loadReadingPosition();
+        
+        // Ensure the index is valid for the current sentences array
+        const index = savedIndex < sentences.length ? savedIndex : 0;
+        console.log(`[ReadAlongModal] Starting from position: ${index} (saved: ${savedIndex})`);
+        
         setCurrentSentenceIndex(index);
         
         setHighlightIndex(0); // Reset highlight when loading a new sentence
@@ -492,7 +531,6 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         currentTimestamps.current = [];
         
         const sentence = sentences[index];
-        console.log('DEBUG sentence: ', sentence);
         console.log(`[ReadAlongModal] Loading sentence ${index}: "${sentence.substring(0, 30)}..."`);
         
         const [timestamps, speech] = await Promise.all([
@@ -753,6 +791,9 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         if (soundRef.current) {
           soundRef.current.pause();
         }
+        
+        // Explicitly save this position
+        await saveReadingPosition(prevIndex);
       }
     }
   };
@@ -784,6 +825,9 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
         if (soundRef.current) {
           soundRef.current.pause();
         }
+        
+        // Explicitly save this position
+        await saveReadingPosition(nextIndex);
       }
     }
   };
