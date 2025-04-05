@@ -1015,6 +1015,7 @@ function HomeScreen(): React.JSX.Element {
                                 
                                 // Remove saved reading position from AsyncStorage
                                 const positionKey = `SENTENCE_POSITION_${book.uri}`;
+                                console.log('DEBUG: positionKey: ', positionKey);
                                 try {
                                     await AsyncStorage.removeItem(positionKey);
                                     console.log(`[HomeScreen] Removed reading position for deleted book: ${book.title}`);

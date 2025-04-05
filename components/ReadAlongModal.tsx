@@ -92,7 +92,8 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     
     try {
       // Create a unique key for this book using the book's path
-      const storageKey = `SENTENCE_POSITION_${currentBook.path}`;
+      const storageKey = `SENTENCE_POSITION_${currentBook.fileUri}`;
+      console.log('DEBUG: storageKey: ', storageKey);
       await AsyncStorage.setItem(storageKey, index.toString());
       console.log(`[ReadAlongModal] Saved reading position: ${index} for book: ${currentBook.path}`);
     } catch (error) {
@@ -105,7 +106,7 @@ const ReadAlongModal: React.FC<ReadAlongModalProps> = ({
     if (!currentBook) return 0;
     
     try {
-      const storageKey = `SENTENCE_POSITION_${currentBook.path}`;
+      const storageKey = `SENTENCE_POSITION_${currentBook.fileUri}`;
       const savedPosition = await AsyncStorage.getItem(storageKey);
       
       if (savedPosition) {

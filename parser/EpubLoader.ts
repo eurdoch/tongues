@@ -127,8 +127,6 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
       }
     }
 
-    console.log('DEBUG allContentElements: ', JSON.stringify(allContentElements));
-    
     // Find and extract all stylesheets
     console.log('Finding stylesheets...');
     // Get stylesheets from two sources and merge them
@@ -196,6 +194,7 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
       path: unzipResult,
       navMap: navMapObj, // Keep for backward compatibility
       basePath: opfBasePath,
+      fileUri,
       content: allContentElements, // Add the parsed content to the BookData
       styleSheets: allStyleSheets, // Add the parsed stylesheets to the BookData
       tableOfContents // Empty for now, will be implemented later
