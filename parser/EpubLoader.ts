@@ -129,23 +129,21 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
 
     console.log('DEBUG allContentElements: ', JSON.stringify(allContentElements));
     
-    // TODO temp remove
     // Find and extract all stylesheets
-    //console.log('Finding stylesheets...');
-    //// Get stylesheets from two sources and merge them
-    //const [fileStylesheets, opfStylesheets] = await Promise.all([
-    //  findAllStylesheets(unzipResult),
-    //  findOpfStylesheets(unzipResult)
-    //]);
-    //
-    //// Combine both stylesheet sources, removing duplicates by path
-    //const allStyleSheets = [...fileStylesheets];
-    //for (const sheet of opfStylesheets) {
-    //  if (!allStyleSheets.some(s => s.path === sheet.path)) {
-    //    allStyleSheets.push(sheet);
-    //  }
-    //}
-    const allStyleSheets: any[] = [];
+    console.log('Finding stylesheets...');
+    // Get stylesheets from two sources and merge them
+    const [fileStylesheets, opfStylesheets] = await Promise.all([
+      findAllStylesheets(unzipResult),
+      findOpfStylesheets(unzipResult)
+    ]);
+    
+    // Combine both stylesheet sources, removing duplicates by path
+    const allStyleSheets = [...fileStylesheets];
+    for (const sheet of opfStylesheets) {
+      if (!allStyleSheets.some(s => s.path === sheet.path)) {
+        allStyleSheets.push(sheet);
+      }
+    }
     
     console.log(`Found ${allStyleSheets.length} stylesheets in total`);
     
