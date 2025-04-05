@@ -1013,6 +1013,15 @@ function HomeScreen(): React.JSX.Element {
                                     await RNFS.unlink(book.coverUri);
                                 }
                                 
+                                // Remove saved reading position from AsyncStorage
+                                const positionKey = `SENTENCE_POSITION_${book.uri}`;
+                                try {
+                                    await AsyncStorage.removeItem(positionKey);
+                                    console.log(`[HomeScreen] Removed reading position for deleted book: ${book.title}`);
+                                } catch (positionError) {
+                                    console.error(`Error removing reading position for ${book.title}:`, positionError);
+                                }
+                                
                                 // Remove from metadata
                                 await removeBookMetadata(book.id);
                             } catch (error) {
