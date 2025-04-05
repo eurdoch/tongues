@@ -39,7 +39,7 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
   const [contentStylesheets, setContentStylesheets] = useState<any>(null);
   const [readAlongVisible, setReadAlongVisible] = useState<boolean>(false);
   const [scrollToNavId, setScrollToNavId] = useState<string | null>(null);
-  const { currentBook, setCurrentBook } = useNavigationContext();
+  const { currentBook, setCurrentBook, isBookLoading } = useNavigationContext();
 
   useEffect(() => {
     console.log('[ReaderScreen] MOUNTED - component mounted');
@@ -207,6 +207,16 @@ function ReaderScreen({ route, navigation }: ReaderProps) {
           onSelectLanguage={handleLanguageSelect}
         />
       }
+      
+      {/* Book loading overlay */}
+      {isBookLoading && (
+        <View style={styles.loadingOverlay}>
+          <View style={styles.loadingCard}>
+            <ActivityIndicator size="large" color="#1a73e8" />
+            <Text style={styles.bookLoadingText}>Opening book...</Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -280,6 +290,36 @@ const styles = StyleSheet.create({
     color: '#e53935',
     textAlign: 'center',
     padding: 20,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  loadingCard: {
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 200,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  bookLoadingText: {
+    marginTop: 15,
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '500',
   },
 });
 
