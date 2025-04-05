@@ -104,9 +104,10 @@ function CustomDrawerContent() {
           if (savedFilePath) {
             // Parse the epub file to get full book content
             const book = await parseEpub(savedFilePath);
-            if (!book || !book.navMap) {
-              throw new Error("Failed to parse book navigation structure");
-            }
+            // TODO commented out while changing to spine based parse
+            //if (!book || !book.navMap) {
+            //  throw new Error("Failed to parse book navigation structure");
+            //}
             
             setCurrentBook(book);
             console.log(`[CustomDrawerContent] Book parsed successfully with ${book.content?.length || 0} content elements`);

@@ -8,6 +8,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { determineLanguage } from '../services/TranslationService';
 import { parseHtml } from './EpubContentParser';
 import { ElementNode } from '../types/ElementNode';
+import { NavPoint } from '../types/NavPoint';
+import { isInSupportedLanguages } from '../types/Language';
 
 export async function parseEpub(fileUri: string): Promise<BookData> {
   try {
@@ -26,240 +28,179 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
     const unzipResult = await unzip(fileUri, extractionPath);
     console.log('Epub unzipped to:', unzipResult);
 
-    // Find navigation structure (needed for TOC)
-    let navMapObj = null;
-    let tableOfContents = [];
-    const tocPath = await findFileWithExtension(unzipResult, 'ncx');
+    // Find the OPF file which contains the spine and manifest
+    const opfPath = await findFileWithExtension(unzipResult, 'opf');
+    if (!opfPath) {
+      throw new Error('No OPF file found in EPUB');
+    }
     
-    if (tocPath) {
-      const tocContents = await RNFS.readFile(tocPath, 'utf8');
-      const parsedToc = new DOMParser().parseFromString(tocContents);
-      navMapObj = findNavMap(parsedToc);
-      
-      // Extract structured table of contents
-      if (navMapObj) {
-        try {
-          const { extractNavPoints } = require('../components/TableOfContents');
-          tableOfContents = extractNavPoints(navMapObj);
-          console.log(`Extracted table of contents with ${tableOfContents.length} top-level entries`);
-          console.log('DEBUG tableOfContents: ', tableOfContents);
-        } catch (tocError) {
-          console.error('Error extracting table of contents:', tocError);
+    console.log('Found OPF file:', opfPath);
+    const opfContent = await RNFS.readFile(opfPath, 'utf8');
+    const opfBasePath = opfPath.substring(0, opfPath.lastIndexOf('/'));
+    
+    // Parse the OPF content to get the spine and manifest
+    const parsedOpf = new DOMParser().parseFromString(opfContent);
+    
+    // Extract the manifest items (mapping ids to file paths)
+    const manifestItems = new Map<string, string>();
+    const manifest = findElement(parsedOpf, 'manifest');
+    
+    if (manifest) {
+      for (let i = 0; i < manifest.childNodes.length; i++) {
+        const item = manifest.childNodes[i];
+        if (item.nodeName === 'item') {
+          const id = item.getAttribute('id');
+          const href = item.getAttribute('href');
+          
+          if (id && href) {
+            manifestItems.set(id, href);
+          }
         }
+      }
+    }
+    
+    console.log(`Extracted ${manifestItems.size} items from manifest`);
+    
+    // Extract the spine items (ordered content files)
+    const spineItemRefs: string[] = [];
+    const spine = findElement(parsedOpf, 'spine');
+    
+    if (spine) {
+      for (let i = 0; i < spine.childNodes.length; i++) {
+        const itemref = spine.childNodes[i];
+        if (itemref.nodeName === 'itemref') {
+          const idref = itemref.getAttribute('idref');
+          if (idref) {
+            spineItemRefs.push(idref);
+          }
+        }
+      }
+    }
+    
+    console.log(`Extracted ${spineItemRefs.length} items from spine`);
+    
+    // Parse content files based on spine order
+    console.log('Parsing content files from spine...');
+    const allContentElements = [];
+    const processedPaths = new Set<string>();
+    
+    // Process each content file from the spine
+    for (const idref of spineItemRefs) {
+      try {
+        const href = manifestItems.get(idref);
+        if (!href) {
+          console.log(`Skipping spine item ${idref}: no matching href in manifest`);
+          continue;
+        }
+        
+        // Resolve the full path to the content file
+        const fullPath = `${opfBasePath}/${href}`;
+        
+        // Skip if we've already processed this path
+        if (processedPaths.has(fullPath)) {
+          console.log(`Skipping duplicate spine content file: ${fullPath}`);
+          continue;
+        }
+        
+        console.log(`Processing spine content file: ${fullPath}`);
+        processedPaths.add(fullPath);
+        
+        const fileContent = await readTextFile(fullPath);
+        const parsedContent = parseHtml(fileContent);
+        
+        // Get the directory of the current content file for resolving relative paths
+        const contentFileDir = fullPath.substring(0, fullPath.lastIndexOf('/'));
+        
+        // Process image tags in this content file to convert relative paths to absolute
+        processImagePaths(parsedContent, contentFileDir);
+        
+        // Set navId to null for all elements to ensure the field exists
+        // This can be used later when TOC implementation is added back
+        parsedContent.forEach(element => {
+          element.navId = null;
+        });
+        
+        allContentElements.push(...parsedContent);
+      } catch (parseError) {
+        console.error(`Error parsing spine content file for ${idref}:`, parseError);
+        // Continue with other files even if one fails
       }
     }
 
-    // Parse content files based on table of contents if available
-    console.log('Parsing content files...');
-    const allContentElements = [];
+    console.log('DEBUG allContentElements: ', JSON.stringify(allContentElements));
     
-    // Use table of contents to identify content files if available
-    if (tableOfContents && tableOfContents.length > 0) {
-      console.log('Using table of contents to identify content files');
-      
-      // Track which nav point IDs we've processed to assign them to content elements
-      const processedNavPoints = new Map<string, boolean>();
-      
-      // Map to keep track of which file paths correspond to which nav points
-      const navPointMap = new Map<string, string>();
-      
-      // Helper function to extract src and ID from NavPoints recursively
-      const extractNavPointsInfo = (navPoints: any[]): string[] => {
-        let srcs: string[] = [];
-        
-        for (const navPoint of navPoints) {
-          if (navPoint.src) {
-            // Handle fragment identifiers in the src attribute
-            const srcPath = navPoint.src.split('#')[0];
-            if (srcPath && !srcs.includes(srcPath)) {
-              srcs.push(srcPath);
-              
-              // Associate this path with the navPoint's ID
-              if (navPoint.id) {
-                navPointMap.set(srcPath, navPoint.id);
-              }
-            }
-          }
-          
-          // Process children recursively
-          if (navPoint.children && navPoint.children.length > 0) {
-            const childSrcs = extractNavPointsInfo(navPoint.children);
-            
-            // Only add child sources that aren't already in our list
-            for (const childSrc of childSrcs) {
-              if (!srcs.includes(childSrc)) {
-                srcs.push(childSrc);
-              }
-            }
-          }
-        }
-        
-        return srcs;
-      };
-      
-      // Extract all unique src paths from the table of contents
-      const tocPaths = [...new Set(extractNavPointsInfo(tableOfContents))];
-      console.log(`Found ${tocPaths.length} unique paths in table of contents`);
-      
-      // Log the paths for debugging
-      console.log('TOC paths:', tocPaths);
-      
-      // Base path for resolving relative paths in toc entries
-      const basePath = tocPath ? tocPath.substring(0, tocPath.lastIndexOf('/')) : unzipResult;
-      
-      // Keep track of processed file paths to avoid duplicates
-      const processedPaths = new Set<string>();
-      
-      // Process each content file from the table of contents
-      for (const relativePath of tocPaths) {
-        try {
-          // Resolve the full path to the content file
-          const fullPath = `${basePath}/${relativePath}`;
-          
-          // Skip if we've already processed this path
-          if (processedPaths.has(fullPath)) {
-            console.log(`Skipping duplicate TOC content file: ${fullPath}`);
-            continue;
-          }
-          
-          console.log(`Processing TOC content file: ${fullPath}`);
-          processedPaths.add(fullPath);
-          
-          const fileContent = await readTextFile(fullPath);
-          const parsedContent = parseHtml(fileContent);
-          
-          // Get the directory of the current content file for resolving relative paths
-          const contentFileDir = fullPath.substring(0, fullPath.lastIndexOf('/'));
-          
-          // Process image tags in this content file to convert relative paths to absolute
-          processImagePaths(parsedContent, contentFileDir);
-          
-          // Assign navId to the first element of this section if applicable
-          const navId = navPointMap.get(relativePath);
-          if (navId && parsedContent.length > 0 && !processedNavPoints.has(navId)) {
-            // Assign navId to the first element
-            parsedContent[0].navId = navId;
-            console.log(`Assigned navId ${navId} to first element of ${relativePath}`);
-            // Mark this navId as processed so we don't assign it again
-            processedNavPoints.set(navId, true);
-          } else {
-            // Set navId to null for all elements to ensure the field exists
-            parsedContent.forEach(element => {
-              element.navId = null;
-            });
-          }
-          
-          allContentElements.push(...parsedContent);
-        } catch (parseError) {
-          console.error(`Error parsing TOC content file ${relativePath}:`, parseError);
-          // Continue with other files even if one fails
-        }
-      }
-    }
-    
-    // Fallback to scanning all content files ONLY if table of contents is unavailable or empty
-    // and no content elements were loaded from the TOC
-    if (allContentElements.length === 0) {
-      console.log('No content from TOC or TOC not available. Falling back to scanning all content files...');
-      const contentFiles = await findAllContentFiles(unzipResult);
-      
-      if (contentFiles.length === 0) {
-        console.error('No content files found in EPUB');
-        throw Error('No content files found in EPUB');
-      }
-      
-      console.log(`Found ${contentFiles.length} content files in EPUB`);
-      
-      // Create a set to track which files we've processed (for fallback mode)
-      const processedFiles = new Set<string>();
-      
-      // Parse all content files into ElementNode arrays
-      for (const contentFile of contentFiles) {
-        try {
-          // Skip if we've already processed this file
-          if (processedFiles.has(contentFile)) {
-            console.log(`Skipping duplicate content file: ${contentFile}`);
-            continue;
-          }
-          
-          processedFiles.add(contentFile);
-          console.log(`Processing content file: ${contentFile}`);
-          
-          const fileContent = await readTextFile(contentFile);
-          const parsedContent = parseHtml(fileContent);
-          
-          // Get the directory of the current content file for resolving relative paths
-          const contentFileDir = contentFile.substring(0, contentFile.lastIndexOf('/'));
-          
-          // Process image tags in this content file to convert relative paths to absolute
-          processImagePaths(parsedContent, contentFileDir);
-          
-          // Set navId to null for all elements in fallback mode
-          parsedContent.forEach(element => {
-            element.navId = null;
-          });
-          
-          allContentElements.push(...parsedContent);
-        } catch (parseError) {
-          console.error(`Error parsing content file ${contentFile}:`, parseError);
-          // Continue with other files even if one fails
-        }
-      }
-    } else {
-      console.log(`Content successfully loaded from TOC with ${allContentElements.length} elements. Skipping fallback content loading.`);
-    }
-    
-    console.log(`Successfully parsed ${allContentElements.length} ElementNodes from all content files`);
-    console.log('DEBUG allContentElements: ', allContentElements);
-    
+    // TODO temp remove
     // Find and extract all stylesheets
-    console.log('Finding stylesheets...');
-    // Get stylesheets from two sources and merge them
-    const [fileStylesheets, opfStylesheets] = await Promise.all([
-      findAllStylesheets(unzipResult),
-      findOpfStylesheets(unzipResult)
-    ]);
-    
-    // Combine both stylesheet sources, removing duplicates by path
-    const allStyleSheets = [...fileStylesheets];
-    for (const sheet of opfStylesheets) {
-      if (!allStyleSheets.some(s => s.path === sheet.path)) {
-        allStyleSheets.push(sheet);
-      }
-    }
+    //console.log('Finding stylesheets...');
+    //// Get stylesheets from two sources and merge them
+    //const [fileStylesheets, opfStylesheets] = await Promise.all([
+    //  findAllStylesheets(unzipResult),
+    //  findOpfStylesheets(unzipResult)
+    //]);
+    //
+    //// Combine both stylesheet sources, removing duplicates by path
+    //const allStyleSheets = [...fileStylesheets];
+    //for (const sheet of opfStylesheets) {
+    //  if (!allStyleSheets.some(s => s.path === sheet.path)) {
+    //    allStyleSheets.push(sheet);
+    //  }
+    //}
+    const allStyleSheets: any[] = [];
     
     console.log(`Found ${allStyleSheets.length} stylesheets in total`);
     
-    // Get book language
-    // Use a content file to determine language
-    let contentToAnalyze = '';
-    
-    // First try using the last content element if we have any
-    if (allContentElements.length > 0) {
-      // Extract text content from the parsed elements (just enough for language detection)
-      contentToAnalyze = extractTextExcerpt(allContentElements, 500);
-    } else {
-      // Fallback: find any content file to analyze
-      const contentFiles = await findAllContentFiles(unzipResult);
-      if (contentFiles.length > 0) {
-        const lastContentFile = contentFiles[contentFiles.length-1];
-        const fullContent = await readTextFile(lastContentFile);
-        // Extract a reasonable excerpt (first 500 chars is usually enough for language detection)
-        contentToAnalyze = fullContent.slice(0, 500);
+    // Determine the book language
+    // First try to get it from the OPF metadata
+    let language = null;
+    try {
+      language = extractLanguageFromOpf(opfContent);
+      if (language) {
+        if (isInSupportedLanguages(language)) {
+          console.log(`Language from OPF metadata: ${language}`);
+        } else {
+          language = null;
+        }
       }
+    } catch (langError) {
+      console.error('Error extracting language from OPF:', langError);
     }
     
-    console.log(`Using ${contentToAnalyze.length} characters for language detection`);
-    const determination = await determineLanguage(contentToAnalyze);
+    // If language not found in OPF, analyze content
+    if (!language) {
+      let contentToAnalyze = '';
+      
+      // Use the content elements if we have any
+      if (allContentElements.length > 0) {
+        // Extract text content from the parsed elements (just enough for language detection)
+        contentToAnalyze = extractTextExcerpt(allContentElements, 500);
+      } else {
+        // Fallback: find any content file to analyze
+        const contentFiles = await findAllContentFiles(unzipResult);
+        if (contentFiles.length > 0) {
+          const lastContentFile = contentFiles[contentFiles.length-1];
+          const fullContent = await readTextFile(lastContentFile);
+          // Extract a reasonable excerpt (first 500 chars is usually enough for language detection)
+          contentToAnalyze = fullContent.slice(0, 500);
+        }
+      }
+      
+      console.log(`Using ${contentToAnalyze.length} characters for language detection`);
+      const determination = await determineLanguage(contentToAnalyze);
+      language = determination.language;
+    }
+
+    // For backward compatibility, set navMap to null (we'll implement TOC generation later)
+    const navMapObj = null;
+    const tableOfContents: NavPoint[] = [];
 
     return {
-      language: determination.language,
+      language: language,
       path: unzipResult,
       navMap: navMapObj, // Keep for backward compatibility
-      basePath: tocPath ? tocPath.substring(0, tocPath.lastIndexOf('/')) : unzipResult,
+      basePath: opfBasePath,
       content: allContentElements, // Add the parsed content to the BookData
       styleSheets: allStyleSheets, // Add the parsed stylesheets to the BookData
-      tableOfContents: tableOfContents // Add the structured table of contents
+      tableOfContents // Empty for now, will be implemented later
     };
   } catch (error) {
     console.error('Epub parsing failed:', error);
@@ -577,22 +518,39 @@ function findLastNode(node: any): any {
   return node;
 }
 
-function findNavMap(parsedXml: any): any {
-  if (parsedXml.nodeName === 'navMap') {
-    return parsedXml;
+/**
+ * Recursively finds an element with the given name in an XML document
+ * 
+ * @param node - The node to start searching from
+ * @param elementName - The name of the element to search for
+ * @returns The found element, or null if not found
+ */
+function findElement(node: any, elementName: string): any {
+  if (node.nodeName === elementName) {
+    return node;
   }
 
-  const childNodes = parsedXml.childNodes;
+  const childNodes = node.childNodes;
   if (childNodes) {
     for (let i = 0; i < childNodes.length; i++) {
-      const foundNavMap = findNavMap(childNodes[i]);
-      if (foundNavMap) {
-        return foundNavMap;
+      const foundElement = findElement(childNodes[i], elementName);
+      if (foundElement) {
+        return foundElement;
       }
     }
   }
 
   return null;
+}
+
+/**
+ * Finds the navMap element in an XML document (kept for backward compatibility)
+ * 
+ * @param parsedXml - The XML document to search in
+ * @returns The navMap element, or null if not found
+ */
+function findNavMap(parsedXml: any): any {
+  return findElement(parsedXml, 'navMap');
 }
 
 /**

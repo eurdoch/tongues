@@ -923,9 +923,10 @@ function HomeScreen(): React.JSX.Element {
             console.log(`[HomeScreen] Opening book: ${item.uri}`);
             const book = await parseEpub(item.uri);
             
-            if (!book || !book.navMap) {
-                throw new Error("Failed to parse book navigation structure");
-            }
+            // TODO commented out temporarily while building spine parser
+            //if (!book || !book.navMap) {
+            //    throw new Error("Failed to parse book navigation structure");
+            //}
             
             setCurrentBook(book);
             console.log(`[HomeScreen] Book parsed successfully with ${book.content?.length || 0} content elements`);
