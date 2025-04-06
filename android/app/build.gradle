@@ -87,8 +87,8 @@ android {
         applicationId "com.glossa"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 8
-        versionName "0.0.8-alpha"
+        versionCode 9
+        versionName "0.0.9-alpha"
     }
     signingConfigs {
         debug {
