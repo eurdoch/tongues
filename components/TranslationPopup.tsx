@@ -12,8 +12,6 @@ const TranslationPopup: React.FC<any> = ({
   text,
   translation,
   isExplaining,
-  selectedWordExplanation,
-  handleExplainWord: parentHandleExplainWord,
 }) => {
   const [slideAnim] = useState({ translateX: new Animated.Value(0), translateY: new Animated.Value(0) });
   const { currentBook } = useNavigationContext();
@@ -86,10 +84,6 @@ const TranslationPopup: React.FC<any> = ({
       const data = await response.json();
       setExplanation(data.explanation);
       
-      // Also call parent handler if provided
-      if (parentHandleExplainWord) {
-        parentHandleExplainWord(e);
-      }
     } catch (error) {
       console.error('Error explaining text:', error);
       Alert.alert('Error', 'Failed to get explanation. Please try again.');
@@ -98,15 +92,19 @@ const TranslationPopup: React.FC<any> = ({
     }
   }
 
+  const handleClose = (_e: any) => {
+    onClose();
+    setExplanation(null);
+  }
   
   return (
     <Modal
       transparent
       visible={visible}
       animationType="fade"
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
-        <TouchableWithoutFeedback onPress={onClose}>
+        <TouchableWithoutFeedback onPress={handleClose}>
         <View style={styles.overlay}>
           <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
             <Animated.View 
@@ -136,7 +134,7 @@ const TranslationPopup: React.FC<any> = ({
                         </View>
                         <Text style={styles.popupTranslation}>{translation}</Text>
                         
-                        {!selectedWordExplanation && !isExplaining && !isExplainingLocal && !explanation && (
+                        {!isExplaining && !isExplainingLocal && !explanation && (
                           <TouchableOpacity
                             onPress={handleExplainWord}
                             style={styles.popupExplainButton}
@@ -149,16 +147,6 @@ const TranslationPopup: React.FC<any> = ({
                           <View style={styles.loadingContainer}>
                             <ActivityIndicator size="small" color="#007AFF" />
                             <Text style={styles.loadingText}>Explaining...</Text>
-                          </View>
-                        )}
-                        
-                        {selectedWordExplanation && (
-                          <View style={styles.explanationContainerWrapper}>
-                            <ScrollView style={styles.explanationScrollView}>
-                              <View style={styles.explanationContainer}>
-                                <Text style={styles.popupExplanation}>{selectedWordExplanation}</Text>
-                              </View>
-                            </ScrollView>
                           </View>
                         )}
                         
