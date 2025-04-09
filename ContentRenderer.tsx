@@ -416,11 +416,45 @@ const ContentRenderer = ({
 
   useEffect(() => console.log('DEBUG flattenedContent: ', JSON.stringify(flattenedContent)), [flattenedContent]);
 
+  // Filter out consecutive section breaks before rendering
+  const optimizedContent = useMemo(() => {
+    if (!flattenedContent || flattenedContent.length === 0) return [];
+    
+    return flattenedContent.filter((item, index, array) => {
+      // Check if this is a section break (with either className or class)
+      const isSectionBreak = 
+        (item.props?.className === 'epub-section-break') || 
+        (item.props?.class === 'epub-section-break');
+      
+      // Always include non-section-break items
+      if (!isSectionBreak) {
+        return true;
+      }
+      
+      // Skip section breaks at the very beginning or end
+      if (index === 0 || index === array.length - 1) {
+        return false;
+      }
+      
+      // Skip consecutive section breaks (keep only the first one)
+      const prevItem = array[index - 1];
+      const isPrevSectionBreak = 
+        (prevItem.props?.className === 'epub-section-break') || 
+        (prevItem.props?.class === 'epub-section-break');
+      
+      if (isPrevSectionBreak) {
+        return false;
+      }
+      
+      return true;
+    });
+  }, [flattenedContent]);
+
   return (
     <GestureHandlerRootView style={styles.container}>
       <FlatList
         ref={flatListRef}
-        data={flattenedContent}
+        data={optimizedContent}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
         contentContainerStyle={styles.contentContainer}
@@ -526,8 +560,8 @@ const styles = StyleSheet.create({
   },
   // Add styling for the section breaks between chapters
   'epub-section-break': {
-    height: 40,
-    marginVertical: 20,
+    height: 30,
+    marginVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#ddd',
   },
