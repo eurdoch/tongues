@@ -95,6 +95,8 @@ const ContentRenderer = ({
     
     // Get CSS class styles if available
     let cssClassStyles = {};
+    
+    // Handle className property from our own React components
     if (node.props?.className && processedStyles) {
       // Handle multiple classes
       const classNames = node.props.className.split(/\s+/);
@@ -107,6 +109,18 @@ const ContentRenderer = ({
         // Also check in our own styles (for special classes like epub-section-break)
         if (className === 'epub-section-break' && styles['epub-section-break']) {
           cssClassStyles = { ...cssClassStyles, ...styles['epub-section-break'] };
+        }
+      }
+    }
+    
+    // IMPORTANT: Also handle regular 'class' property from HTML content
+    if (node.props?.class && processedStyles) {
+      // Handle multiple classes
+      const classNames = node.props.class.split(/\s+/);
+      for (const className of classNames) {
+        // Check in processedStyles first (from the book's CSS)
+        if (processedStyles[className]) {
+          cssClassStyles = { ...cssClassStyles, ...processedStyles[className] };
         }
       }
     }
@@ -399,6 +413,8 @@ const ContentRenderer = ({
       }, 200);
     }
   };
+
+  useEffect(() => console.log('DEBUG flattenedContent: ', JSON.stringify(flattenedContent)), [flattenedContent]);
 
   return (
     <GestureHandlerRootView style={styles.container}>
