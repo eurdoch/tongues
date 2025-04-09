@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useEffect } from 'react';
-import { FlatList, View, Text, StyleSheet, TextStyle, ViewStyle, findNodeHandle } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, TextStyle, ViewStyle, findNodeHandle } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet as BookStyleSheet } from './types/StyleSheet';
 import { processBookStyles } from './parser/CssParser';
@@ -19,7 +19,7 @@ const ContentRenderer = ({
   bookStyles = {},
   scrollToNavId = null
 }: ContentRendererProps) => {
-  const flatListRef = useRef<FlatList>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
   // Process CSS stylesheets into React Native styles
   const processedStyles = useMemo(() => {
     if (contentStylesheets && contentStylesheets.length > 0) {
@@ -363,19 +363,7 @@ const ContentRenderer = ({
     }
   };
 
-  // Render a single item for FlatList
-  const renderItem: React.ComponentProps<typeof FlatList<ElementNode & { key: string }>>['renderItem'] = ({ item }) => {
-    const typedItem = item as ElementNode & { key: string };
-    const rendered = renderNode(typedItem, typedItem.key, bookStyles, false);
-    // Ensure we return a React element (not a string)
-    if (typeof rendered === 'string') {
-      return <Text key={`flat-text-${typedItem.key}`}>{rendered}</Text>;
-    }
-    return rendered;
-  };
-
-  // Optimize FlatList with keyExtractor
-  const keyExtractor = (item: ElementNode & { key: string }) => item.key;
+  // Reference to the rendered content is maintained using View refs
   
   // Find the index of the element with the scrollToNavId
   const scrollToIndex = useMemo(() => {
@@ -386,97 +374,51 @@ const ContentRenderer = ({
     return index;
   }, [flattenedContent, scrollToNavId]);
   
-  // Track scroll attempts to handle retries
-  const scrollAttempts = useRef(0);
-  const maxScrollAttempts = 5;
+  // Create refs for each nav element that we might need to scroll to
+  const itemRefs = useRef<{[key: string]: React.RefObject<View>}>({});
+  
+  // Setup refs for all possible navigation points
+  useEffect(() => {
+    // Create/update refs for all items with navIds
+    optimizedContent.forEach(item => {
+      if (item.navId && !itemRefs.current[item.navId]) {
+        itemRefs.current[item.navId] = React.createRef<View>();
+      }
+    });
+  }, [optimizedContent]);
   
   // Scroll to the element with the matching navId when it changes
   useEffect(() => {
-    if (scrollToIndex === -1 || !flatListRef.current) return;
+    if (!scrollToNavId || !scrollViewRef.current) return;
     
-    console.log(`Attempting to scroll to index ${scrollToIndex}, attempt ${scrollAttempts.current + 1}`);
+    console.log(`Attempting to scroll to element with navId ${scrollToNavId}`);
     
-    // Progressive backoff for multiple attempts
-    const attemptScroll = () => {
-      // Reset attempts when scrollToIndex changes
-      if (scrollAttempts.current === 0) {
-        console.log(`First attempt to scroll to index ${scrollToIndex}`);
-      }
-      
-      // Increment attempt counter
-      scrollAttempts.current += 1;
-      
-      try {
-        // Try to scroll to the target index
-        flatListRef.current?.scrollToIndex({
-          index: scrollToIndex,
-          animated: true,
-          viewPosition: 0, // position at the top of the screen
-        });
-        console.log(`Scroll attempt ${scrollAttempts.current} completed`);
-      } catch (error) {
-        console.warn(`Scroll attempt ${scrollAttempts.current} failed with error:`, error);
-      }
-      
-      // If we haven't reached max attempts, schedule another try with increased delay
-      if (scrollAttempts.current < maxScrollAttempts) {
-        const delay = 300 * scrollAttempts.current; // Progressive backoff
-        console.log(`Scheduling next scroll attempt in ${delay}ms`);
-        setTimeout(attemptScroll, delay);
-      } else {
-        console.log(`Maximum scroll attempts (${maxScrollAttempts}) reached`);
-        // Reset for next navigation
-        scrollAttempts.current = 0;
-      }
-    };
-    
-    // Reset counter when scrollToIndex changes
-    scrollAttempts.current = 0;
-    
-    // Start with a small delay to ensure the list is rendered first
-    setTimeout(attemptScroll, 200);
-    
-    // Cleanup function
-    return () => {
-      // Reset the attempt counter
-      scrollAttempts.current = 0;
-    };
-  }, [scrollToIndex]);
-  
-  // Handle scroll error (out of bounds)
-  const handleScrollToIndexFailed = (info: {
-    index: number;
-    highestMeasuredFrameIndex: number;
-    averageItemLength: number;
-  }) => {
-    console.warn(`Scroll to index failed: ${JSON.stringify(info)}`);
-    
-    // Get approximate distance to scroll to get to the item
-    const estimatedPosition = info.index * info.averageItemLength;
-    
-    // Scroll to an estimated position, then try again
-    if (flatListRef.current) {
-      flatListRef.current.scrollToOffset({
-        offset: estimatedPosition,
-        animated: false,
-      });
-      
-      // Try to scroll exactly after a delay
-      setTimeout(() => {
-        if (flatListRef.current) {
-          try {
-            flatListRef.current.scrollToIndex({
-              index: info.index,
-              animated: true,
-              viewPosition: 0,
+    // We need to wait for layout to complete
+    setTimeout(() => {
+      if (itemRefs.current[scrollToNavId]?.current) {
+        // Get the ref of the target element
+        const targetRef = itemRefs.current[scrollToNavId];
+        
+        // Measure its position and scroll to it
+        targetRef.current?.measureLayout(
+          // @ts-ignore - findNodeHandle might return null but in this case we know it won't
+          findNodeHandle(scrollViewRef.current),
+          (x, y) => {
+            scrollViewRef.current?.scrollTo({
+              y: y,
+              animated: true
             });
-          } catch (error) {
-            console.warn('Secondary scrollToIndex attempt failed:', error);
+            console.log(`Scrolled to position y=${y}`);
+          },
+          (error) => {
+            console.warn(`Failed to measure layout for scrolling: ${error}`);
           }
-        }
-      }, 200);
-    }
-  };
+        );
+      } else {
+        console.warn(`Could not find ref for navId ${scrollToNavId}`);
+      }
+    }, 300); // Wait for layout to complete
+  }, [scrollToNavId, optimizedContent]);
 
   useEffect(() => console.log('DEBUG flattenedContent: ', JSON.stringify(flattenedContent)), [flattenedContent]);
 
@@ -516,26 +458,31 @@ const ContentRenderer = ({
 
   return (
     <GestureHandlerRootView style={styles.container}>
-      <FlatList
-        ref={flatListRef}
-        data={optimizedContent}
-        renderItem={renderItem}
-        keyExtractor={keyExtractor}
+      <ScrollView
+        ref={scrollViewRef}
         contentContainerStyle={styles.contentContainer}
-        onScrollToIndexFailed={handleScrollToIndexFailed}
-        
-        // Improve scrolling performance with these props
-        initialNumToRender={30}
-        maxToRenderPerBatch={20}
-        windowSize={21} // 10 screens worth of content above and below
         removeClippedSubviews={true}
-        
-        // Maintain scroll position
-        maintainVisibleContentPosition={{
-          minIndexForVisible: 0,
-          autoscrollToTopThreshold: 10,
-        }}
-      />
+        scrollEventThrottle={16}
+        showsVerticalScrollIndicator={true}
+      >
+        {optimizedContent.map((item, index) => {
+          // For items with navId, we add a ref to enable scrolling to them
+          if (item.navId && itemRefs.current[item.navId]) {
+            return (
+              <View key={item.key} ref={itemRefs.current[item.navId]}>
+                {renderNode(item, item.key, bookStyles, false)}
+              </View>
+            );
+          }
+          
+          // Render regular items without refs
+          return (
+            <React.Fragment key={item.key}>
+              {renderNode(item, item.key, bookStyles, false)}
+            </React.Fragment>
+          );
+        })}
+      </ScrollView>
     </GestureHandlerRootView>
   );
 };
