@@ -105,8 +105,8 @@ const ContentRenderer = ({
         }
         
         // Also check in our own styles (for special classes like epub-section-break)
-        if (styles[className]) {
-          cssClassStyles = { ...cssClassStyles, ...styles[className] };
+        if (className === 'epub-section-break' && styles['epub-section-break']) {
+          cssClassStyles = { ...cssClassStyles, ...styles['epub-section-break'] };
         }
       }
     }
