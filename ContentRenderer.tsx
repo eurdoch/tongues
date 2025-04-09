@@ -375,14 +375,14 @@ const ContentRenderer = ({
   }, [flattenedContent, scrollToNavId]);
   
   // Create refs for each nav element that we might need to scroll to
-  const itemRefs = useRef<{[key: string]: React.RefObject<View>}>({});
+  const itemRefs = useRef<{[key: string]: React.RefObject<View | null>}>({});
   
   // Setup refs for all possible navigation points
   useEffect(() => {
     // Create/update refs for all items with navIds
     flattenedContent.forEach(item => {
       if (item.navId && !itemRefs.current[item.navId]) {
-        itemRefs.current[item.navId] = React.createRef<View>();
+        itemRefs.current[item.navId] = React.createRef<View | null>();
       }
     });
   }, [flattenedContent]);
@@ -410,7 +410,7 @@ const ContentRenderer = ({
             });
             console.log(`Scrolled to position y=${y}`);
           },
-          (error) => {
+          (error: Error) => {
             console.warn(`Failed to measure layout for scrolling: ${error}`);
           }
         );
