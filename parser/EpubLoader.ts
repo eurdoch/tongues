@@ -108,6 +108,12 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
         const fileContent = await readTextFile(fullPath);
         const parsedContent = parseHtml(fileContent);
         
+        // Skip if no valid content was parsed
+        if (!parsedContent || parsedContent.length === 0) {
+          console.log(`Skipping empty content file: ${fullPath}`);
+          continue;
+        }
+        
         // Get the directory of the current content file for resolving relative paths
         const contentFileDir = fullPath.substring(0, fullPath.lastIndexOf('/'));
         
@@ -119,6 +125,16 @@ export async function parseEpub(fileUri: string): Promise<BookData> {
         parsedContent.forEach(element => {
           element.navId = null;
         });
+        
+        // Add a section break if there's already content
+        if (allContentElements.length > 0) {
+          allContentElements.push({ 
+            type: 'div', 
+            props: { className: 'epub-section-break' }, 
+            children: [],
+            navId: null
+          });
+        }
         
         allContentElements.push(...parsedContent);
       } catch (parseError) {

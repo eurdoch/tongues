@@ -99,8 +99,14 @@ const ContentRenderer = ({
       // Handle multiple classes
       const classNames = node.props.className.split(/\s+/);
       for (const className of classNames) {
+        // Check in processedStyles first (from the book's CSS)
         if (processedStyles[className]) {
           cssClassStyles = { ...cssClassStyles, ...processedStyles[className] };
+        }
+        
+        // Also check in our own styles (for special classes like epub-section-break)
+        if (styles[className]) {
+          cssClassStyles = { ...cssClassStyles, ...styles[className] };
         }
       }
     }
@@ -501,6 +507,13 @@ const styles = StyleSheet.create({
     color: '#999',
     fontStyle: 'italic',
     padding: 20,
+  },
+  // Add styling for the section breaks between chapters
+  'epub-section-break': {
+    height: 40,
+    marginVertical: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
   },
 });
 
