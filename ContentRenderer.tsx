@@ -380,12 +380,12 @@ const ContentRenderer = ({
   // Setup refs for all possible navigation points
   useEffect(() => {
     // Create/update refs for all items with navIds
-    optimizedContent.forEach(item => {
+    flattenedContent.forEach(item => {
       if (item.navId && !itemRefs.current[item.navId]) {
         itemRefs.current[item.navId] = React.createRef<View>();
       }
     });
-  }, [optimizedContent]);
+  }, [flattenedContent]);
   
   // Scroll to the element with the matching navId when it changes
   useEffect(() => {
@@ -418,43 +418,11 @@ const ContentRenderer = ({
         console.warn(`Could not find ref for navId ${scrollToNavId}`);
       }
     }, 300); // Wait for layout to complete
-  }, [scrollToNavId, optimizedContent]);
+  }, [scrollToNavId, flattenedContent]);
 
-  useEffect(() => console.log('DEBUG flattenedContent: ', JSON.stringify(flattenedContent)), [flattenedContent]);
+  useEffect(() => console.log('DEBUG flattenedContent: ', flattenedContent), [flattenedContent]);
 
-  // Filter out consecutive section breaks before rendering
-  const optimizedContent = useMemo(() => {
-    if (!flattenedContent || flattenedContent.length === 0) return [];
-    
-    return flattenedContent.filter((item, index, array) => {
-      // Check if this is a section break (with either className or class)
-      const isSectionBreak = 
-        (item.props?.className === 'epub-section-break') || 
-        (item.props?.class === 'epub-section-break');
-      
-      // Always include non-section-break items
-      if (!isSectionBreak) {
-        return true;
-      }
-      
-      // Skip section breaks at the very beginning or end
-      if (index === 0 || index === array.length - 1) {
-        return false;
-      }
-      
-      // Skip consecutive section breaks (keep only the first one)
-      const prevItem = array[index - 1];
-      const isPrevSectionBreak = 
-        (prevItem.props?.className === 'epub-section-break') || 
-        (prevItem.props?.class === 'epub-section-break');
-      
-      if (isPrevSectionBreak) {
-        return false;
-      }
-      
-      return true;
-    });
-  }, [flattenedContent]);
+  // Use flattenedContent directly without optimizations
 
   return (
     <GestureHandlerRootView style={styles.container}>
@@ -465,7 +433,7 @@ const ContentRenderer = ({
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={true}
       >
-        {optimizedContent.map((item, index) => {
+        {flattenedContent.map((item, index) => {
           // For items with navId, we add a ref to enable scrolling to them
           if (item.navId && itemRefs.current[item.navId]) {
             return (
